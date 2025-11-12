@@ -61,6 +61,7 @@ AS $$
 DECLARE
   v_agent_count integer := 0;
   v_phone_count integer := 0;
+  v_deleted_count integer;
   v_agent record;
 BEGIN
   -- Loop through all agents for this user
@@ -84,7 +85,8 @@ BEGIN
     DELETE FROM agent_phone_numbers
     WHERE agent_id = v_agent.id;
 
-    GET DIAGNOSTICS v_phone_count = v_phone_count + ROW_COUNT;
+    GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+    v_phone_count := v_phone_count + v_deleted_count;
   END LOOP;
 
   -- Log the action in audit_logs
