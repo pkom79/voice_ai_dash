@@ -1582,7 +1582,7 @@ For detailed documentation, see inline comments in migration file and service mo
 - [ ] Webhook receiver for real-time call updates
 - [ ] Advanced analytics and reporting
 - [✓] Stripe integration for billing (COMPLETED v2.0.0)
-- [ ] Email notifications for billing events
+- [✓] Email notifications for billing events (COMPLETED v2.1.0)
 - [✓] Configurable cost-per-minute rates (COMPLETED v2.0.0)
 - [ ] Multi-tenant agency support
 - [ ] Scheduled billing tasks edge function (auto-process monthly PPU)
@@ -1639,6 +1639,274 @@ voice-ai-dash/
 Last Updated: November 11, 2025
 Maintained by: Development Team
 For questions or updates: Please update this README when making significant changes
+
+---
+
+## Email Notification System with Resend (v2.1.0 - November 12, 2025)
+
+### Overview
+Complete email notification system integrated with Resend for automated user communications. Supports four notification types with plan-specific conditional delivery and user preference management.
+
+### Notification Types
+
+#### 1. Low Balance Alerts (Pay Per Use Only)
+- **Trigger**: When `wallet_cents` < `low_balance_threshold_cents` (default: $10.00)
+- **Frequency**: Once per 24 hours to prevent spam
+- **User Control**: Can be disabled via Profile Settings → Notifications
+- **Visibility**: Only shown to Pay Per Use users
+
+**Template Variables:**
+- `wallet_cents` - Current wallet balance (formatted as $XX.XX)
+- `low_balance_threshold_cents` - Threshold that triggered alert (formatted as $XX.XX)
+- `user.first_name` - User's first name
+- `user.last_name` - User's last name
+- `user.email` - User's email address
+
+#### 2. Insufficient Balance Alerts (Pay Per Use Only)
+- **Trigger**: On 1st of month when `month_spent_cents` > `wallet_cents`
+- **Frequency**: Once per calendar month
+- **Purpose**: Warn users their wallet cannot cover the monthly invoice
+- **User Control**: Can be disabled via Profile Settings → Notifications
+- **Visibility**: Only shown to Pay Per Use users
+
+**Template Variables:**
+- `wallet_cents` - Current wallet balance (formatted as $XX.XX)
+- `month_spent_cents` - Current month's usage charges (formatted as $XX.XX)
+- `shortfall_cents` - Difference between usage and wallet (formatted as $XX.XX)
+- `user.first_name` - User's first name
+- `user.last_name` - User's last name
+- `user.email` - User's email address
+
+#### 3. Weekly Call Activity Summaries (All Users)
+- **Trigger**: Scheduled weekly (configure via cron)
+- **Scope**: Past 7 days of call activity
+- **Condition**: Only sent if user had calls during the period
+- **User Control**: Can be disabled via Profile Settings → Notifications
+
+**Template Variables:**
+- `start_date` - Beginning of 7-day period (ISO format)
+- `end_date` - End of 7-day period (ISO format)
+- `total_calls` - Total number of calls
+- `inbound_calls` - Number of inbound calls
+- `outbound_calls` - Number of outbound calls
+- `total_duration_seconds` - Total call duration in seconds
+- `total_cost_cents` - Total cost of all calls (formatted as $XX.XX)
+- `actions_triggered` - Number of calls that triggered actions
+- `avg_duration_seconds` - Average call duration (calculated)
+- `avg_cost_cents` - Average cost per call (calculated)
+- `user.first_name` - User's first name
+- `user.last_name` - User's last name
+- `user.email` - User's email address
+
+#### 4. Service Interruption Warnings (Unlimited Plan Only)
+- **Trigger**: 9 days after `grace_until` date passes
+- **Purpose**: Final warning before service suspension (10 days past due)
+- **Frequency**: Once per 24 hours
+- **User Control**: Can be disabled via Profile Settings → Notifications
+- **Visibility**: Only applies to Unlimited plan users with past due payments
+
+**Template Variables:**
+- `grace_until` - Original grace period end date (formatted as Month Day, Year)
+- `suspension_date` - Date when service will be suspended (formatted as Month Day, Year)
+- `next_payment_at` - Original scheduled payment date
+- `user.first_name` - User's first name
+- `user.last_name` - User's last name
+- `user.email` - User's email address
+
+### Database Schema
+
+#### New Columns in `billing_accounts`
+```sql
+low_balance_threshold_cents integer DEFAULT 1000
+last_low_balance_alert_at timestamptz
+last_insufficient_balance_alert_at timestamptz
+last_interruption_warning_at timestamptz
+last_weekly_summary_at timestamptz
+```
+
+#### New Table: `email_delivery_log`
+Tracks all email notifications for audit and debugging:
+- `user_id` - Recipient user ID
+- `email_type` - Type of notification
+- `recipient_email` - Email address
+- `subject` - Email subject line
+- `status` - pending/sent/failed/bounced
+- `resend_message_id` - Resend API message ID
+- `template_data` - JSON data sent to template
+- `error_message` - Error details if failed
+- `sent_at` - Timestamp when successfully sent
+
+#### Updated `users.notification_preferences`
+```json
+{
+  "low_balance_alerts": true,
+  "weekly_summaries": true,
+  "service_interruption_alerts": true,
+  "insufficient_balance_alerts": true
+}
+```
+
+### Edge Functions
+
+#### `send-email` (Base Function)
+- Core email sending function using Resend API
+- Handles all email delivery and logging
+- Automatically logs delivery attempts to `email_delivery_log`
+
+#### `check-low-balance-alerts`
+- Scans all Pay Per Use accounts
+- Checks wallet balance against threshold
+- Respects user preferences and 24-hour cooldown
+- Should run: Every 1-6 hours
+
+#### `check-insufficient-balance-alerts`
+- Scans all Pay Per Use accounts on 1st of month
+- Compares `month_spent_cents` to `wallet_cents`
+- Sends once per calendar month
+- Should run: Daily (only triggers on 1st)
+
+#### `send-weekly-summaries`
+- Processes all users with weekly summaries enabled
+- Aggregates call data for past 7 days
+- Skips users with zero calls
+- Should run: Weekly (e.g., Monday morning)
+
+#### `check-service-interruption-warnings`
+- Scans Unlimited plan accounts
+- Identifies accounts 9 days past `grace_until` date
+- Final warning before 10-day suspension
+- Should run: Daily
+
+### Profile Settings UI Updates
+
+**Conditional Visibility:**
+- Low Balance Alerts: Only visible to Pay Per Use users
+- Insufficient Balance Alerts: Only visible to Pay Per Use users
+- Weekly Summaries: Visible to all users
+- Service Interruption Alerts: Visible to all users
+
+**Implementation:**
+- Added `billingPlan` state management in ProfilePage
+- Loads billing plan on component mount
+- Conditionally renders notification checkboxes based on plan type
+- Full dark mode support with proper styling
+
+### Environment Configuration
+
+```env
+RESEND_API_KEY=your_resend_api_key_here
+```
+
+**Required in Supabase Edge Functions:**
+- `RESEND_API_KEY` - Resend API key
+- `SUPABASE_URL` - Supabase project URL (auto-provided)
+- `SUPABASE_SERVICE_ROLE_KEY` - Service role key (auto-provided)
+
+### Email Branding
+
+**Sender:** `Voice AI Dash <notifications@voiceaidash.com>`
+
+**Design Elements:**
+- Brand color: Blue (#2563eb) for primary elements
+- Alert colors: Red (#dc2626) for urgent warnings, Yellow (#f59e0b) for warnings
+- Responsive HTML templates
+- Mobile-optimized layouts
+- Consistent header/footer across all templates
+
+### Setup Instructions
+
+1. **Add Resend API Key:**
+   ```bash
+   # Add to .env file
+   RESEND_API_KEY=your_actual_key_here
+   ```
+
+2. **Verify Domain in Resend:**
+   - Domain: `voiceaidash.com`
+   - Configure SPF, DKIM, and DMARC records
+
+3. **Run Database Migration:**
+   ```bash
+   supabase migration up
+   ```
+
+4. **Deploy Edge Functions:**
+   ```bash
+   supabase functions deploy send-email
+   supabase functions deploy check-low-balance-alerts
+   supabase functions deploy check-insufficient-balance-alerts
+   supabase functions deploy send-weekly-summaries
+   supabase functions deploy check-service-interruption-warnings
+   ```
+
+5. **Configure Cron Jobs:**
+   - Low Balance Alerts: Every 3 hours
+   - Insufficient Balance Alerts: Daily at 9:00 AM (only triggers on 1st)
+   - Weekly Summaries: Weekly on Mondays at 8:00 AM
+   - Service Interruption Warnings: Daily at 10:00 AM
+
+### Testing
+
+**Manual Testing:**
+```bash
+# Test low balance alerts
+curl -X POST "https://your-project.supabase.co/functions/v1/check-low-balance-alerts" \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY"
+
+# Test insufficient balance alerts
+curl -X POST "https://your-project.supabase.co/functions/v1/check-insufficient-balance-alerts" \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY"
+
+# Test weekly summaries
+curl -X POST "https://your-project.supabase.co/functions/v1/send-weekly-summaries" \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY"
+
+# Test service interruption warnings
+curl -X POST "https://your-project.supabase.co/functions/v1/check-service-interruption-warnings" \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY"
+```
+
+### Monitoring
+
+**Email Delivery Logs:**
+- Access via `email_delivery_log` table
+- Filter by user, email type, or status
+- View template data for debugging
+- Track delivery timestamps and errors
+
+**User Preferences:**
+- Stored in `users.notification_preferences` JSONB column
+- Updated via Profile Settings page
+- Respected by all edge functions before sending
+
+### Files Created
+
+**Database:**
+- `supabase/migrations/20251112180000_add_email_notification_system.sql`
+
+**Services:**
+- `src/services/resend.ts`
+
+**Edge Functions:**
+- `supabase/functions/send-email/index.ts`
+- `supabase/functions/check-low-balance-alerts/index.ts`
+- `supabase/functions/check-insufficient-balance-alerts/index.ts`
+- `supabase/functions/send-weekly-summaries/index.ts`
+- `supabase/functions/check-service-interruption-warnings/index.ts`
+
+**UI Updates:**
+- `src/pages/ProfilePage.tsx` - Added conditional notification preferences
+
+### Future Enhancements
+
+- [ ] Add HTML template builder for admins
+- [ ] Support for custom notification schedules
+- [ ] SMS notifications via Twilio
+- [ ] Email open/click tracking
+- [ ] A/B testing for email templates
+- [ ] User timezone support for scheduled emails
+- [ ] Unsubscribe link management
+- [ ] Email bounce handling and cleanup
 
 ---
 

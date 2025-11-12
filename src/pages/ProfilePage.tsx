@@ -9,6 +9,7 @@ export function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [billingPlan, setBillingPlan] = useState<'pay_per_use' | 'unlimited' | 'complimentary' | null>(null);
 
   const [profileData, setProfileData] = useState({
     first_name: '',
@@ -20,6 +21,8 @@ export function ProfilePage() {
   const [notifications, setNotifications] = useState({
     low_balance_alerts: true,
     weekly_summaries: true,
+    service_interruption_alerts: true,
+    insufficient_balance_alerts: true,
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -36,8 +39,26 @@ export function ProfilePage() {
         phone_number: profile.phone_number || '',
       });
       setNotifications(profile.notification_preferences);
+      loadBillingPlan();
     }
   }, [profile]);
+
+  const loadBillingPlan = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('billing_accounts')
+        .select('billing_plan')
+        .eq('user_id', profile?.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) {
+        setBillingPlan(data.billing_plan);
+      }
+    } catch (err) {
+      console.error('Error loading billing plan:', err);
+    }
+  };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,30 +318,59 @@ export function ProfilePage() {
           {activeTab === 'notifications' && (
             <form onSubmit={handleUpdateNotifications} className="space-y-6">
               <div className="space-y-4">
-                <div className="flex items-start">
-                  <div className="flex items-center h-5">
-                    <input
-                      id="low-balance"
-                      type="checkbox"
-                      checked={notifications.low_balance_alerts}
-                      onChange={(e) =>
-                        setNotifications({
-                          ...notifications,
-                          low_balance_alerts: e.target.checked,
-                        })
-                      }
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                  </div>
-                  <div className="ml-3">
-                    <label htmlFor="low-balance" className="font-medium text-gray-900 dark:text-white">
-                      Low Balance Alerts
-                    </label>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Receive notifications when your wallet balance falls below $10
-                    </p>
-                  </div>
-                </div>
+                {billingPlan === 'pay_per_use' && (
+                  <>
+                    <div className="flex items-start">
+                      <div className="flex items-center h-5">
+                        <input
+                          id="low-balance"
+                          type="checkbox"
+                          checked={notifications.low_balance_alerts}
+                          onChange={(e) =>
+                            setNotifications({
+                              ...notifications,
+                              low_balance_alerts: e.target.checked,
+                            })
+                          }
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                        />
+                      </div>
+                      <div className="ml-3">
+                        <label htmlFor="low-balance" className="font-medium text-gray-900 dark:text-white">
+                          Low Balance Alerts
+                        </label>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Receive notifications when your wallet balance falls below $10
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start">
+                      <div className="flex items-center h-5">
+                        <input
+                          id="insufficient-balance"
+                          type="checkbox"
+                          checked={notifications.insufficient_balance_alerts}
+                          onChange={(e) =>
+                            setNotifications({
+                              ...notifications,
+                              insufficient_balance_alerts: e.target.checked,
+                            })
+                          }
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                        />
+                      </div>
+                      <div className="ml-3">
+                        <label htmlFor="insufficient-balance" className="font-medium text-gray-900 dark:text-white">
+                          Insufficient Balance Alerts
+                        </label>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Receive monthly alerts when your wallet balance cannot cover the upcoming invoice
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="flex items-start">
                   <div className="flex items-center h-5">
@@ -334,7 +384,7 @@ export function ProfilePage() {
                           weekly_summaries: e.target.checked,
                         })
                       }
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                     />
                   </div>
                   <div className="ml-3">
@@ -343,6 +393,31 @@ export function ProfilePage() {
                     </label>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       Receive weekly email summaries of your call activity and costs
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <div className="flex items-center h-5">
+                    <input
+                      id="service-interruption"
+                      type="checkbox"
+                      checked={notifications.service_interruption_alerts}
+                      onChange={(e) =>
+                        setNotifications({
+                          ...notifications,
+                          service_interruption_alerts: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                    />
+                  </div>
+                  <div className="ml-3">
+                    <label htmlFor="service-interruption" className="font-medium text-gray-900 dark:text-white">
+                      Service Interruption Alerts
+                    </label>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Receive notifications when payment issues may result in service suspension
                     </p>
                   </div>
                 </div>
