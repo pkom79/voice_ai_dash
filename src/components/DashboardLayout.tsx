@@ -87,7 +87,7 @@ export function DashboardLayout() {
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between h-20 px-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between px-6 border-b border-gray-200 dark:border-gray-700" style={{ height: '80px' }}>
             <img
               src={theme === 'dark' ? logoDark : logoLight}
               alt="Voice AI Dash"
@@ -152,7 +152,7 @@ export function DashboardLayout() {
       <div className="lg:pl-64">
         {/* Header */}
         <header className="sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between h-20 px-4 sm:px-6">
+          <div className="flex items-center justify-between px-4 sm:px-6" style={{ height: '80px' }}>
             <button
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
