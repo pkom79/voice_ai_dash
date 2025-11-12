@@ -41,13 +41,10 @@ Deno.serve(async (req: Request) => {
     if (templateId) {
       const templateIdFromEnv = Deno.env.get(`RESEND_TEMPLATE_${emailType.toUpperCase()}`);
 
-      if (templateIdFromEnv) {
-        emailPayload.template_id = templateIdFromEnv;
-        emailPayload.template_data = templateData;
-      } else {
-        emailPayload.template_id = templateId;
-        emailPayload.template_data = templateData;
-      }
+      emailPayload.template = {
+        id: templateIdFromEnv || templateId,
+        variables: templateData
+      };
     } else if (html) {
       emailPayload.html = html;
     } else {
