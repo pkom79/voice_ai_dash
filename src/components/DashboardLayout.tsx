@@ -87,18 +87,20 @@ export function DashboardLayout() {
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between px-6 border-b border-gray-200 dark:border-gray-700" style={{ height: '80px' }}>
-            <img
-              src={theme === 'dark' ? logoDark : logoLight}
-              alt="Voice AI Dash"
-              className="h-14"
-            />
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden text-gray-500 hover:text-gray-700"
-            >
-              <X className="h-6 w-6" />
-            </button>
+          <div className="border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between px-6" style={{ height: '80px' }}>
+              <img
+                src={theme === 'dark' ? logoDark : logoLight}
+                alt="Voice AI Dash"
+                className="h-14"
+              />
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
           </div>
 
           {/* Navigation */}
