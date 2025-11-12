@@ -178,31 +178,79 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const invitationLink = `${Deno.env.get("SUPABASE_URL").replace('/rest/v1', '')}/accept-invitation?token=${invitationToken}`;
+    const baseUrl = Deno.env.get("SUPABASE_URL").replace('/rest/v1', '');
+    const appUrl = baseUrl.includes('supabase.co')
+      ? baseUrl.replace('https://', 'https://').replace('.supabase.co', '.supabase.co')
+      : 'http://localhost:5173';
 
-    const sendEmailUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`;
+    const invitationLink = `${appUrl}/accept-invitation?token=${invitationToken}`;
 
-    const emailResponse = await fetch(sendEmailUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        to: userEmail,
-        subject: 'Complete Your Voice AI Dash Account Setup',
-        templateType: 'invitation',
-        templateData: {
-          firstName: targetUser.first_name,
-          lastName: targetUser.last_name,
-          invitationLink: invitationLink,
-          expiresAt: expiresAt.toISOString(),
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+
+    const htmlEmail = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(to right, #3B82F6, #6366F1); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1 style="color: white; margin: 0;">Voice AI Dash</h1>
+          </div>
+
+          <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+            <h2 style="color: #1f2937; margin-top: 0;">Welcome, ${targetUser.first_name}!</h2>
+
+            <p>You've been invited to join Voice AI Dash. Complete your account setup by creating a password.</p>
+
+            <div style="margin: 30px 0;">
+              <a href="${invitationLink}"
+                 style="display: inline-block; background: #3B82F6; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                Set Up Your Account
+              </a>
+            </div>
+
+            <p style="color: #6b7280; font-size: 14px;">
+              Or copy and paste this link into your browser:<br>
+              <a href="${invitationLink}" style="color: #3B82F6; word-break: break-all;">${invitationLink}</a>
+            </p>
+
+            <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+              This invitation will expire in 7 days.
+            </p>
+
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+            <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+              Powered by <a href="https://smartcompanyai.com" style="color: #3B82F6; text-decoration: none;">SmartCompany AI</a>
+            </p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    if (resendApiKey) {
+      const emailResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json',
         },
-      }),
-    });
+        body: JSON.stringify({
+          from: 'Voice AI Dash <onboarding@resend.dev>',
+          to: [userEmail],
+          subject: 'Complete Your Voice AI Dash Account Setup',
+          html: htmlEmail,
+        }),
+      });
 
-    if (!emailResponse.ok) {
-      console.error("Failed to send email:", await emailResponse.text());
+      if (!emailResponse.ok) {
+        console.error("Failed to send email:", await emailResponse.text());
+      }
+    } else {
+      console.log("Resend API key not configured, skipping email send");
+      console.log("Invitation link:", invitationLink);
     }
 
     await supabaseAdmin.from("audit_logs").insert({

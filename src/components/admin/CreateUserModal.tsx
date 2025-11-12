@@ -198,61 +198,18 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
             {formData.role === 'client' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Billing Plan <span className="text-red-600">*</span>
                   </label>
-                  <div className="space-y-3">
-                    <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                      <input
-                        type="radio"
-                        name="billingPlan"
-                        value="pay_per_use"
-                        checked={formData.billingPlan === 'pay_per_use'}
-                        onChange={(e) => setFormData({ ...formData, billingPlan: e.target.value as 'pay_per_use' })}
-                        className="mt-1 flex-shrink-0"
-                      />
-                      <div className="ml-3 flex-1">
-                        <p className="font-medium text-gray-900">Pay Per Use</p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Charged based on usage with customizable rate
-                        </p>
-                      </div>
-                    </label>
-
-                    <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                      <input
-                        type="radio"
-                        name="billingPlan"
-                        value="unlimited"
-                        checked={formData.billingPlan === 'unlimited'}
-                        onChange={(e) => setFormData({ ...formData, billingPlan: e.target.value as 'unlimited' })}
-                        className="mt-1 flex-shrink-0"
-                      />
-                      <div className="ml-3 flex-1">
-                        <p className="font-medium text-gray-900">Unlimited</p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Fixed monthly subscription with unlimited usage
-                        </p>
-                      </div>
-                    </label>
-
-                    <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                      <input
-                        type="radio"
-                        name="billingPlan"
-                        value="complimentary"
-                        checked={formData.billingPlan === 'complimentary'}
-                        onChange={(e) => setFormData({ ...formData, billingPlan: e.target.value as 'complimentary' })}
-                        className="mt-1 flex-shrink-0"
-                      />
-                      <div className="ml-3 flex-1">
-                        <p className="font-medium text-gray-900">Complimentary</p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Free account with unlimited usage
-                        </p>
-                      </div>
-                    </label>
-                  </div>
+                  <select
+                    value={formData.billingPlan}
+                    onChange={(e) => setFormData({ ...formData, billingPlan: e.target.value as 'pay_per_use' | 'unlimited' | 'complimentary' })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="pay_per_use">Pay Per Use - Charged based on usage</option>
+                    <option value="unlimited">Unlimited - Fixed monthly subscription</option>
+                    <option value="complimentary">Complimentary - Free account</option>
+                  </select>
                 </div>
 
                 {formData.billingPlan === 'pay_per_use' && (
