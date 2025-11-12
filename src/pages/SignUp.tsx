@@ -59,7 +59,7 @@ export function SignUp() {
         </div>
 
         <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">Create Account</h1>
-        <p className="text-center text-gray-600 mb-8">Get started with Voice AI Dashboard</p>
+        <p className="text-center text-gray-600 mb-8">Get started with Voice AI Dash</p>
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
