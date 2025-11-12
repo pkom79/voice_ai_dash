@@ -16,51 +16,90 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const contentType = req.headers.get("content-type");
-    let body: any;
+    const { userId } = await req.json();
 
-    if (contentType?.includes("application/json")) {
-      body = await req.json();
-    } else {
-      const formData = await req.formData();
-      body = Object.fromEntries(formData);
-    }
-
-    const { refresh_token } = body;
-
-    if (!refresh_token) {
+    if (!userId) {
       return new Response(
-        JSON.stringify({ error: "invalid_request" }),
+        JSON.stringify({ error: "userId is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
 
+    // Get user's OAuth token data
     const { data: tokenData, error: fetchError } = await supabase
       .from("api_keys")
       .select("*")
-      .eq("refresh_token", refresh_token)
+      .eq("user_id", userId)
+      .eq("service", "highlevel")
+      .eq("is_active", true)
       .maybeSingle();
 
-    if (fetchError || !tokenData) {
+    if (fetchError || !tokenData || !tokenData.refresh_token) {
       return new Response(
-        JSON.stringify({ error: "invalid_grant" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "No valid OAuth connection found" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const newAccessToken = crypto.randomUUID();
-    const newRefreshToken = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+    // Get HighLevel OAuth credentials from environment
+    const clientId = Deno.env.get("HIGHLEVEL_CLIENT_ID");
+    const clientSecret = Deno.env.get("HIGHLEVEL_CLIENT_SECRET");
+    const tokenUrl = Deno.env.get("HIGHLEVEL_TOKEN_URL") || "https://services.leadconnectorhq.com/oauth/token";
 
+    if (!clientId || !clientSecret) {
+      console.error("Missing HighLevel OAuth credentials");
+      return new Response(
+        JSON.stringify({ error: "Server configuration error" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Refresh the token with HighLevel
+    console.log("Refreshing HighLevel OAuth token for user:", userId);
+
+    const refreshResponse = await fetch(tokenUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "refresh_token",
+        refresh_token: tokenData.refresh_token,
+      }).toString(),
+    });
+
+    if (!refreshResponse.ok) {
+      const errorText = await refreshResponse.text();
+      console.error("HighLevel token refresh failed:", errorText);
+      return new Response(
+        JSON.stringify({ error: "Failed to refresh token with HighLevel", details: errorText }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const refreshData = await refreshResponse.json();
+    console.log("Token refreshed successfully");
+
+    // Calculate expiration time
+    const expiresAt = new Date(Date.now() + (refreshData.expires_in * 1000)).toISOString();
+
+    // Update tokens in database
     const { error: updateError } = await supabase
       .from("api_keys")
       .update({
-        access_token: newAccessToken,
-        refresh_token: newRefreshToken,
+        access_token: refreshData.access_token,
+        refresh_token: refreshData.refresh_token || tokenData.refresh_token, // Keep old if new one not provided
         token_expires_at: expiresAt,
       })
       .eq("id", tokenData.id);
@@ -68,24 +107,23 @@ Deno.serve(async (req: Request) => {
     if (updateError) {
       console.error("Error updating tokens:", updateError);
       return new Response(
-        JSON.stringify({ error: "server_error" }),
+        JSON.stringify({ error: "Failed to update tokens in database" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     return new Response(
       JSON.stringify({
-        access_token: newAccessToken,
-        token_type: "Bearer",
-        expires_in: 3600,
-        refresh_token: newRefreshToken,
+        access_token: refreshData.access_token,
+        token_type: refreshData.token_type || "Bearer",
+        expires_in: refreshData.expires_in,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("OAuth refresh error:", error);
     return new Response(
-      JSON.stringify({ error: "server_error", message: error.message }),
+      JSON.stringify({ error: "server_error", message: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

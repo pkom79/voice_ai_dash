@@ -24,15 +24,42 @@
   }
 }
 
-/* Keep checkboxes white when checked */
-input[type="checkbox"]:checked {
-  background-color: white !important;
-  background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='%232563eb' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e") !important;
-  border-color: rgb(209 213 219) !important;
-}
+/* Override Tailwind's default checkbox styling */
+@layer base {
+  input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: white;
+    border: 1px solid rgb(209 213 219);
+    border-radius: 0.25rem;
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+  }
 
-.dark input[type="checkbox"]:checked {
-  background-color: white !important;
-  background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='%232563eb' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e") !important;
-  border-color: rgb(75 85 99) !important;
+  input[type="checkbox"]:checked {
+    background-color: white;
+    border-color: rgb(59 130 246);
+  }
+
+  input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 0.5rem;
+    height: 0.5rem;
+    background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='%232563eb' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+
+  input[type="checkbox"]:focus {
+    outline: 2px solid rgb(59 130 246);
+    outline-offset: 2px;
+  }
 }

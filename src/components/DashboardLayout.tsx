@@ -87,11 +87,11 @@ export function DashboardLayout() {
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between h-20 px-6 border-b border-gray-200 dark:border-gray-700">
             <img
               src={theme === 'dark' ? logoDark : logoLight}
               alt="Voice AI Dash"
-              className="h-10"
+              className="h-14"
             />
             <button
               onClick={() => setSidebarOpen(false)}
@@ -151,8 +151,8 @@ export function DashboardLayout() {
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Header */}
-        <header className="sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 pt-5">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6">
+        <header className="sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between h-20 px-4 sm:px-6">
             <button
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
@@ -162,8 +162,8 @@ export function DashboardLayout() {
 
             <div className="flex-1 lg:flex-none" />
 
-            <div className="flex items-start gap-3 sm:gap-4">
-              <div className="flex flex-col items-center pt-4">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="flex flex-col items-center">
                 <button
                   onClick={syncData}
                   disabled={isSyncing}
@@ -173,14 +173,14 @@ export function DashboardLayout() {
                   <RefreshCw className={`h-5 w-5 ${isSyncing ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">Sync</span>
                 </button>
-                <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5 mb-3 whitespace-nowrap">
+                <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 whitespace-nowrap">
                   {getLastSyncDisplay()}
                 </span>
               </div>
 
               <button
                 onClick={toggleTheme}
-                className="p-2.5 mt-3 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-2.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
               </button>
