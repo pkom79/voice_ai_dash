@@ -9,7 +9,8 @@ const corsHeaders = {
 interface EmailRequest {
   to: string;
   subject: string;
-  html: string;
+  html?: string;
+  templateId?: string;
   userId: string;
   emailType: 'low_balance_alert' | 'insufficient_balance_alert' | 'weekly_summary' | 'service_interruption_warning';
   templateData: any;
@@ -24,11 +25,26 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { to, subject, html, userId, emailType, templateData }: EmailRequest = await req.json();
+    const { to, subject, html, templateId, userId, emailType, templateData }: EmailRequest = await req.json();
 
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     if (!resendApiKey) {
       throw new Error('RESEND_API_KEY not configured');
+    }
+
+    const emailPayload: any = {
+      from: 'Voice AI Dash <notifications@voiceaidash.com>',
+      to: [to],
+      subject: subject,
+    };
+
+    if (templateId) {
+      emailPayload.react = templateId;
+      emailPayload.props = templateData;
+    } else if (html) {
+      emailPayload.html = html;
+    } else {
+      throw new Error('Either templateId or html must be provided');
     }
 
     const response = await fetch('https://api.resend.com/emails', {
@@ -37,12 +53,7 @@ Deno.serve(async (req: Request) => {
         'Authorization': `Bearer ${resendApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: 'Voice AI Dash <notifications@voiceaidash.com>',
-        to: [to],
-        subject: subject,
-        html: html,
-      }),
+      body: JSON.stringify(emailPayload),
     });
 
     if (!response.ok) {

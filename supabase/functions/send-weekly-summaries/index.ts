@@ -156,6 +156,7 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const templateId = Deno.env.get('RESEND_TEMPLATE_WEEKLY_SUMMARY');
 
     const endDate = new Date();
     const startDate = new Date(endDate);
@@ -203,12 +204,37 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      const emailHtml = generateWeeklySummaryEmail(
-        user,
-        stats,
-        startDate.toISOString().split('T')[0],
-        endDate.toISOString().split('T')[0]
-      );
+      const templateData = {
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
+        ...stats,
+        total_cost_formatted: formatCurrency(stats.total_cost_cents),
+        avg_cost_formatted: formatCurrency(avgCostCents),
+        user: {
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email: user.email,
+        },
+      };
+
+      const emailPayload: any = {
+        to: user.email,
+        subject: '📊 Your Weekly Call Summary',
+        userId: user.id,
+        emailType: 'weekly_summary',
+        templateData,
+      };
+
+      if (templateId) {
+        emailPayload.templateId = templateId;
+      } else {
+        emailPayload.html = generateWeeklySummaryEmail(
+          user,
+          stats,
+          startDate.toISOString().split('T')[0],
+          endDate.toISOString().split('T')[0]
+        );
+      }
 
       const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
         method: 'POST',
@@ -216,25 +242,7 @@ Deno.serve(async (req: Request) => {
           'Authorization': `Bearer ${supabaseServiceKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          to: user.email,
-          subject: '📊 Your Weekly Call Summary',
-          html: emailHtml,
-          userId: user.id,
-          emailType: 'weekly_summary',
-          templateData: {
-            start_date: startDate.toISOString(),
-            end_date: endDate.toISOString(),
-            ...stats,
-            total_cost_formatted: formatCurrency(stats.total_cost_cents),
-            avg_cost_formatted: formatCurrency(avgCostCents),
-            user: {
-              first_name: user.first_name,
-              last_name: user.last_name,
-              email: user.email,
-            },
-          },
-        }),
+        body: JSON.stringify(emailPayload),
       });
 
       if (emailResponse.ok) {

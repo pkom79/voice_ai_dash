@@ -113,6 +113,7 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const templateId = Deno.env.get('RESEND_TEMPLATE_INSUFFICIENT_BALANCE');
 
     const now = new Date();
 
@@ -152,11 +153,37 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      const emailHtml = generateInsufficientBalanceEmail(
-        user,
-        account.wallet_cents,
-        account.month_spent_cents
-      );
+      const templateData = {
+        wallet_cents: account.wallet_cents,
+        month_spent_cents: account.month_spent_cents,
+        shortfall_cents: account.month_spent_cents - account.wallet_cents,
+        wallet_balance_formatted: formatCurrency(account.wallet_cents),
+        month_spent_formatted: formatCurrency(account.month_spent_cents),
+        shortfall_formatted: formatCurrency(account.month_spent_cents - account.wallet_cents),
+        user: {
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email: user.email,
+        },
+      };
+
+      const emailPayload: any = {
+        to: user.email,
+        subject: '🚨 Insufficient Balance - Action Required',
+        userId: user.id,
+        emailType: 'insufficient_balance_alert',
+        templateData,
+      };
+
+      if (templateId) {
+        emailPayload.templateId = templateId;
+      } else {
+        emailPayload.html = generateInsufficientBalanceEmail(
+          user,
+          account.wallet_cents,
+          account.month_spent_cents
+        );
+      }
 
       const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
         method: 'POST',
@@ -164,26 +191,7 @@ Deno.serve(async (req: Request) => {
           'Authorization': `Bearer ${supabaseServiceKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          to: user.email,
-          subject: '🚨 Insufficient Balance - Action Required',
-          html: emailHtml,
-          userId: user.id,
-          emailType: 'insufficient_balance_alert',
-          templateData: {
-            wallet_cents: account.wallet_cents,
-            month_spent_cents: account.month_spent_cents,
-            shortfall_cents: account.month_spent_cents - account.wallet_cents,
-            wallet_balance_formatted: formatCurrency(account.wallet_cents),
-            month_spent_formatted: formatCurrency(account.month_spent_cents),
-            shortfall_formatted: formatCurrency(account.month_spent_cents - account.wallet_cents),
-            user: {
-              first_name: user.first_name,
-              last_name: user.last_name,
-              email: user.email,
-            },
-          },
-        }),
+        body: JSON.stringify(emailPayload),
       });
 
       if (emailResponse.ok) {

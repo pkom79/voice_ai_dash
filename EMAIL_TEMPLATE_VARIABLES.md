@@ -417,5 +417,54 @@ When creating templates in Resend, use Handlebars syntax:
 
 ---
 
+## Resend Template Setup Guide
+
+Follow these steps to create email templates in Resend and connect them to Voice AI Dash:
+
+### Step 1: Create Templates in Resend Dashboard
+
+1. Log in to [Resend Dashboard](https://resend.com/emails)
+2. Navigate to **Emails** → **Templates**
+3. Click **Create Template** for each email type
+4. Use the variables listed above in your template HTML
+5. Save each template and copy its Template ID (looks like `template_abc123`)
+
+### Step 2: Add Template IDs to Your .env File
+
+Update your `.env` file with the Template IDs you just created:
+
+```env
+RESEND_TEMPLATE_LOW_BALANCE=template_your_id_here
+RESEND_TEMPLATE_INSUFFICIENT_BALANCE=template_your_id_here
+RESEND_TEMPLATE_WEEKLY_SUMMARY=template_your_id_here
+RESEND_TEMPLATE_SERVICE_INTERRUPTION=template_your_id_here
+```
+
+### Step 3: Deploy Edge Functions
+
+After adding the template IDs to `.env`:
+
+1. The system will automatically use your Resend templates
+2. If a template ID is not set, it falls back to the built-in HTML emails
+3. No code changes needed - just add the environment variables
+
+### Template Behavior
+
+**With Template IDs set:**
+- System sends template ID and variables to Resend
+- Resend renders your custom template with the variables
+- You can edit templates in Resend without code changes
+
+**Without Template IDs:**
+- System sends complete HTML email (fallback mode)
+- Uses the built-in email templates in the edge functions
+- Works immediately without any Resend template setup
+
+### Testing Your Templates
+
+Use the test data provided in this document to preview your templates in Resend before deploying.
+
+---
+
 **Last Updated:** November 12, 2025
-**Version:** 3.0.0
+**Version:** 4.0.0

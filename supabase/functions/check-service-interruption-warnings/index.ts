@@ -128,6 +128,7 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const templateId = Deno.env.get('RESEND_TEMPLATE_SERVICE_INTERRUPTION');
 
     const now = new Date();
     const nineDaysAgo = new Date(now);
@@ -176,11 +177,37 @@ Deno.serve(async (req: Request) => {
       const suspensionDate = new Date(graceUntilDate);
       suspensionDate.setDate(suspensionDate.getDate() + 10);
 
-      const emailHtml = generateServiceInterruptionEmail(
-        user,
-        account.grace_until,
-        suspensionDate.toISOString()
-      );
+      const templateData = {
+        grace_until: account.grace_until,
+        suspension_date: suspensionDate.toISOString(),
+        next_payment_at: account.next_payment_at,
+        grace_until_formatted: formatDate(account.grace_until),
+        suspension_date_formatted: formatDate(suspensionDate.toISOString()),
+        next_payment_at_formatted: account.next_payment_at ? formatDate(account.next_payment_at) : null,
+        user: {
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email: user.email,
+        },
+      };
+
+      const emailPayload: any = {
+        to: user.email,
+        subject: '⚠️ URGENT: Service Suspension Notice - Action Required',
+        userId: user.id,
+        emailType: 'service_interruption_warning',
+        templateData,
+      };
+
+      if (templateId) {
+        emailPayload.templateId = templateId;
+      } else {
+        emailPayload.html = generateServiceInterruptionEmail(
+          user,
+          account.grace_until,
+          suspensionDate.toISOString()
+        );
+      }
 
       const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
         method: 'POST',
@@ -188,26 +215,7 @@ Deno.serve(async (req: Request) => {
           'Authorization': `Bearer ${supabaseServiceKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          to: user.email,
-          subject: '⚠️ URGENT: Service Suspension Notice - Action Required',
-          html: emailHtml,
-          userId: user.id,
-          emailType: 'service_interruption_warning',
-          templateData: {
-            grace_until: account.grace_until,
-            suspension_date: suspensionDate.toISOString(),
-            next_payment_at: account.next_payment_at,
-            grace_until_formatted: formatDate(account.grace_until),
-            suspension_date_formatted: formatDate(suspensionDate.toISOString()),
-            next_payment_at_formatted: account.next_payment_at ? formatDate(account.next_payment_at) : null,
-            user: {
-              first_name: user.first_name,
-              last_name: user.last_name,
-              email: user.email,
-            },
-          },
-        }),
+        body: JSON.stringify(emailPayload),
       });
 
       if (emailResponse.ok) {
