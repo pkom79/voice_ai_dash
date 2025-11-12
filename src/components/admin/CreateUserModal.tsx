@@ -333,8 +333,8 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
 
               <button
                 onClick={() => {
-                  onSuccess();
                   onClose();
+                  onSuccess();
                 }}
                 className="w-full px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
               >
