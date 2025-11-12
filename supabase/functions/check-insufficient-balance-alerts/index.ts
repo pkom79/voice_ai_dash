@@ -115,7 +115,6 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const now = new Date();
-    const currentMonth = now.toISOString().slice(0, 7);
 
     const { data: billingAccounts, error: billingError } = await supabase
       .from('billing_accounts')
@@ -133,8 +132,9 @@ Deno.serve(async (req: Request) => {
       }
 
       if (account.last_insufficient_balance_alert_at) {
-        const lastAlertMonth = account.last_insufficient_balance_alert_at.slice(0, 7);
-        if (lastAlertMonth === currentMonth) {
+        const lastAlert = new Date(account.last_insufficient_balance_alert_at);
+        const hoursSinceLastAlert = (now.getTime() - lastAlert.getTime()) / (1000 * 60 * 60);
+        if (hoursSinceLastAlert < 24) {
           continue;
         }
       }
@@ -174,6 +174,14 @@ Deno.serve(async (req: Request) => {
             wallet_cents: account.wallet_cents,
             month_spent_cents: account.month_spent_cents,
             shortfall_cents: account.month_spent_cents - account.wallet_cents,
+            wallet_balance_formatted: formatCurrency(account.wallet_cents),
+            month_spent_formatted: formatCurrency(account.month_spent_cents),
+            shortfall_formatted: formatCurrency(account.month_spent_cents - account.wallet_cents),
+            user: {
+              first_name: user.first_name,
+              last_name: user.last_name,
+              email: user.email,
+            },
           },
         }),
       });

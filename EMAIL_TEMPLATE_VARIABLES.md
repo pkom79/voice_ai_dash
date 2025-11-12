@@ -2,6 +2,8 @@
 
 This document provides all the variables available for each email notification type in Voice AI Dash. Use these variables when creating or customizing email templates in Resend.
 
+**IMPORTANT:** All formatted variables are ready to use and display currency/dates in human-readable format. Use the `_formatted` versions in your templates for automatic formatting.
+
 ---
 
 ## 1. Low Balance Alert (Pay Per Use Only)
@@ -11,47 +13,63 @@ This document provides all the variables available for each email notification t
 **Frequency:** Once per 24 hours
 **Plan:** Pay Per Use only
 
-### Available Variables
+### Available Variables - COPY & PASTE READY
 
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `wallet_cents` | Integer | Current wallet balance in cents | `850` (displays as $8.50) |
-| `low_balance_threshold_cents` | Integer | Threshold that triggered alert in cents | `1000` (displays as $10.00) |
+**Formatted Values (Use These in Templates):**
+```
+{{wallet_balance_formatted}}
+{{threshold_formatted}}
+{{user.first_name}}
+{{user.last_name}}
+{{user.email}}
+```
+
+### Complete Variable Reference
+
+| Variable | Type | Description | Example Output |
+|----------|------|-------------|----------------|
+| `wallet_balance_formatted` | String | Current wallet balance (pre-formatted) | `$8.50` |
+| `threshold_formatted` | String | Alert threshold (pre-formatted) | `$10.00` |
+| `wallet_cents` | Integer | Current wallet balance in cents (raw) | `850` |
+| `low_balance_threshold_cents` | Integer | Threshold in cents (raw) | `1000` |
 | `user.first_name` | String | User's first name | `John` |
 | `user.last_name` | String | User's last name | `Doe` |
 | `user.email` | String | User's email address | `john.doe@example.com` |
-
-### Currency Formatting
-
-All `_cents` values should be formatted to dollars using: `$XX.XX`
-
-Example: `850` cents → `$8.50`
 
 ---
 
 ## 2. Insufficient Balance Alert (Pay Per Use Only)
 
 **Email Type:** `insufficient_balance_alert`
-**Trigger:** On 1st of month when monthly usage exceeds wallet balance
-**Frequency:** Once per calendar month
+**Trigger:** Any time monthly usage exceeds wallet balance
+**Frequency:** Once per 24 hours (when condition persists)
 **Plan:** Pay Per Use only
 
-### Available Variables
+### Available Variables - COPY & PASTE READY
 
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `wallet_cents` | Integer | Current wallet balance in cents | `5000` (displays as $50.00) |
-| `month_spent_cents` | Integer | Current month's usage charges in cents | `7500` (displays as $75.00) |
-| `shortfall_cents` | Integer | Difference (month_spent - wallet) in cents | `2500` (displays as $25.00) |
+**Formatted Values (Use These in Templates):**
+```
+{{wallet_balance_formatted}}
+{{month_spent_formatted}}
+{{shortfall_formatted}}
+{{user.first_name}}
+{{user.last_name}}
+{{user.email}}
+```
+
+### Complete Variable Reference
+
+| Variable | Type | Description | Example Output |
+|----------|------|-------------|----------------|
+| `wallet_balance_formatted` | String | Current wallet balance (pre-formatted) | `$50.00` |
+| `month_spent_formatted` | String | Current month's usage (pre-formatted) | `$75.00` |
+| `shortfall_formatted` | String | Amount short (pre-formatted) | `$25.00` |
+| `wallet_cents` | Integer | Current wallet balance in cents (raw) | `5000` |
+| `month_spent_cents` | Integer | Current month's usage in cents (raw) | `7500` |
+| `shortfall_cents` | Integer | Difference in cents (raw) | `2500` |
 | `user.first_name` | String | User's first name | `John` |
 | `user.last_name` | String | User's last name | `Doe` |
 | `user.email` | String | User's email address | `john.doe@example.com` |
-
-### Currency Formatting
-
-All `_cents` values should be formatted to dollars using: `$XX.XX`
-
-Example: `7500` cents → `$75.00`
 
 ---
 
@@ -62,45 +80,59 @@ Example: `7500` cents → `$75.00`
 **Frequency:** Weekly
 **Plan:** All users with calls in the past 7 days
 
-### Available Variables
+### Available Variables - COPY & PASTE READY
 
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `start_date` | String (ISO) | Beginning of 7-day period | `2025-11-05` |
-| `end_date` | String (ISO) | End of 7-day period | `2025-11-12` |
+**Formatted Values (Use These in Templates):**
+```
+{{total_cost_formatted}}
+{{avg_cost_formatted}}
+{{start_date}}
+{{end_date}}
+{{total_calls}}
+{{inbound_calls}}
+{{outbound_calls}}
+{{total_duration_seconds}}
+{{actions_triggered}}
+{{user.first_name}}
+{{user.last_name}}
+{{user.email}}
+```
+
+### Complete Variable Reference
+
+| Variable | Type | Description | Example Output |
+|----------|------|-------------|----------------|
+| `total_cost_formatted` | String | Total cost of all calls (pre-formatted) | `$43.20` |
+| `avg_cost_formatted` | String | Average cost per call (pre-formatted) | `$0.96` |
+| `start_date` | String (ISO) | Beginning of 7-day period | `2025-11-05T00:00:00Z` |
+| `end_date` | String (ISO) | End of 7-day period | `2025-11-12T00:00:00Z` |
 | `total_calls` | Integer | Total number of calls | `45` |
 | `inbound_calls` | Integer | Number of inbound calls | `28` |
 | `outbound_calls` | Integer | Number of outbound calls | `17` |
 | `total_duration_seconds` | Integer | Total call duration in seconds | `8640` |
-| `total_cost_cents` | Integer | Total cost of all calls in cents | `4320` (displays as $43.20) |
+| `total_cost_cents` | Integer | Total cost in cents (raw) | `4320` |
 | `actions_triggered` | Integer | Number of calls that triggered actions | `12` |
 | `user.first_name` | String | User's first name | `John` |
 | `user.last_name` | String | User's last name | `Doe` |
 | `user.email` | String | User's email address | `john.doe@example.com` |
 
-### Calculated Variables (Computed in Template)
+### Additional Calculations You Can Do in Templates
 
-| Variable | Calculation | Description | Example |
-|----------|-------------|-------------|---------|
-| `avg_duration_seconds` | `total_duration_seconds / total_calls` | Average call duration in seconds | `192` |
-| `avg_cost_cents` | `total_cost_cents / total_calls` | Average cost per call in cents | `96` (displays as $0.96) |
-| `inbound_percentage` | `(inbound_calls / total_calls) * 100` | Percentage of inbound calls | `62%` |
-| `outbound_percentage` | `(outbound_calls / total_calls) * 100` | Percentage of outbound calls | `38%` |
+You can calculate these in your Resend template if needed:
 
-### Date Formatting
+| Calculation | Formula | Example Result |
+|-------------|---------|----------------|
+| Inbound Percentage | `(inbound_calls / total_calls) * 100` | `62%` |
+| Outbound Percentage | `(outbound_calls / total_calls) * 100` | `38%` |
+| Avg Duration | `total_duration_seconds / total_calls` | `192 seconds` |
 
-Format dates from ISO format to readable format:
-- `2025-11-05` → `Nov 5, 2025` or `November 5, 2025`
+### Format Helpers You May Need
 
-### Duration Formatting
+**Date Formatting:** Convert ISO dates to readable format in your template
+- `2025-11-05T00:00:00Z` → `November 5, 2025`
 
-Convert seconds to human-readable format:
-- `8640` seconds → `2h 24m`
-- `192` seconds → `3m 12s`
-
-### Currency Formatting
-
-All `_cents` values should be formatted to dollars using: `$XX.XX`
+**Duration Formatting:** Convert seconds to human-readable
+- `8640` seconds → `2h 24m` or `144 minutes`
 
 ---
 
@@ -111,22 +143,31 @@ All `_cents` values should be formatted to dollars using: `$XX.XX`
 **Frequency:** Once per 24 hours
 **Plan:** Unlimited plan with past due payment
 
-### Available Variables
+### Available Variables - COPY & PASTE READY
 
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `grace_until` | String (ISO) | Original grace period end date | `2025-11-01T23:59:59Z` |
-| `suspension_date` | String (ISO) | Date when service will be suspended | `2025-11-11T23:59:59Z` |
-| `next_payment_at` | String (ISO) | Original scheduled payment date | `2025-11-01T00:00:00Z` |
+**Formatted Values (Use These in Templates):**
+```
+{{grace_until_formatted}}
+{{suspension_date_formatted}}
+{{next_payment_at_formatted}}
+{{user.first_name}}
+{{user.last_name}}
+{{user.email}}
+```
+
+### Complete Variable Reference
+
+| Variable | Type | Description | Example Output |
+|----------|------|-------------|----------------|
+| `grace_until_formatted` | String | Grace period end date (pre-formatted) | `November 1, 2025` |
+| `suspension_date_formatted` | String | Service suspension date (pre-formatted) | `November 11, 2025` |
+| `next_payment_at_formatted` | String | Original payment date (pre-formatted) | `November 1, 2025` |
+| `grace_until` | String (ISO) | Grace period end date (raw) | `2025-11-01T23:59:59Z` |
+| `suspension_date` | String (ISO) | Service suspension date (raw) | `2025-11-11T23:59:59Z` |
+| `next_payment_at` | String (ISO) | Original payment date (raw) | `2025-11-01T00:00:00Z` |
 | `user.first_name` | String | User's first name | `John` |
 | `user.last_name` | String | User's last name | `Doe` |
 | `user.email` | String | User's email address | `john.doe@example.com` |
-
-### Date Formatting
-
-Format dates from ISO format to readable format:
-- `2025-11-11T23:59:59Z` → `November 11, 2025`
-- Use full month name for urgency and clarity
 
 ---
 
@@ -229,53 +270,74 @@ function formatDate(isoString) {
 
 ## Testing Variables
 
-Use these sample values when testing email templates:
+Use these sample values when testing email templates in Resend:
 
+### Low Balance Alert Test Data
 ```json
 {
-  "low_balance_alert": {
-    "wallet_cents": 850,
-    "low_balance_threshold_cents": 1000,
-    "user": {
-      "first_name": "John",
-      "last_name": "Doe",
-      "email": "john.doe@example.com"
-    }
-  },
-  "insufficient_balance_alert": {
-    "wallet_cents": 5000,
-    "month_spent_cents": 7500,
-    "shortfall_cents": 2500,
-    "user": {
-      "first_name": "John",
-      "last_name": "Doe",
-      "email": "john.doe@example.com"
-    }
-  },
-  "weekly_summary": {
-    "start_date": "2025-11-05",
-    "end_date": "2025-11-12",
-    "total_calls": 45,
-    "inbound_calls": 28,
-    "outbound_calls": 17,
-    "total_duration_seconds": 8640,
-    "total_cost_cents": 4320,
-    "actions_triggered": 12,
-    "user": {
-      "first_name": "John",
-      "last_name": "Doe",
-      "email": "john.doe@example.com"
-    }
-  },
-  "service_interruption_warning": {
-    "grace_until": "2025-11-01T23:59:59Z",
-    "suspension_date": "2025-11-11T23:59:59Z",
-    "next_payment_at": "2025-11-01T00:00:00Z",
-    "user": {
-      "first_name": "John",
-      "last_name": "Doe",
-      "email": "john.doe@example.com"
-    }
+  "wallet_cents": 850,
+  "low_balance_threshold_cents": 1000,
+  "wallet_balance_formatted": "$8.50",
+  "threshold_formatted": "$10.00",
+  "user": {
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john.doe@example.com"
+  }
+}
+```
+
+### Insufficient Balance Alert Test Data
+```json
+{
+  "wallet_cents": 5000,
+  "month_spent_cents": 7500,
+  "shortfall_cents": 2500,
+  "wallet_balance_formatted": "$50.00",
+  "month_spent_formatted": "$75.00",
+  "shortfall_formatted": "$25.00",
+  "user": {
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john.doe@example.com"
+  }
+}
+```
+
+### Weekly Summary Test Data
+```json
+{
+  "start_date": "2025-11-05T00:00:00Z",
+  "end_date": "2025-11-12T00:00:00Z",
+  "total_calls": 45,
+  "inbound_calls": 28,
+  "outbound_calls": 17,
+  "total_duration_seconds": 8640,
+  "total_cost_cents": 4320,
+  "actions_triggered": 12,
+  "total_cost_formatted": "$43.20",
+  "avg_cost_formatted": "$0.96",
+  "user": {
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john.doe@example.com"
+  }
+}
+```
+
+### Service Interruption Warning Test Data
+```json
+{
+  "grace_until": "2025-11-01T23:59:59Z",
+  "suspension_date": "2025-11-11T23:59:59Z",
+  "next_payment_at": "2025-11-01T00:00:00Z",
+  "grace_until_formatted": "November 1, 2025",
+  "suspension_date_formatted": "November 11, 2025",
+  "next_payment_at_formatted": "November 1, 2025",
+  "user": {
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john.doe@example.com"
   }
 }
 ```
@@ -286,13 +348,74 @@ Use these sample values when testing email templates:
 
 When creating templates in Resend, use Handlebars syntax:
 
-```handlebars
-{{user.first_name}}
-{{formatCurrency wallet_cents}}
-{{formatDate start_date}}
+### Example Usage in HTML Templates
+
+```html
+<p>Hi {{user.first_name}},</p>
+
+<p>Your current wallet balance is: {{wallet_balance_formatted}}</p>
+
+<p>Total cost this week: {{total_cost_formatted}}</p>
+
+<p>Service will be suspended on: {{suspension_date_formatted}}</p>
+```
+
+### IMPORTANT NOTES
+
+1. **Use formatted variables** - They're ready to display (e.g., `{{wallet_balance_formatted}}` displays as `$8.50`)
+2. **User object syntax** - Access user properties with dot notation: `{{user.first_name}}`, `{{user.email}}`
+3. **Raw values available** - If you need to do custom formatting, raw values like `{{wallet_cents}}` are also available
+
+---
+
+## Quick Reference - All Variables by Email Type
+
+### Low Balance Alert
+```
+{{wallet_balance_formatted}}        → $8.50
+{{threshold_formatted}}             → $10.00
+{{user.first_name}}                 → John
+{{user.last_name}}                  → Doe
+{{user.email}}                      → john.doe@example.com
+```
+
+### Insufficient Balance Alert
+```
+{{wallet_balance_formatted}}        → $50.00
+{{month_spent_formatted}}           → $75.00
+{{shortfall_formatted}}             → $25.00
+{{user.first_name}}                 → John
+{{user.last_name}}                  → Doe
+{{user.email}}                      → john.doe@example.com
+```
+
+### Weekly Summary
+```
+{{total_cost_formatted}}            → $43.20
+{{avg_cost_formatted}}              → $0.96
+{{total_calls}}                     → 45
+{{inbound_calls}}                   → 28
+{{outbound_calls}}                  → 17
+{{total_duration_seconds}}          → 8640
+{{actions_triggered}}               → 12
+{{start_date}}                      → 2025-11-05T00:00:00Z
+{{end_date}}                        → 2025-11-12T00:00:00Z
+{{user.first_name}}                 → John
+{{user.last_name}}                  → Doe
+{{user.email}}                      → john.doe@example.com
+```
+
+### Service Interruption Warning
+```
+{{grace_until_formatted}}           → November 1, 2025
+{{suspension_date_formatted}}       → November 11, 2025
+{{next_payment_at_formatted}}       → November 1, 2025
+{{user.first_name}}                 → John
+{{user.last_name}}                  → Doe
+{{user.email}}                      → john.doe@example.com
 ```
 
 ---
 
 **Last Updated:** November 12, 2025
-**Version:** 2.1.0
+**Version:** 3.0.0

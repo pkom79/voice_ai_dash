@@ -197,6 +197,8 @@ Deno.serve(async (req: Request) => {
         actions_triggered: calls?.filter(c => c.action_triggered).length || 0,
       };
 
+      const avgCostCents = stats.total_calls > 0 ? Math.round(stats.total_cost_cents / stats.total_calls) : 0;
+
       if (stats.total_calls === 0) {
         continue;
       }
@@ -224,6 +226,13 @@ Deno.serve(async (req: Request) => {
             start_date: startDate.toISOString(),
             end_date: endDate.toISOString(),
             ...stats,
+            total_cost_formatted: formatCurrency(stats.total_cost_cents),
+            avg_cost_formatted: formatCurrency(avgCostCents),
+            user: {
+              first_name: user.first_name,
+              last_name: user.last_name,
+              email: user.email,
+            },
           },
         }),
       });

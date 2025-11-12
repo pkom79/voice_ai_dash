@@ -198,6 +198,14 @@ Deno.serve(async (req: Request) => {
             grace_until: account.grace_until,
             suspension_date: suspensionDate.toISOString(),
             next_payment_at: account.next_payment_at,
+            grace_until_formatted: formatDate(account.grace_until),
+            suspension_date_formatted: formatDate(suspensionDate.toISOString()),
+            next_payment_at_formatted: account.next_payment_at ? formatDate(account.next_payment_at) : null,
+            user: {
+              first_name: user.first_name,
+              last_name: user.last_name,
+              email: user.email,
+            },
           },
         }),
       });

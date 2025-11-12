@@ -149,7 +149,14 @@ Deno.serve(async (req: Request) => {
           emailType: 'low_balance_alert',
           templateData: {
             wallet_cents: account.wallet_cents,
-            threshold_cents: account.low_balance_threshold_cents,
+            low_balance_threshold_cents: account.low_balance_threshold_cents,
+            wallet_balance_formatted: formatCurrency(account.wallet_cents),
+            threshold_formatted: formatCurrency(account.low_balance_threshold_cents),
+            user: {
+              first_name: user.first_name,
+              last_name: user.last_name,
+              email: user.email,
+            },
           },
         }),
       });
