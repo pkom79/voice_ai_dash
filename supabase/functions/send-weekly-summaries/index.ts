@@ -37,6 +37,15 @@ function formatDuration(seconds: number): string {
   return `${minutes}m`;
 }
 
+function formatDurationMinutes(seconds: number): string {
+  const minutes = seconds / 60;
+  return minutes.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatDateOnly(dateString: string): string {
+  return dateString.split('T')[0];
+}
+
 function generateWeeklySummaryEmail(
   user: User,
   stats: CallStats,
@@ -205,9 +214,10 @@ Deno.serve(async (req: Request) => {
       }
 
       const templateData = {
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
+        start_date: formatDateOnly(startDate.toISOString()),
+        end_date: formatDateOnly(endDate.toISOString()),
         ...stats,
+        total_duration_minutes: formatDurationMinutes(stats.total_duration_seconds),
         total_cost_formatted: formatCurrency(stats.total_cost_cents),
         avg_cost_formatted: formatCurrency(avgCostCents),
         user: {
