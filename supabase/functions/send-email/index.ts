@@ -33,14 +33,22 @@ Deno.serve(async (req: Request) => {
     }
 
     const emailPayload: any = {
-      from: 'Voice AI Dash <notifications@voiceaidash.com>',
+      from: 'Voice AI Dash <onboarding@resend.dev>',
       to: [to],
       subject: subject,
     };
 
     if (templateId) {
-      emailPayload.react = templateId;
-      emailPayload.props = templateData;
+      emailPayload.html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>Test Email - Template Data</h2>
+          <p><strong>Template ID:</strong> ${templateId}</p>
+          <h3>Template Variables:</h3>
+          <pre style="background: #f4f4f4; padding: 15px; border-radius: 5px;">${JSON.stringify(templateData, null, 2)}</pre>
+          <hr>
+          <p style="color: #666; font-size: 12px;">This is a test email showing the template ID and data that will be sent to your Resend template.</p>
+        </div>
+      `;
     } else if (html) {
       emailPayload.html = html;
     } else {
