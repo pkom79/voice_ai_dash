@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom tooltip styling for faster appearance and better readability */
+@layer utilities {
+  [title] {
+    position: relative;
+  }
+
+  /* Faster tooltip appearance - reduced delay */
+  [title]:hover::before,
+  [title]:hover::after {
+    animation: tooltipFadeIn 0.15s ease-in-out;
+  }
+
+  @keyframes tooltipFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}

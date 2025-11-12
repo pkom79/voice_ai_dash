@@ -1,0 +1,175 @@
+import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { createClient } from 'jsr:@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
+};
+
+async function getSecret(key: string): Promise<string | null> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const { data, error } = await supabase
+    .from('app_secrets')
+    .select('value')
+    .eq('key', key)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data.value;
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
+
+  try {
+    const STRIPE_SECRET_KEY = await getSecret('STRIPE_SECRET_KEY');
+    const STRIPE_UNLIMITED_PRICE_ID = await getSecret('STRIPE_UNLIMITED_PRICE_ID');
+
+    if (!STRIPE_SECRET_KEY) {
+      throw new Error('Stripe secret key not configured');
+    }
+
+    const { userId, type, amountCents, walletCents } = await req.json();
+
+    if (!userId || !type) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required parameters' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const baseUrl = 'https://api.stripe.com/v1';
+
+    const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/') || Deno.env.get('SUPABASE_URL')?.replace('/functions/v1', '');
+
+    const successUrl = `${origin}/billing?success=true`;
+    const cancelUrl = `${origin}/billing?canceled=true`;
+
+    let checkoutUrl: string;
+
+    if (type === 'wallet_topup') {
+      if (!amountCents || amountCents < 5000) {
+        return new Response(
+          JSON.stringify({ error: 'Minimum amount is $50' }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      const params = new URLSearchParams({
+        'payment_method_types[]': 'card',
+        'line_items[0][price_data][currency]': 'usd',
+        'line_items[0][price_data][product_data][name]': 'Wallet Top-Up',
+        'line_items[0][price_data][unit_amount]': amountCents.toString(),
+        'line_items[0][quantity]': '1',
+        'mode': 'payment',
+        'success_url': successUrl,
+        'cancel_url': cancelUrl,
+        'metadata[user_id]': userId,
+        'metadata[type]': 'wallet_topup',
+        'metadata[amount_cents]': amountCents.toString(),
+      });
+
+      const response = await fetch(`${baseUrl}/checkout/sessions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Stripe API error:', error);
+        throw new Error('Failed to create checkout session');
+      }
+
+      const session = await response.json();
+      checkoutUrl = session.url;
+
+    } else if (type === 'unlimited_upgrade') {
+      if (!STRIPE_UNLIMITED_PRICE_ID) {
+        throw new Error('Unlimited plan not configured');
+      }
+
+      const params = new URLSearchParams({
+        'payment_method_types[]': 'card',
+        'line_items[0][price]': STRIPE_UNLIMITED_PRICE_ID,
+        'line_items[0][quantity]': '1',
+        'mode': 'subscription',
+        'success_url': successUrl,
+        'cancel_url': cancelUrl,
+        'metadata[user_id]': userId,
+        'metadata[type]': 'unlimited_upgrade',
+        'metadata[wallet_cents]': (walletCents || 0).toString(),
+        'subscription_data[metadata][user_id]': userId,
+        'subscription_data[metadata][plan]': 'unlimited',
+      });
+
+      const response = await fetch(`${baseUrl}/checkout/sessions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Stripe API error:', error);
+        throw new Error('Failed to create subscription session');
+      }
+
+      const session = await response.json();
+      checkoutUrl = session.url;
+
+    } else {
+      return new Response(
+        JSON.stringify({ error: 'Invalid checkout type' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ url: checkoutUrl }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+
+  } catch (error) {
+    console.error('Checkout error:', error);
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    );
+  }
+});
