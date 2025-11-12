@@ -229,7 +229,7 @@ Deno.serve(async (req: Request) => {
 
       const emailPayload: any = {
         to: user.email,
-        subject: '📊 Your Weekly Call Summary',
+        subject: 'Your Weekly Call Summary',
         userId: user.id,
         emailType: 'weekly_summary',
         templateData,

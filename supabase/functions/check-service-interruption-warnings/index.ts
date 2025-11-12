@@ -193,7 +193,7 @@ Deno.serve(async (req: Request) => {
 
       const emailPayload: any = {
         to: user.email,
-        subject: '⚠️ URGENT: Service Suspension Notice - Action Required',
+        subject: 'URGENT: Service Suspension Notice - Action Required',
         userId: user.id,
         emailType: 'service_interruption_warning',
         templateData,

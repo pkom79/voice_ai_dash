@@ -169,7 +169,7 @@ Deno.serve(async (req: Request) => {
 
       const emailPayload: any = {
         to: user.email,
-        subject: '🚨 Insufficient Balance - Action Required',
+        subject: 'Insufficient Balance - Action Required',
         userId: user.id,
         emailType: 'insufficient_balance_alert',
         templateData,
