@@ -147,13 +147,16 @@ class AdminService {
 
   async createUser(userData: {
     email: string;
-    password: string;
     firstName: string;
     lastName: string;
     businessName?: string;
     phoneNumber?: string;
     role?: 'client' | 'admin';
-  }): Promise<{ success: boolean; userId?: string; error?: string }> {
+    billingPlan?: 'pay_per_use' | 'unlimited' | 'complimentary';
+    ratePerMinuteCents?: number;
+    adminNotes?: string;
+    sendInvite?: boolean;
+  }): Promise<{ success: boolean; userId?: string; invitationLink?: string; error?: string }> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -178,9 +181,48 @@ class AdminService {
         throw new Error(result.error || 'Failed to create user');
       }
 
-      return { success: true, userId: result.userId };
+      return {
+        success: true,
+        userId: result.userId,
+        invitationLink: result.invitationLink || undefined
+      };
     } catch (error: any) {
       console.error('Error creating user:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async sendInvitationToUser(userId: string): Promise<{ success: boolean; invitationLink?: string; error?: string }> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-user-invitation`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send invitation');
+      }
+
+      return {
+        success: true,
+        invitationLink: result.invitationLink
+      };
+    } catch (error: any) {
+      console.error('Error sending invitation:', error);
       return { success: false, error: error.message };
     }
   }

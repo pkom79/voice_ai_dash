@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Loader2, UserPlus } from 'lucide-react';
+import { X, Loader2, UserPlus, Mail, Check, Copy } from 'lucide-react';
 import { adminService } from '../../services/admin';
 
 interface CreateUserModalProps {
@@ -10,15 +10,19 @@ interface CreateUserModalProps {
 export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
     firstName: '',
     lastName: '',
     businessName: '',
     phoneNumber: '',
     role: 'client' as 'client' | 'admin',
+    billingPlan: 'pay_per_use' as 'pay_per_use' | 'unlimited' | 'complimentary',
+    ratePerMinuteCents: '500',
+    adminNotes: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [invitationLink, setInvitationLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const formatPhoneNumber = (value: string) => {
     const phoneNumber = value.replace(/\D/g, '');
@@ -34,17 +38,34 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
     setFormData({ ...formData, phoneNumber: formatted });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (sendInvite: boolean) => {
     setLoading(true);
     setError(null);
 
     try {
-      const result = await adminService.createUser(formData);
+      const rateCents = parseInt(formData.ratePerMinuteCents);
+
+      if (formData.billingPlan === 'pay_per_use' && (isNaN(rateCents) || rateCents < 0)) {
+        setError('Invalid rate per minute value');
+        setLoading(false);
+        return;
+      }
+
+      const result = await adminService.createUser({
+        ...formData,
+        billingPlan: formData.billingPlan,
+        ratePerMinuteCents: rateCents,
+        adminNotes: formData.adminNotes || undefined,
+        sendInvite,
+      });
 
       if (result.success) {
-        onSuccess();
-        onClose();
+        if (sendInvite && result.invitationLink) {
+          setInvitationLink(result.invitationLink);
+        } else {
+          onSuccess();
+          onClose();
+        }
       } else {
         setError(result.error || 'Failed to create user');
       }
@@ -52,6 +73,14 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
       setError(err.message || 'An error occurred');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    if (invitationLink) {
+      await navigator.clipboard.writeText(invitationLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -71,7 +100,7 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6">
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {error}
@@ -125,23 +154,6 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password <span className="text-red-600">*</span>
-              </label>
-              <input
-                type="password"
-                required
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Min. 8 characters"
-                minLength={8}
-                autoComplete="new-password"
-              />
-              <p className="mt-1 text-xs text-gray-500">Minimum 8 characters</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Business Name
               </label>
               <input
@@ -182,36 +194,198 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
                 <option value="admin">Admin</option>
               </select>
             </div>
+
+            {formData.role === 'client' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Billing Plan <span className="text-red-600">*</span>
+                  </label>
+                  <div className="space-y-3">
+                    <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                      <input
+                        type="radio"
+                        name="billingPlan"
+                        value="pay_per_use"
+                        checked={formData.billingPlan === 'pay_per_use'}
+                        onChange={(e) => setFormData({ ...formData, billingPlan: e.target.value as 'pay_per_use' })}
+                        className="mt-1 flex-shrink-0"
+                      />
+                      <div className="ml-3 flex-1">
+                        <p className="font-medium text-gray-900">Pay Per Use</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Charged based on usage with customizable rate
+                        </p>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                      <input
+                        type="radio"
+                        name="billingPlan"
+                        value="unlimited"
+                        checked={formData.billingPlan === 'unlimited'}
+                        onChange={(e) => setFormData({ ...formData, billingPlan: e.target.value as 'unlimited' })}
+                        className="mt-1 flex-shrink-0"
+                      />
+                      <div className="ml-3 flex-1">
+                        <p className="font-medium text-gray-900">Unlimited</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Fixed monthly subscription with unlimited usage
+                        </p>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                      <input
+                        type="radio"
+                        name="billingPlan"
+                        value="complimentary"
+                        checked={formData.billingPlan === 'complimentary'}
+                        onChange={(e) => setFormData({ ...formData, billingPlan: e.target.value as 'complimentary' })}
+                        className="mt-1 flex-shrink-0"
+                      />
+                      <div className="ml-3 flex-1">
+                        <p className="font-medium text-gray-900">Complimentary</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Free account with unlimited usage
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {formData.billingPlan === 'pay_per_use' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Rate Per Minute (cents) <span className="text-red-600">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={formData.ratePerMinuteCents}
+                      onChange={(e) => setFormData({ ...formData, ratePerMinuteCents: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Default is 500 cents ($0.05/minute). Example: 300 = $0.03/min, 1000 = $0.10/min
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Admin Notes <span className="text-xs font-normal text-gray-500">(Optional)</span>
+                  </label>
+                  <textarea
+                    value={formData.adminNotes}
+                    onChange={(e) => setFormData({ ...formData, adminNotes: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    placeholder="Add any billing notes or special instructions..."
+                  />
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="mt-6 flex gap-3">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <UserPlus className="h-4 w-4" />
-                  Create User
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
+          {!invitationLink ? (
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => handleSubmit(false)}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4" />
+                    Save Account
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => handleSubmit(true)}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-4 w-4" />
+                    Save & Send Invite
+                  </>
+                )}
+              </button>
+              <button
+                onClick={onClose}
+                disabled={loading}
+                className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="mt-6 space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm font-medium text-green-900 mb-1">User Created & Invitation Sent!</p>
+                <p className="text-sm text-green-700">
+                  An invitation email has been sent to {formData.email}. Share the link below if needed.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Invitation Link
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={invitationLink}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                  />
+                  <button
+                    onClick={copyToClipboard}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="h-4 w-4" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        Copy
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  onSuccess();
+                  onClose();
+                }}
+                className="w-full px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

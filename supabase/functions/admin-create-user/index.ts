@@ -9,12 +9,15 @@ const corsHeaders = {
 
 interface CreateUserRequest {
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
   businessName?: string;
   phoneNumber?: string;
   role?: 'client' | 'admin';
+  billingPlan?: 'pay_per_use' | 'unlimited' | 'complimentary';
+  ratePerMinuteCents?: number;
+  adminNotes?: string;
+  sendInvite?: boolean;
 }
 
 Deno.serve(async (req: Request) => {
@@ -105,7 +108,7 @@ Deno.serve(async (req: Request) => {
 
     const requestData: CreateUserRequest = await req.json();
 
-    if (!requestData.email || !requestData.password || !requestData.firstName || !requestData.lastName) {
+    if (!requestData.email || !requestData.firstName || !requestData.lastName) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         {
@@ -115,9 +118,11 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const tempPassword = crypto.randomUUID();
+
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: requestData.email,
-      password: requestData.password,
+      password: tempPassword,
       email_confirm: true,
     });
 
@@ -155,10 +160,15 @@ Deno.serve(async (req: Request) => {
     }
 
     if (requestData.role === "client" || !requestData.role) {
+      const billingPlan = requestData.billingPlan || 'pay_per_use';
+      const ratePerMinuteCents = requestData.ratePerMinuteCents || 500;
+
       const { error: billingError } = await supabaseAdmin.from("billing_accounts").insert({
         user_id: newUser.user.id,
-        payment_model: "pay_per_use",
-        wallet_balance: 0,
+        billing_plan: billingPlan,
+        rate_per_minute_cents: ratePerMinuteCents,
+        wallet_cents: 0,
+        admin_notes: requestData.adminNotes || null,
       });
 
       if (billingError) {
@@ -173,6 +183,7 @@ Deno.serve(async (req: Request) => {
       details: {
         email: requestData.email,
         role: requestData.role || "client",
+        billing_plan: requestData.billingPlan || 'pay_per_use',
       },
     });
 
@@ -180,10 +191,43 @@ Deno.serve(async (req: Request) => {
       console.error("Error creating audit log:", auditError);
     }
 
+    let invitationLink = null;
+
+    if (requestData.sendInvite) {
+      const sendInviteUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-user-invitation`;
+
+      try {
+        const inviteResponse = await fetch(sendInviteUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: newUser.user.id,
+            billingPlan: requestData.billingPlan,
+            ratePerMinuteCents: requestData.ratePerMinuteCents,
+            adminNotes: requestData.adminNotes,
+          }),
+        });
+
+        if (inviteResponse.ok) {
+          const inviteData = await inviteResponse.json();
+          invitationLink = inviteData.invitationLink;
+        } else {
+          console.error("Failed to send invitation:", await inviteResponse.text());
+        }
+      } catch (inviteError) {
+        console.error("Error sending invitation:", inviteError);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         userId: newUser.user.id,
+        invitationLink: invitationLink,
+        inviteSent: requestData.sendInvite && invitationLink !== null,
       }),
       {
         status: 200,

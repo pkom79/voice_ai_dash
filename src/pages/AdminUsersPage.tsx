@@ -24,7 +24,6 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { CreateUserModal } from '../components/admin/CreateUserModal';
-import { InviteUserModal } from '../components/admin/InviteUserModal';
 import { BulkOperationsModal } from '../components/admin/BulkOperationsModal';
 import { UserSessionsModal } from '../components/admin/UserSessionsModal';
 import { BillingConfigModal } from '../components/admin/BillingConfigModal';
@@ -76,8 +75,8 @@ export function AdminUsersPage() {
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
-  const [showInviteModal, setShowInviteModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [sendingInvite, setSendingInvite] = useState<string | null>(null);
   const [showSessionsModal, setShowSessionsModal] = useState(false);
   const [showBillingModal, setShowBillingModal] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -305,6 +304,25 @@ export function AdminUsersPage() {
     });
   };
 
+  const handleSendInvite = async (userId: string) => {
+    setSendingInvite(userId);
+
+    try {
+      const result = await adminService.sendInvitationToUser(userId);
+
+      if (result.success) {
+        alert('Invitation sent successfully! The user will receive an email to set up their password.');
+      } else {
+        alert(`Failed to send invitation: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      alert('Failed to send invitation');
+    } finally {
+      setSendingInvite(null);
+    }
+  };
+
   const handleSuspendUser = async (suspend: boolean) => {
     if (!selectedUser) return;
 
@@ -355,22 +373,13 @@ export function AdminUsersPage() {
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-600">Manage users, connections, agents, and billing</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowCreateUserModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <UserPlus className="h-4 w-4" />
-            Create User
-          </button>
-          <button
-            onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Mail className="h-4 w-4" />
-            Send Invite
-          </button>
-        </div>
+        <button
+          onClick={() => setShowCreateUserModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <UserPlus className="h-4 w-4" />
+          Create New User
+        </button>
       </div>
 
       {selectedUserIds.length > 0 && (
@@ -549,6 +558,20 @@ export function AdminUsersPage() {
                     >
                       <DollarSign className="h-4 w-4" />
                     </button>
+                    {!selectedUser.last_login && (
+                      <button
+                        onClick={() => handleSendInvite(selectedUser.id)}
+                        disabled={sendingInvite === selectedUser.id}
+                        className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors disabled:opacity-50"
+                        title="Send Invitation"
+                      >
+                        {sendingInvite === selectedUser.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Mail className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
                     <button
                       onClick={() => handleSuspendUser(!selectedUser.is_active)}
                       className={`p-2 rounded-lg transition-colors ${
@@ -701,12 +724,6 @@ export function AdminUsersPage() {
         />
       )}
 
-      {showInviteModal && (
-        <InviteUserModal
-          onClose={() => setShowInviteModal(false)}
-          onSuccess={() => {}}
-        />
-      )}
 
       {showBulkModal && selectedUserIds.length > 0 && (
         <BulkOperationsModal

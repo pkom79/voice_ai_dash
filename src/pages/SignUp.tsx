@@ -4,6 +4,46 @@ import { useAuth } from '../contexts/AuthContext';
 import logo from '../assets/Voice AI Dash Logo 800x800.png';
 
 export function SignUp() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8">
+        <div className="flex items-center justify-center mb-8">
+          <img src={logo} alt="Voice AI Dash" className="h-20 w-20" />
+        </div>
+
+        <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">Registration Closed</h1>
+        <p className="text-center text-gray-600 mb-8">
+          Voice AI Dash is an invitation-only platform. Please contact your administrator to receive an invitation.
+        </p>
+
+        <button
+          onClick={() => navigate('/signin')}
+          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 font-medium transition-colors"
+        >
+          Go to Sign In
+        </button>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600">
+            Powered by{' '}
+            <a
+              href="https://smartcompanyai.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              SmartCompany AI
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SignUpOld() {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
