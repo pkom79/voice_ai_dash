@@ -192,9 +192,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const baseUrl = Deno.env.get("SUPABASE_URL").replace('/rest/v1', '');
-    const appUrl = baseUrl.includes('supabase.co')
-      ? baseUrl.replace('https://', 'https://').replace('.supabase.co', '.supabase.co')
-      : 'http://localhost:5173';
+    // Use production URL if available, otherwise use Supabase URL for local dev
+    const productionUrl = Deno.env.get('APP_URL') || 'https://voiceaidash.com';
+    const appUrl = baseUrl.includes('supabase.co') ? productionUrl : 'http://localhost:5173';
 
     const invitationLink = `${appUrl}/accept-invitation?token=${invitationToken}`;
 
