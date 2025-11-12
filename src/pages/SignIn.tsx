@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogIn } from 'lucide-react';
+import logo from '../assets/Voice AI Dash Logo 800x800.png';
 
 export function SignIn() {
   const [email, setEmail] = useState('');
@@ -33,9 +33,7 @@ export function SignIn() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8">
         <div className="flex items-center justify-center mb-8">
-          <div className="bg-blue-600 p-3 rounded-lg">
-            <LogIn className="h-8 w-8 text-white" />
-          </div>
+          <img src={logo} alt="Voice AI Dash" className="h-20 w-20" />
         </div>
 
         <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">Welcome Back</h1>
