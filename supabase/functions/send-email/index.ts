@@ -39,16 +39,15 @@ Deno.serve(async (req: Request) => {
     };
 
     if (templateId) {
-      emailPayload.html = `
-        <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2>Test Email - Template Data</h2>
-          <p><strong>Template ID:</strong> ${templateId}</p>
-          <h3>Template Variables:</h3>
-          <pre style="background: #f4f4f4; padding: 15px; border-radius: 5px;">${JSON.stringify(templateData, null, 2)}</pre>
-          <hr>
-          <p style="color: #666; font-size: 12px;">This is a test email showing the template ID and data that will be sent to your Resend template.</p>
-        </div>
-      `;
+      const templateIdFromEnv = Deno.env.get(`RESEND_TEMPLATE_${emailType.toUpperCase()}`);
+
+      if (templateIdFromEnv) {
+        emailPayload.template_id = templateIdFromEnv;
+        emailPayload.template_data = templateData;
+      } else {
+        emailPayload.template_id = templateId;
+        emailPayload.template_data = templateData;
+      }
     } else if (html) {
       emailPayload.html = html;
     } else {
