@@ -189,7 +189,7 @@ export function BillingPage() {
 
   const handleOpenStripePortal = async () => {
     if (!billingAccount?.stripe_customer_id) {
-      alert('No payment methods on file. Please add funds or upgrade to Unlimited to set up payment methods.');
+      alert('To access payment management, please make a payment first by adding funds to your wallet or upgrading to an Unlimited plan. This will create your payment profile.');
       return;
     }
 
@@ -212,15 +212,20 @@ export function BillingPage() {
       );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create portal session');
+        const errorData = await response.json();
+        const errorMessage = errorData.error || 'Failed to create portal session';
+
+        if (errorMessage.includes('No Stripe customer found')) {
+          throw new Error('To access payment management, please make a payment first by adding funds to your wallet or upgrading to an Unlimited plan.');
+        }
+        throw new Error(errorMessage);
       }
 
       const { url } = await response.json();
       window.location.href = url;
     } catch (error) {
       console.error('Error opening portal:', error);
-      alert(error instanceof Error ? error.message : 'Failed to open billing portal');
+      alert(error instanceof Error ? error.message : 'Unable to open billing portal. Please try again later.');
       setLoadingPortal(false);
     }
   };
