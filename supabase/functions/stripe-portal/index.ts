@@ -90,6 +90,12 @@ Deno.serve(async (req: Request) => {
       const errorText = await response.text();
       console.error('Stripe API error:', errorText);
       console.error('Stripe API status:', response.status);
+
+      // Check for portal configuration error
+      if (errorText.includes('No configuration provided')) {
+        throw new Error('Stripe Customer Portal is not configured. Please contact support.');
+      }
+
       throw new Error(`Stripe API error (${response.status}): ${errorText}`);
     }
 
