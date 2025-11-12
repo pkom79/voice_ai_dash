@@ -127,20 +127,30 @@ export function AdminUsersPage() {
 
     try {
       const statusPromises = users.map(async (user) => {
-        const connection = await oauthService.getUserConnection(user.id);
-        const agents = await highLevelService.getUserAgents(user.id);
+        try {
+          const connection = await oauthService.getUserConnection(user.id);
+          const agents = await highLevelService.getUserAgents(user.id);
 
-        const { count: phoneCount } = await supabase
-          .from('user_phone_numbers')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
+          const { count: phoneCount } = await supabase
+            .from('user_phone_numbers')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id);
 
-        return {
-          ...user,
-          hasConnection: !!connection,
-          hasAgents: agents.length > 0,
-          hasPhoneNumbers: (phoneCount || 0) > 0,
-        };
+          return {
+            ...user,
+            hasConnection: !!connection,
+            hasAgents: agents.length > 0,
+            hasPhoneNumbers: (phoneCount || 0) > 0,
+          };
+        } catch (error) {
+          console.error(`Error loading status for user ${user.id}:`, error);
+          return {
+            ...user,
+            hasConnection: false,
+            hasAgents: false,
+            hasPhoneNumbers: false,
+          };
+        }
       });
 
       const usersWithStatusData = await Promise.all(statusPromises);
@@ -206,6 +216,7 @@ export function AdminUsersPage() {
           await oauthService.disconnectUser(selectedUser.id);
           setUserConnection(null);
           setAssignedAgents([]);
+          await loadUserStatuses();
           setConfirmModal({ ...confirmModal, isOpen: false });
           alert('Successfully disconnected from HighLevel');
         } catch (error) {
