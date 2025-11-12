@@ -87,9 +87,10 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('Stripe API error:', error);
-      throw new Error('Failed to create portal session');
+      const errorText = await response.text();
+      console.error('Stripe API error:', errorText);
+      console.error('Stripe API status:', response.status);
+      throw new Error(`Stripe API error (${response.status}): ${errorText}`);
     }
 
     const session = await response.json();
