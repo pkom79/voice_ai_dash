@@ -332,7 +332,7 @@ export function ProfilePage() {
                               low_balance_alerts: e.target.checked,
                             })
                           }
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                          className="h-4 w-4 text-blue-600 bg-white dark:bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                         />
                       </div>
                       <div className="ml-3">
@@ -357,7 +357,7 @@ export function ProfilePage() {
                               insufficient_balance_alerts: e.target.checked,
                             })
                           }
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                          className="h-4 w-4 text-blue-600 bg-white dark:bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                         />
                       </div>
                       <div className="ml-3">
