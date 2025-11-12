@@ -1,7 +1,7 @@
 # Voice AI Dash
 
-**Version:** 1.5.6
-**Last Updated:** November 11, 2025
+**Version:** 1.5.7
+**Last Updated:** November 12, 2025
 
 A comprehensive Voice AI Dashboard for managing HighLevel voice agents, call logs, billing, and OAuth integrations.
 
@@ -50,8 +50,9 @@ A comprehensive Voice AI Dashboard for managing HighLevel voice agents, call log
   - Used for: Warning messages, alerts
   - Light variant: `bg-yellow-50`, `bg-yellow-100`
 
-- **Info Purple**: `bg-purple-500`
-  - Used for: Statistics and dashboard metrics
+- **Info Purple**: `bg-purple-500`, `bg-purple-600`
+  - Used for: Statistics and dashboard metrics, usage-based billing displays
+  - Light variant: `bg-purple-100`
 
 #### Neutral Colors
 - **Text Primary**: `text-gray-900` (headings, primary content)
@@ -64,6 +65,8 @@ A comprehensive Voice AI Dashboard for managing HighLevel voice agents, call log
 ### Status Badges (Pills)
 
 **Pattern**: Rounded-full badges with padding and background colors
+
+**IMPORTANT**: All transaction type badges and similar status indicators MUST use ALL CAPS text for consistency across the application (e.g., "TOP UP", "ADMIN CREDIT", "DEDUCTION", not "top up", "admin credit", "deduction").
 
 #### HL Connected Badge
 ```tsx
@@ -1886,6 +1889,146 @@ For questions or updates: Please update this README when making significant chan
 - Session tracking requires manual implementation in auth flow
 - Bulk operations limited to 100 items at a time
 - Call analytics shows maximum 50 calls in table (pagination recommended)
+
+---
+
+## Billing Page Design
+
+### Overview
+
+The Billing page (`src/pages/BillingPage.tsx`) provides a comprehensive, plan-aware billing interface that dynamically displays relevant information based on the user's subscription type: Pay Per Use, Unlimited, or Complimentary.
+
+### Design Principles
+
+**Plan-Specific UI**: The billing page adapts its layout and displays different metric tiles based on the user's billing plan, ensuring users only see information relevant to their subscription type.
+
+**Flexible Grid System**: Metric tiles use `grid-template-columns: repeat(auto-fit, minmax(250px, 1fr))` to automatically fill the entire width regardless of the number of tiles displayed.
+
+**Transaction Consistency**: All transaction type badges MUST use ALL CAPS (e.g., "TOP UP", "ADMIN CREDIT") for visual consistency across the application.
+
+### Metric Tiles
+
+#### Service Plan Tile (All Plans)
+- **Icon**: `Package` (blue)
+- **Displays**:
+  - Plan type: "Unlimited", "Pay Per Use", or "Complimentary"
+  - Pricing: "$500/month", "$X.XX/minute", or "Free"
+- **Additional Features**:
+  - "Upgrade to Unlimited" button for Pay Per Use users
+
+#### Wallet Balance Tile (Pay Per Use Only)
+- **Icon**: `Wallet` (green)
+- **Displays**:
+  - Current wallet balance in dollars
+  - "Add Funds" button
+  - Low balance warning (< $10.00)
+
+#### Current Balance Tile (Pay Per Use Only)
+- **Icon**: `Activity` (purple)
+- **Displays**:
+  - Current month's usage-based charges
+  - "Based on usage" helper text
+- **Data Source**: `month_spent_cents` from `billing_accounts`
+
+#### Account Status Tile (Unlimited Only)
+- **Icon**: `Shield` (green for good standing, red for past due)
+- **Displays**:
+  - Status: "Good Standing" or "Past Due"
+  - Next payment date or subscription status
+
+### Past Due Warning
+
+For Unlimited plan users who are past due:
+- **Banner Type**: Red alert banner
+- **Trigger**: When `grace_until` date has passed
+- **Message Format**: "Payment is required by [date] to avoid service interruption"
+- **Calculation**: grace_until + 7 days = final payment date
+- **Purpose**: Provides clear deadline before automated service suspension
+
+### Stripe Customer Portal Integration
+
+**Access Button**:
+- Location: Below metric tiles, aligned right
+- Button Text: "Manage Payment Methods"
+- Icon: `ExternalLink`
+- Visibility: Only shown when user has Stripe customer ID
+
+**Functionality**:
+- Redirects to Stripe's hosted billing portal
+- Allows users to:
+  - Update payment methods
+  - View invoice history
+  - Manage subscriptions
+  - Download receipts
+
+**Edge Function**: `supabase/functions/stripe-portal/index.ts` creates the portal session
+
+### Transaction History
+
+**Table Columns**:
+1. **Date**: Display format "MMM d, yyyy" with time "h:mm a"
+2. **Type**: Badge with ALL CAPS text (TOP UP, DEDUCTION, ADMIN CREDIT, ADMIN DEBIT, REFUND)
+3. **Reason**: Transaction description
+4. **Amount**: Prefixed with + or - and color-coded (green for credits, red for debits)
+
+**Removed Column**: The "Balance" column has been removed to simplify the transaction display.
+
+**Export Functionality**: CSV export includes Date, Type, Reason, Amount (without Balance column)
+
+**Future Enhancement**: Transaction history will include monthly subscription payments from the `billing_invoices` table for a comprehensive payment history.
+
+### Automated Number Unassignment
+
+**Purpose**: Automatically unassign phone numbers from agents when accounts are 10+ days past their grace period.
+
+**Database Functions**:
+- `unassign_user_phone_numbers(user_id)`: Clears phone assignments for all user's agents
+- `process_past_due_accounts()`: Identifies and processes accounts 10+ days past due
+
+**Implementation**:
+- Edge Function: `supabase/functions/process-past-due-accounts/index.ts`
+- Can be triggered via cron job or manual API call
+- Logs all actions in `audit_logs` table for accountability
+
+**Agent Updates**:
+- Sets `inbound_phone_number` to NULL
+- Sets `highlevel_number_pool_id` to NULL
+- Removes all entries from `agent_phone_numbers` junction table
+
+**Migration**: `supabase/migrations/20251112120000_enhance_billing_status_tracking.sql`
+
+### Color Scheme
+
+The billing page maintains consistency with the app's color palette:
+
+- **Blue** (`bg-blue-600`): Primary actions, Service Plan tile icon
+- **Green** (`bg-green-600`): Wallet Balance, success states, "Good Standing" status
+- **Red** (`bg-red-600`): Past due warnings, deductions
+- **Purple** (`bg-purple-600`): Usage-based billing metrics
+- **Orange** (`text-orange-600`): Low balance warnings
+- **Gray**: Neutral backgrounds and text
+
+### Responsive Design
+
+The billing page uses a responsive grid system that:
+- Automatically adjusts tile layout based on screen width
+- Maintains consistent spacing between tiles (gap-6)
+- Ensures tiles fill the entire row width
+- Supports mobile, tablet, and desktop viewports
+
+### Edge Functions
+
+#### stripe-portal
+- **Purpose**: Creates Stripe Customer Portal sessions
+- **Location**: `supabase/functions/stripe-portal/index.ts`
+- **Parameters**: `userId`, `returnUrl`
+- **Returns**: Portal session URL for redirect
+
+#### process-past-due-accounts
+- **Purpose**: Automates number unassignment for overdue accounts
+- **Location**: `supabase/functions/process-past-due-accounts/index.ts`
+- **Trigger**: Scheduled cron job (recommended daily)
+- **Returns**: Summary of processed accounts
 
 ---
 

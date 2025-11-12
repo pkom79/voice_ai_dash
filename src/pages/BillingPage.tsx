@@ -13,6 +13,10 @@ import {
   Calendar,
   CheckCircle,
   XCircle,
+  Package,
+  Activity,
+  Shield,
+  ExternalLink,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -26,6 +30,7 @@ interface BillingAccount {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   next_payment_at: string | null;
+  grace_until: string | null;
 }
 
 interface WalletTransaction {
@@ -49,21 +54,19 @@ export function BillingPage() {
   const [processing, setProcessing] = useState(false);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [showCancelAlert, setShowCancelAlert] = useState(false);
+  const [loadingPortal, setLoadingPortal] = useState(false);
 
   useEffect(() => {
     loadBillingData();
 
-    // Check for success or cancel query parameters
     const success = searchParams.get('success');
     const canceled = searchParams.get('canceled');
 
     if (success === 'true') {
       setShowSuccessAlert(true);
-      // Clear query params after 100ms to avoid confusion
       setTimeout(() => {
         setSearchParams({});
       }, 100);
-      // Hide alert after 10 seconds
       setTimeout(() => {
         setShowSuccessAlert(false);
       }, 10000);
@@ -71,11 +74,9 @@ export function BillingPage() {
 
     if (canceled === 'true') {
       setShowCancelAlert(true);
-      // Clear query params after 100ms
       setTimeout(() => {
         setSearchParams({});
       }, 100);
-      // Hide alert after 10 seconds
       setTimeout(() => {
         setShowCancelAlert(false);
       }, 10000);
@@ -122,7 +123,6 @@ export function BillingPage() {
     setProcessing(true);
 
     try {
-      // Call Stripe Checkout edge function
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
         {
@@ -145,8 +145,6 @@ export function BillingPage() {
       }
 
       const { url } = await response.json();
-
-      // Redirect to Stripe Checkout
       window.location.href = url;
     } catch (error) {
       console.error('Error processing replenishment:', error);
@@ -159,7 +157,6 @@ export function BillingPage() {
     setProcessing(true);
 
     try {
-      // Call Stripe Checkout edge function for unlimited upgrade
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
         {
@@ -182,8 +179,6 @@ export function BillingPage() {
       }
 
       const { url } = await response.json();
-
-      // Redirect to Stripe Checkout
       window.location.href = url;
     } catch (error) {
       console.error('Error processing upgrade:', error);
@@ -192,14 +187,51 @@ export function BillingPage() {
     }
   };
 
+  const handleOpenStripePortal = async () => {
+    if (!billingAccount?.stripe_customer_id) {
+      alert('No payment methods on file. Please add funds or upgrade to Unlimited to set up payment methods.');
+      return;
+    }
+
+    setLoadingPortal(true);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-portal`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: profile?.id,
+            returnUrl: window.location.href,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create portal session');
+      }
+
+      const { url } = await response.json();
+      window.location.href = url;
+    } catch (error) {
+      console.error('Error opening portal:', error);
+      alert(error instanceof Error ? error.message : 'Failed to open billing portal');
+      setLoadingPortal(false);
+    }
+  };
+
   const exportTransactions = () => {
-    const headers = ['Date', 'Type', 'Reason', 'Amount', 'Balance'];
+    const headers = ['Date', 'Type', 'Reason', 'Amount'];
     const rows = transactions.map((t) => [
       format(new Date(t.created_at), 'yyyy-MM-dd HH:mm:ss'),
       t.type,
       t.reason,
       `$${(t.amount_cents / 100).toFixed(2)}`,
-      `$${(t.balance_after_cents / 100).toFixed(2)}`,
     ]);
 
     const csv = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
@@ -211,19 +243,10 @@ export function BillingPage() {
     a.click();
   };
 
-  const thisMonthTransactions = transactions.filter(
-    (t) =>
-      new Date(t.created_at).getMonth() === new Date().getMonth() &&
-      new Date(t.created_at).getFullYear() === new Date().getFullYear()
-  );
-
-  const thisMonthSpent = thisMonthTransactions
-    .filter((t) => t.type === 'deduction')
-    .reduce((sum, t) => sum + t.amount_cents, 0) / 100;
-
-  const thisMonthReplenished = thisMonthTransactions
-    .filter((t) => t.type === 'top_up' || t.type === 'admin_credit')
-    .reduce((sum, t) => sum + t.amount_cents, 0) / 100;
+  const isPastDue = billingAccount?.grace_until && new Date(billingAccount.grace_until) < new Date();
+  const gracePeriodEnd = billingAccount?.grace_until
+    ? new Date(new Date(billingAccount.grace_until).getTime() + 7 * 24 * 60 * 60 * 1000)
+    : null;
 
   if (loading) {
     return (
@@ -233,16 +256,25 @@ export function BillingPage() {
     );
   }
 
+  const planLabel =
+    billingAccount?.billing_plan === 'unlimited' ? 'Unlimited' :
+    billingAccount?.billing_plan === 'complimentary' ? 'Complimentary' :
+    'Pay Per Use';
+
+  const planPrice =
+    billingAccount?.billing_plan === 'unlimited' ? '$500/month' :
+    billingAccount?.billing_plan === 'complimentary' ? 'Free' :
+    `$${((billingAccount?.rate_per_minute_cents || 500) / 100).toFixed(2)}/minute`;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Billing</h1>
-          <p className="text-gray-600 dark:text-gray-400">Manage your payments and wallet balance</p>
+          <p className="text-gray-600 dark:text-gray-400">Manage your payments</p>
         </div>
       </div>
 
-      {/* Success Alert */}
       {showSuccessAlert && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-start gap-3">
           <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
@@ -261,7 +293,6 @@ export function BillingPage() {
         </div>
       )}
 
-      {/* Cancel Alert */}
       {showCancelAlert && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
@@ -280,105 +311,115 @@ export function BillingPage() {
         </div>
       )}
 
-      {/* Payment Model Badge */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <CreditCard className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-300">Payment Model</p>
-            <p className="text-sm text-blue-700 dark:text-blue-400">
-              {billingAccount?.billing_plan === 'unlimited'
-                ? 'Unlimited - $500/month'
-                : billingAccount?.billing_plan === 'complimentary'
-                ? 'Complimentary Plan'
-                : `Pay Per Use - $${((billingAccount?.rate_per_minute_cents || 500) / 100).toFixed(2)}/minute`}
+      {billingAccount?.billing_plan === 'unlimited' && isPastDue && gracePeriodEnd && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-900 dark:text-red-300">Payment Past Due</p>
+            <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+              Payment is required by {format(gracePeriodEnd, 'MMMM d, yyyy')} to avoid service interruption.
             </p>
           </div>
         </div>
-        {billingAccount?.billing_plan === 'pay_per_use' && (
-          <button
-            onClick={() => {
-              if (confirm('Upgrade to Unlimited plan for $500/month? Your wallet balance will be applied to the first month.')) {
-                handleUpgradeToUnlimited();
-              }
-            }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium whitespace-nowrap"
-          >
-            Upgrade to Unlimited
-          </button>
-        )}
-      </div>
+      )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Wallet Balance - Only show for PPU */}
-        {billingAccount?.billing_plan === 'pay_per_use' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-lg">
-                <Wallet className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <button
-                onClick={() => setShowReplenishModal(true)}
-                className="flex items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-              >
-                <Plus className="h-4 w-4" />
-                Add Funds
-              </button>
-            </div>
-            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Wallet Balance</h3>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">
-              ${((billingAccount?.wallet_cents || 0) / 100).toFixed(2)}
-            </p>
-            {(billingAccount?.wallet_cents || 0) < 1000 && (
-              <div className="mt-3 flex items-start gap-2 text-sm text-orange-600 dark:text-orange-400">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0 dark:text-orange-400" />
-                <span>Low balance. Consider adding funds to avoid service interruption.</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Next Payment - Show for PPU and Unlimited */}
-        {(billingAccount?.billing_plan === 'pay_per_use' || billingAccount?.billing_plan === 'unlimited') && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-6">
-            <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg mb-4 w-fit">
-              <Calendar className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Next Payment</h3>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {billingAccount?.next_payment_at
-                ? format(new Date(billingAccount.next_payment_at), 'MMM d, yyyy')
-                : billingAccount?.billing_plan === 'unlimited'
-                ? 'Active'
-                : 'TBD'}
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {billingAccount?.billing_plan === 'unlimited' ? '$500/month' : 'Based on usage'}
-            </p>
-          </div>
-        )}
-
-        {/* This Month Spent */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-6">
-          <div className="bg-red-100 dark:bg-red-900/30 p-3 rounded-lg mb-4 w-fit">
-            <TrendingUp className="h-6 w-6 text-red-600 dark:text-red-400" />
-          </div>
-          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">This Month Spent</h3>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">${thisMonthSpent.toFixed(2)}</p>
-        </div>
-
-        {/* This Month Replenished */}
+      <div className="grid grid-cols-1 gap-6" style={{
+        gridTemplateColumns: billingAccount?.billing_plan === 'pay_per_use' ? 'repeat(auto-fit, minmax(250px, 1fr))' :
+                             billingAccount?.billing_plan === 'unlimited' ? 'repeat(auto-fit, minmax(250px, 1fr))' :
+                             'repeat(auto-fit, minmax(250px, 1fr))'
+      }}>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-6">
           <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg mb-4 w-fit">
-            <DollarSign className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            <Package className="h-6 w-6 text-blue-600 dark:text-blue-400" />
           </div>
-          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">This Month Added</h3>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">${thisMonthReplenished.toFixed(2)}</p>
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Service Plan</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{planLabel}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{planPrice}</p>
+          {billingAccount?.billing_plan === 'pay_per_use' && (
+            <button
+              onClick={() => {
+                if (confirm('Upgrade to Unlimited plan for $500/month? Your wallet balance will be applied to the first month.')) {
+                  handleUpgradeToUnlimited();
+                }
+              }}
+              className="mt-3 w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+            >
+              Upgrade to Unlimited
+            </button>
+          )}
         </div>
+
+        {billingAccount?.billing_plan === 'pay_per_use' && (
+          <>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-lg">
+                  <Wallet className="h-6 w-6 text-green-600 dark:text-green-400" />
+                </div>
+                <button
+                  onClick={() => setShowReplenishModal(true)}
+                  className="flex items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Funds
+                </button>
+              </div>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Wallet Balance</h3>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                ${((billingAccount?.wallet_cents || 0) / 100).toFixed(2)}
+              </p>
+              {(billingAccount?.wallet_cents || 0) < 1000 && (
+                <div className="mt-3 flex items-start gap-2 text-sm text-orange-600 dark:text-orange-400">
+                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>Low balance. Consider adding funds to avoid service interruption.</span>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-6">
+              <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-lg mb-4 w-fit">
+                <Activity className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Current Balance</h3>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                ${((billingAccount?.month_spent_cents || 0) / 100).toFixed(2)}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Based on usage</p>
+            </div>
+          </>
+        )}
+
+        {billingAccount?.billing_plan === 'unlimited' && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-6">
+            <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-lg mb-4 w-fit">
+              <Shield className="h-6 w-6 text-green-600 dark:text-green-400" />
+            </div>
+            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Account Status</h3>
+            <p className={`text-2xl font-bold ${isPastDue ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+              {isPastDue ? 'Past Due' : 'Good Standing'}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {billingAccount?.next_payment_at
+                ? `Next payment: ${format(new Date(billingAccount.next_payment_at), 'MMM d, yyyy')}`
+                : 'Active subscription'}
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Transaction History */}
+      {billingAccount?.stripe_customer_id && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleOpenStripePortal}
+            disabled={loadingPortal}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
+          >
+            <ExternalLink className="h-4 w-4" />
+            {loadingPortal ? 'Loading...' : 'Manage Payment Methods'}
+          </button>
+        </div>
+      )}
+
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Transaction History</h2>
@@ -404,18 +445,15 @@ export function BillingPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Reason
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Amount
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Balance
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     No transactions yet
                   </td>
                 </tr>
@@ -442,7 +480,7 @@ export function BillingPage() {
                             : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                         }`}
                       >
-                        {transaction.type?.replace(/_/g, ' ') || 'Unknown'}
+                        {transaction.type?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -452,8 +490,8 @@ export function BillingPage() {
                       <span
                         className={`text-sm font-medium ${
                           transaction.type === 'top_up' || transaction.type === 'admin_credit' || transaction.type === 'refund'
-                            ? 'text-green-600'
-                            : 'text-red-600'
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-red-600 dark:text-red-400'
                         }`}
                       >
                         {transaction.type === 'top_up' || transaction.type === 'admin_credit' || transaction.type === 'refund'
@@ -461,9 +499,6 @@ export function BillingPage() {
                           : '-'}
                         ${(transaction.amount_cents / 100).toFixed(2)}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-mono text-gray-900 dark:text-gray-100">
-                      ${(transaction.balance_after_cents / 100).toFixed(2)}
                     </td>
                   </tr>
                 ))
@@ -473,7 +508,6 @@ export function BillingPage() {
         </div>
       </div>
 
-      {/* Replenish Modal */}
       {showReplenishModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
@@ -510,13 +544,6 @@ export function BillingPage() {
               </div>
             </div>
 
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-              <p className="text-sm text-blue-900 dark:text-blue-300">
-                Manual payment processing is enabled. An administrator will process your payment
-                request.
-              </p>
-            </div>
-
             <div className="flex gap-3">
               <button
                 onClick={() => setShowReplenishModal(false)}
@@ -529,7 +556,7 @@ export function BillingPage() {
                 disabled={processing}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                {processing ? 'Processing...' : 'Submit Request'}
+                {processing ? 'Processing...' : 'Add Funds'}
               </button>
             </div>
           </div>
