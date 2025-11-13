@@ -342,7 +342,7 @@ export function BillingConfigModal({
                     />
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
-                    Rate in cents. Default is 500 cents ($0.05/minute). Example: 300 = $0.03/min, 1000 = $0.10/min
+                    Rate in cents. Default is 500 cents ($5.00/minute). Example: 50 = $0.50/min, 100 = $1.00/min
                   </p>
                 </div>
               )}
