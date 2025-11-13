@@ -7,9 +7,10 @@ import { Phone, TrendingUp, Heart, CheckCircle, Clock, DollarSign, User, ArrowLe
 import { formatPhoneNumber } from '../utils/formatting';
 import DateRangePicker from '../components/DateRangePicker';
 import { format } from 'date-fns';
+import { FirstLoginBillingModal } from '../components/FirstLoginBillingModal';
 
 export function Dashboard() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { lastSyncTime } = useSync();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ export function Dashboard() {
   const effectiveUserId = isAdminView ? viewingUserId : profile?.id;
   const [viewingUserName, setViewingUserName] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [showBillingModal, setShowBillingModal] = useState(false);
+  const [billingChecked, setBillingChecked] = useState(false);
   const [stats, setStats] = useState({
     totalCalls: 0,
     inboundCalls: 0,
@@ -40,6 +43,7 @@ export function Dashboard() {
     if (isAdminView && viewingUserId) {
       loadViewingUserName(viewingUserId);
     }
+    checkBillingStatus();
   }, [viewingUserId]);
 
   useEffect(() => {
@@ -55,6 +59,35 @@ export function Dashboard() {
       loadDashboardData();
     }
   }, [lastSyncTime]);
+
+  const checkBillingStatus = async () => {
+    if (billingChecked || isAdminView || !effectiveUserId || profile?.role === 'admin') {
+      return;
+    }
+
+    try {
+      const { data: billingAccount } = await supabase
+        .from('billing_accounts')
+        .select('stripe_customer_id, billing_plan, wallet_cents')
+        .eq('user_id', effectiveUserId)
+        .maybeSingle();
+
+      if (!billingAccount) {
+        setShowBillingModal(true);
+      } else if (billingAccount.billing_plan === 'pay_per_use' && billingAccount.wallet_cents === 0 && !billingAccount.stripe_customer_id) {
+        setShowBillingModal(true);
+      } else if (billingAccount.billing_plan === 'unlimited' && !billingAccount.stripe_customer_id) {
+        setShowBillingModal(true);
+      } else if (billingAccount.billing_plan === 'complimentary') {
+        // Complimentary accounts don't need payment
+      }
+
+      setBillingChecked(true);
+    } catch (error) {
+      console.error('Error checking billing status:', error);
+      setBillingChecked(true);
+    }
+  };
 
   const loadViewingUserName = async (userId: string) => {
     try {
@@ -468,6 +501,14 @@ export function Dashboard() {
           endDate={dateRange.end}
           onDateRangeChange={(start, end) => setDateRange({ start, end })}
           onClose={() => setShowDatePicker(false)}
+        />
+      )}
+
+      {/* First Login Billing Modal */}
+      {showBillingModal && user?.email && (
+        <FirstLoginBillingModal
+          onClose={() => setShowBillingModal(false)}
+          userEmail={user.email}
         />
       )}
     </div>
