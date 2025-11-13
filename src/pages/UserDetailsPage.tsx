@@ -504,7 +504,10 @@ export function UserDetailsPage() {
                   <div className="flex-1">
                     <h3 className="font-medium text-gray-900 mb-1">Password Reset</h3>
                     <p className="text-sm text-gray-600">
-                      Send a password recovery link to {user.email}
+                      Send a password recovery link to{' '}
+                      <span className="font-medium text-gray-900">
+                        {notificationEmails.find(e => e.is_primary)?.email || email || user.email}
+                      </span>
                     </p>
                   </div>
                   <button
