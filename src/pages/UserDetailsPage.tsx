@@ -21,6 +21,21 @@ interface UserData {
   notification_weekly_summary_enabled: boolean;
 }
 
+interface NotificationEmail {
+  id: string;
+  email: string;
+  is_primary: boolean;
+  low_balance_enabled: boolean;
+  insufficient_balance_enabled: boolean;
+  service_interruption_enabled: boolean;
+  weekly_summary_enabled: boolean;
+}
+
+interface BillingData {
+  inbound_plan: string | null;
+  outbound_plan: string | null;
+}
+
 type TabType = 'profile' | 'api' | 'billing' | 'call-analytics' | 'activity';
 
 export function UserDetailsPage() {
@@ -33,6 +48,9 @@ export function UserDetailsPage() {
   const [activeTab, setActiveTab] = useState<TabType>('profile');
   const [saving, setSaving] = useState(false);
   const [sendingPasswordReset, setSendingPasswordReset] = useState(false);
+  const [agentCount, setAgentCount] = useState(0);
+  const [billingData, setBillingData] = useState<BillingData | null>(null);
+  const [notificationEmails, setNotificationEmails] = useState<NotificationEmail[]>([]);
 
   // Form states for Profile tab
   const [firstName, setFirstName] = useState('');
@@ -76,6 +94,29 @@ export function UserDetailsPage() {
       setNotificationInsufficientBalance(data.notification_insufficient_balance_enabled ?? true);
       setNotificationServiceInterruption(data.notification_service_interruption_enabled ?? true);
       setNotificationWeeklySummary(data.notification_weekly_summary_enabled ?? true);
+
+      // Load agent count
+      const { count } = await supabase
+        .from('user_agents')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+      setAgentCount(count || 0);
+
+      // Load billing data
+      const { data: billing } = await supabase
+        .from('billing_accounts')
+        .select('inbound_plan, outbound_plan')
+        .eq('user_id', userId)
+        .maybeSingle();
+      setBillingData(billing);
+
+      // Load notification emails
+      const { data: emails } = await supabase
+        .from('user_notification_emails')
+        .select('*')
+        .eq('user_id', userId)
+        .order('is_primary', { ascending: false });
+      setNotificationEmails(emails || []);
     } catch (error) {
       console.error('Error loading user:', error);
       alert('Failed to load user details');
@@ -148,9 +189,11 @@ export function UserDetailsPage() {
     return null;
   }
 
+  const agentLabel = agentCount === 0 ? 'AGENTS' : agentCount === 1 ? 'AGENT' : `AGENTS (${agentCount})`;
+
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
-    { id: 'api', label: 'API', icon: Key },
+    { id: 'api', label: agentLabel, icon: Key },
     { id: 'billing', label: 'Billing', icon: DollarSign },
     { id: 'call-analytics', label: 'Call Analytics', icon: Phone },
     { id: 'activity', label: 'Activity', icon: Activity },

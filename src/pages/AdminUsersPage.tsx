@@ -19,12 +19,10 @@ import {
   DollarSign,
   Ban,
   CheckCircle2,
-  List,
   Phone,
   BarChart3,
 } from 'lucide-react';
 import { CreateUserModal } from '../components/admin/CreateUserModal';
-import { BulkOperationsModal } from '../components/admin/BulkOperationsModal';
 import { UserSessionsModal } from '../components/admin/UserSessionsModal';
 import { BillingConfigModal } from '../components/admin/BillingConfigModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
@@ -80,11 +78,9 @@ export function AdminUsersPage() {
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
-  const [showBulkModal, setShowBulkModal] = useState(false);
   const [sendingInvite, setSendingInvite] = useState<string | null>(null);
   const [showSessionsModal, setShowSessionsModal] = useState(false);
   const [showBillingModal, setShowBillingModal] = useState(false);
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -374,22 +370,6 @@ export function AdminUsersPage() {
     });
   };
 
-  const toggleUserSelection = (userId: string) => {
-    setSelectedUserIds(prev =>
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
-    );
-  };
-
-  const selectAllUsers = () => {
-    if (selectedUserIds.length === filteredUsers.length) {
-      setSelectedUserIds([]);
-    } else {
-      setSelectedUserIds(filteredUsers.map(u => u.id));
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -406,48 +386,11 @@ export function AdminUsersPage() {
         </button>
       </div>
 
-      {selectedUserIds.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <List className="h-5 w-5 text-blue-600" />
-              <span className="font-medium text-blue-900">
-                {selectedUserIds.length} user{selectedUserIds.length !== 1 ? 's' : ''} selected
-              </span>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowBulkModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-              >
-                Bulk Assign
-              </button>
-              <button
-                onClick={() => setSelectedUserIds([])}
-                className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-              >
-                Clear Selection
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="bg-white rounded-lg shadow">
           <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-600" />
-                <h2 className="text-lg font-semibold text-gray-900">Users ({filteredUsers.length})</h2>
-              </div>
-              {filteredUsers.length > 0 && (
-                <button
-                  onClick={selectAllUsers}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  {selectedUserIds.length === filteredUsers.length ? 'Deselect All' : 'Select All'}
-                </button>
-              )}
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="h-5 w-5 text-blue-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Users ({filteredUsers.length})</h2>
             </div>
 
             <div className="relative">
@@ -477,13 +420,6 @@ export function AdminUsersPage() {
                   className="p-4 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedUserIds.includes(user.id)}
-                      onChange={() => toggleUserSelection(user.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex-shrink-0 mt-1"
-                    />
                     <div className="flex-1">
                       {/* Business Name - Prominent Display */}
                       {user.business_name && (
@@ -612,18 +548,6 @@ export function AdminUsersPage() {
           onClose={() => setShowCreateUserModal(false)}
           onSuccess={() => {
             loadUsers();
-          }}
-        />
-      )}
-
-
-      {showBulkModal && selectedUserIds.length > 0 && (
-        <BulkOperationsModal
-          selectedUserIds={selectedUserIds}
-          onClose={() => setShowBulkModal(false)}
-          onSuccess={() => {
-            loadUsers();
-            setSelectedUserIds([]);
           }}
         />
       )}
