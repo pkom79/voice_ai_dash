@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, User, Key, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send } from 'lucide-react';
+import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link } from 'lucide-react';
 import { format } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
 import { useNotification } from '../hooks/useNotification';
@@ -58,6 +58,9 @@ export function UserDetailsPage() {
   const [newEmailAddress, setNewEmailAddress] = useState('');
   const [addingEmail, setAddingEmail] = useState(false);
   const [sendingTestEmail, setSendingTestEmail] = useState<string | null>(null);
+  const [apiConnection, setApiConnection] = useState<any>(null);
+  const [assignedAgents, setAssignedAgents] = useState<any[]>([]);
+  const [loadingApiData, setLoadingApiData] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -66,6 +69,12 @@ export function UserDetailsPage() {
     }
     loadUser();
   }, [userId]);
+
+  useEffect(() => {
+    if (activeTab === 'api' && userId) {
+      loadApiData();
+    }
+  }, [activeTab, userId]);
 
   const loadUser = async () => {
     if (!userId) return;
@@ -116,6 +125,57 @@ export function UserDetailsPage() {
       navigate('/admin/users');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadApiData = async () => {
+    if (!userId) return;
+
+    setLoadingApiData(true);
+    try {
+      // Load HighLevel API connection
+      const { data: apiKey } = await supabase
+        .from('api_keys')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('service', 'highlevel')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      setApiConnection(apiKey);
+
+      // If connected, load assigned agents
+      if (apiKey) {
+        const { data: userAgents } = await supabase
+          .from('user_agents')
+          .select(`
+            agent_id,
+            agents (
+              id,
+              name,
+              description,
+              is_active,
+              inbound_phone_number,
+              agent_phone_numbers (
+                phone_number_id,
+                phone_numbers (
+                  number,
+                  friendly_name
+                )
+              )
+            )
+          `)
+          .eq('user_id', userId);
+
+        const agents = userAgents?.map(ua => ua.agents).filter(Boolean) || [];
+        setAssignedAgents(agents);
+      } else {
+        setAssignedAgents([]);
+      }
+    } catch (error) {
+      console.error('Error loading API data:', error);
+    } finally {
+      setLoadingApiData(false);
     }
   };
 
@@ -315,11 +375,11 @@ export function UserDetailsPage() {
     return null;
   }
 
-  const agentLabel = agentCount === 0 ? 'AGENTS' : agentCount === 1 ? 'AGENT' : `AGENTS (${agentCount})`;
+  const apiLabel = 'API';
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
-    { id: 'api', label: agentLabel, icon: Key },
+    { id: 'api', label: apiLabel, icon: Plug2 },
     { id: 'billing', label: 'Billing', icon: DollarSign },
     { id: 'call-analytics', label: 'Call Analytics', icon: Phone },
     { id: 'activity', label: 'Activity', icon: Activity },
@@ -685,10 +745,141 @@ export function UserDetailsPage() {
         )}
 
         {activeTab === 'api' && (
-          <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
-            <Key className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p>API tab content coming soon</p>
-          </div>
+          <>
+            {loadingApiData ? (
+              <div className="bg-white rounded-lg shadow p-12 text-center">
+                <Loader2 className="h-8 w-8 text-blue-600 mx-auto mb-4 animate-spin" />
+                <p className="text-gray-600">Loading API connections...</p>
+              </div>
+            ) : !apiConnection ? (
+              <div className="bg-white rounded-lg shadow p-12">
+                <div className="max-w-md mx-auto text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                    <Plug2 className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Not Connected</h3>
+                  <p className="text-gray-600 mb-6">This user is not connected to any accounts yet</p>
+                  <button
+                    onClick={() => window.open('/oauth/authorize?userId=' + userId, '_blank')}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    <Link className="h-5 w-5" />
+                    Connect HighLevel
+                  </button>
+                  <p className="text-xs text-gray-500 mt-4">
+                    Additional API integrations will be available here in the future
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left Column: HighLevel Connection Info */}
+                <div className="bg-white rounded-lg shadow">
+                  <div className="p-6 border-b border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-gray-900">HighLevel Connected</h3>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        Active
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Location
+                      </label>
+                      <div className="text-gray-900">
+                        {apiConnection.location_name || 'Unknown Location'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Location ID
+                      </label>
+                      <div className="text-sm text-gray-600 font-mono bg-gray-50 px-3 py-2 rounded border border-gray-200">
+                        {apiConnection.location_id || 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Connected Since
+                      </label>
+                      <div className="text-gray-900">
+                        {format(new Date(apiConnection.created_at), 'MMM d, yyyy h:mm a')}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Last Used
+                      </label>
+                      <div className="text-gray-900">
+                        {apiConnection.last_used_at
+                          ? format(new Date(apiConnection.last_used_at), 'MMM d, yyyy h:mm a')
+                          : 'Never'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Assigned Agents */}
+                <div className="bg-white rounded-lg shadow">
+                  <div className="p-6 border-b border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-gray-900">Assigned Agents</h3>
+                      <div className="text-sm text-gray-600">
+                        {assignedAgents.length} {assignedAgents.length === 1 ? 'agent' : 'agents'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-6">
+                    {assignedAgents.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <Users className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                        <p>No agents assigned yet</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {assignedAgents.map((agent) => (
+                          <div
+                            key={agent.id}
+                            className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <h4 className="font-medium text-gray-900">{agent.name}</h4>
+                                {agent.description && (
+                                  <p className="text-sm text-gray-600 mt-1">{agent.description}</p>
+                                )}
+                              </div>
+                              <div className={`px-2 py-1 rounded text-xs font-medium ${
+                                agent.is_active
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {agent.is_active ? 'Active' : 'Inactive'}
+                              </div>
+                            </div>
+                            {agent.inbound_phone_number && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+                                <Phone className="h-4 w-4" />
+                                {agent.inbound_phone_number}
+                              </div>
+                            )}
+                            {agent.agent_phone_numbers && agent.agent_phone_numbers.length > 0 && (
+                              <div className="mt-2 text-xs text-gray-500">
+                                {agent.agent_phone_numbers.length} phone {agent.agent_phone_numbers.length === 1 ? 'number' : 'numbers'} assigned
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {activeTab === 'billing' && (
