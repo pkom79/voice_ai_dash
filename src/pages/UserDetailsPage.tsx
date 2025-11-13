@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, User, Key, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, User, Key, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
 import { useNotification } from '../hooks/useNotification';
@@ -56,6 +56,7 @@ export function UserDetailsPage() {
   const [email, setEmail] = useState('');
   const [newEmailAddress, setNewEmailAddress] = useState('');
   const [addingEmail, setAddingEmail] = useState(false);
+  const [sendingTestEmail, setSendingTestEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -265,6 +266,38 @@ export function UserDetailsPage() {
         email.id === emailId ? { ...email, [field]: value } : email
       )
     );
+  };
+
+  const handleSendTestEmail = async (emailAddress: string) => {
+    setSendingTestEmail(emailAddress);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-test-notification`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            userId: userId,
+            email: emailAddress,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send test email');
+      }
+
+      showSuccess(`Test email sent to ${emailAddress}`);
+    } catch (err: any) {
+      showError(err.message || 'Failed to send test email');
+    } finally {
+      setSendingTestEmail(null);
+    }
   };
 
   if (loading) {
@@ -495,16 +528,32 @@ export function UserDetailsPage() {
                             </span>
                           )}
                         </div>
-                        {!emailRecord.is_primary && (
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => handleRemoveEmail(emailRecord.id)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Remove email"
+                            onClick={() => handleSendTestEmail(emailRecord.email)}
+                            disabled={sendingTestEmail === emailRecord.email}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                            title="Send test email"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            {sendingTestEmail === emailRecord.email ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Send className="h-3.5 w-3.5" />
+                            )}
+                            {sendingTestEmail === emailRecord.email ? 'Sending...' : 'Test'}
                           </button>
-                        )}
+                          {!emailRecord.is_primary && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveEmail(emailRecord.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Remove email"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="space-y-2 ml-6">

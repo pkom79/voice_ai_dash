@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { User, Building, Phone, Mail, Bell, Lock, Save, Plus, Trash2, Check } from 'lucide-react';
+import { User, Building, Phone, Mail, Bell, Lock, Save, Plus, Trash2, Check, Send } from 'lucide-react';
 
 export function ProfilePage() {
   const { profile, user, updatePassword } = useAuth();
@@ -21,6 +21,7 @@ export function ProfilePage() {
   }>>([]);
   const [newEmailAddress, setNewEmailAddress] = useState('');
   const [addingEmail, setAddingEmail] = useState(false);
+  const [sendingTestEmail, setSendingTestEmail] = useState<string | null>(null);
 
   const [profileData, setProfileData] = useState({
     first_name: '',
@@ -213,6 +214,42 @@ export function ProfilePage() {
   };
 
   const hasPPUPlan = billingPlan && (billingPlan.inbound_plan === 'inbound_pay_per_use' || billingPlan.outbound_plan === 'outbound_pay_per_use');
+
+  const handleSendTestEmail = async (emailAddress: string) => {
+    setSendingTestEmail(emailAddress);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-test-notification`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            userId: profile?.id,
+            email: emailAddress,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send test email');
+      }
+
+      setSuccess(`Test email sent to ${emailAddress}`);
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send test email');
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setSendingTestEmail(null);
+    }
+  };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -462,16 +499,28 @@ export function ProfilePage() {
                             </span>
                           )}
                         </div>
-                        {!email.is_primary && (
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => handleRemoveEmail(email.id)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            title="Remove email"
+                            onClick={() => handleSendTestEmail(email.email)}
+                            disabled={sendingTestEmail === email.email}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                            title="Send test email"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Send className="h-3.5 w-3.5" />
+                            {sendingTestEmail === email.email ? 'Sending...' : 'Test'}
                           </button>
-                        )}
+                          {!email.is_primary && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveEmail(email.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Remove email"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="space-y-2 ml-6">
