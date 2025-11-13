@@ -200,27 +200,129 @@ Deno.serve(async (req: Request) => {
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
 
     if (resendApiKey) {
-      const htmlContent = `
-<!DOCTYPE html>
-<html>
+      const htmlContent = `<!doctype html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Welcome Invitation</title>
+  <style>
+    a { text-decoration: none; }
+    .hover-underline:hover { text-decoration: underline !important; }
+    @media (max-width: 600px) {
+      .container { width: 100% !important; }
+      .px-24 { padding-left: 16px !important; padding-right: 16px !important; }
+      .py-32 { padding-top: 24px !important; padding-bottom: 24px !important; }
+      .btn { width: 100% !important; }
+    }
+  </style>
 </head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background-color: #f8f9fa; padding: 30px; border-radius: 10px;">
-    <h1 style="color: #2563eb; margin-bottom: 20px;">Welcome to Voice AI Dash!</h1>
-    <p style="font-size: 16px; margin-bottom: 20px;">Hi ${targetUser.first_name || 'there'},</p>
-    <p style="font-size: 16px; margin-bottom: 20px;">Your Voice AI Dash account has been created! Click the button below to complete your account setup and choose your password.</p>
-    <div style="text-align: center; margin: 30px 0;">
-      <a href="${invitationLink}" style="background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Complete Account Setup</a>
-    </div>
-    <p style="font-size: 14px; color: #666; margin-top: 30px;">If the button doesn't work, copy and paste this link into your browser:</p>
-    <p style="font-size: 14px; color: #2563eb; word-break: break-all;">${invitationLink}</p>
-    <p style="font-size: 14px; color: #666; margin-top: 30px;">This invitation will expire in 7 days.</p>
-    <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-    <p style="font-size: 12px; color: #999;">If you didn't expect this email, please ignore it.</p>
+
+<body style="margin:0; padding:0; background:#0b1220;">
+  <div style="display:none; overflow:hidden; line-height:1px; opacity:0; max-height:0; max-width:0;">
+    Complete your Voice AI Dash account setup.
   </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1220;">
+    <tr>
+      <td align="center" style="padding:24px;">
+
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" class="container"
+               style="width:600px; background:#0f172a; border-radius:16px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.35);">
+
+          <tr>
+            <td align="center" style="padding:28px 24px 8px 24px; background:#0b1220;">
+              <a href="https://voiceaidash.com" target="_blank">
+                <img src="https://voiceaidash.com/assets/Voice%20AI%20Dash%20Logo%20with%20Text%20Dark-Di3zKMgu.png"
+                     alt="Voice AI Dash" width="180" style="display:block; border:0;">
+              </a>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="py-32 px-24" style="padding:32px 32px 0 32px;">
+              <h1 style="margin:0; font-family:Inter, Segoe UI, Roboto, Arial, sans-serif;
+                         font-size:24px; line-height:32px; color:#ffffff;">
+                Welcome, ${targetUser.first_name || 'there'}!
+              </h1>
+              <p style="margin:12px 0 0 0; font-family:Inter, Segoe UI, Roboto, Arial, sans-serif;
+                        font-size:15px; line-height:24px; color:#cbd5e1;">
+                You've been invited to join Voice AI Dash. Complete your account setup by creating a password.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding:24px 32px 8px 32px;">
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${invitationLink}"
+                           style="height:44px; v-text-anchor:middle; width:260px;" arcsize="12%"
+                           fillcolor="#2563eb" strokecolor="#2563eb">
+                <w:anchorlock/>
+                <center style="color:#ffffff; font-family:Segoe UI, Arial, sans-serif; font-size:16px; font-weight:600;">
+                  Set Up Your Account
+                </center>
+              </v:roundrect>
+              <![endif]-->
+              <!--[if !mso]><!-- -->
+              <a href="${invitationLink}" class="btn"
+                 style="display:inline-block; background:#2563eb; color:#ffffff;
+                        font-family:Inter, Segoe UI, Roboto, Arial, sans-serif;
+                        font-size:16px; font-weight:600; line-height:44px;
+                        padding:0 24px; border-radius:12px; text-align:center;
+                        min-width:220px;">
+                Set Up Your Account
+              </a>
+              <!--<![endif]-->
+
+              <div style="height:8px; line-height:8px;">&nbsp;</div>
+
+              <p style="margin:8px 0 0 0; font-family:Inter, Segoe UI, Roboto, Arial, sans-serif;
+                        font-size:12px; line-height:18px; color:#94a3b8;">
+                Or copy and paste this link into your browser:
+                <br>
+                <a href="${invitationLink}" style="color:#93c5fd;" class="hover-underline">
+                  ${invitationLink}
+                </a>
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:16px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr><td style="height:1px; background:#1f2937;"></td></tr>
+              </table>
+              <p style="margin:16px 0 0 0; font-family:Inter, Segoe UI, Roboto, Arial, sans-serif;
+                        font-size:12px; line-height:20px; color:#94a3b8;">
+                This invitation will expire in 7 days.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding:20px 24px 28px 24px; background:#0b1220;">
+              <p style="margin:0; font-family:Inter, Segoe UI, Roboto, Arial, sans-serif;
+                        font-size:12px; line-height:18px; color:#64748b;">
+                © Voice AI Dash
+              </p>
+              <p style="margin:6px 0 0 0; font-family:Inter, Segoe UI, Roboto, Arial, sans-serif;
+                        font-size:12px; line-height:18px; color:#64748b;">
+                Need help? Contact support at
+                <a href="mailto:support@smartcompanyai.com" style="color:#93c5fd; text-decoration:none;">
+                  support@smartcompanyai.com
+                </a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
 </body>
 </html>`;
 
