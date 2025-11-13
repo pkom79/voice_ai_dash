@@ -1169,9 +1169,80 @@ const [activeTab, setActiveTab] = useState<'tab1' | 'tab2'>('tab1');
 </div>
 ```
 
-### Modal Pattern
+### Modal Pattern (Updated v3.1.0 - November 13, 2025)
 
-**Used in**: AdminUsersPage (Agent Management)
+**Brand-Consistent Design**: All modals now follow a uniform browser alert-inspired design with colored header bars, centered content, and prominent action buttons.
+
+#### NotificationModal Pattern
+
+**Used for**: Success, error, warning, and info notifications
+
+```tsx
+<NotificationModal
+  isOpen={showNotification}
+  onClose={() => setShowNotification(false)}
+  title="Error" // or "Success", "Warning", "Information"
+  message="User not found"
+  type="error" // "success" | "error" | "warning" | "info"
+/>
+```
+
+**Visual Design**:
+- **Header Bar**: Color-coded by type (red for error, green for success, yellow for warning, blue for info)
+- **Content Area**: Light gray background (slate-50 in light mode, slate-900 in dark mode)
+- **Message**: Centered text with proper dark mode support
+- **Button**: Red "OK" button centered at bottom
+- **Dark Mode**: Full support with appropriate color adjustments
+
+#### ConfirmationModal Pattern
+
+**Used for**: Two-choice confirmation dialogs
+
+```tsx
+<ConfirmationModal
+  isOpen={showConfirm}
+  title="Confirm Action"
+  message="Are you sure you want to proceed?"
+  confirmText="Yes, Continue"
+  cancelText="Cancel"
+  onConfirm={handleConfirm}
+  onCancel={() => setShowConfirm(false)}
+  type="warning" // "danger" | "warning" | "info"
+/>
+```
+
+**Visual Design**:
+- **Header Bar**: Color-coded by type (red for danger, yellow for warning, blue for info)
+- **Content Area**: Light gray background with centered message
+- **Buttons**: Gray cancel button + red confirm button, side-by-side
+- **Dark Mode**: Full support with theme-appropriate colors
+
+#### Modal Design Standards
+
+**Color Scheme**:
+- Error/Danger Header: `bg-red-600 dark:bg-red-700`
+- Warning Header: `bg-yellow-600 dark:bg-yellow-700`
+- Success Header: `bg-green-600 dark:bg-green-700`
+- Info Header: `bg-blue-600 dark:bg-blue-700`
+- Content Background: `bg-slate-50 dark:bg-slate-900`
+- Card Background: `bg-white dark:bg-slate-800`
+
+**Typography**:
+- Title: `text-lg font-semibold text-white` (in colored header)
+- Message: `text-gray-900 dark:text-gray-100 text-center leading-relaxed`
+
+**Button Styling**:
+- Primary Action: `bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800`
+- Secondary Action: `bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600`
+
+**Branding Guidelines**:
+- Never show "voiceaidash.com says:" prefix in modals
+- Message text should be centered and clear
+- Always position modals in the center of the screen
+- Use consistent padding: `px-6 py-4` for header/footer, `px-6 py-8` for content
+- Include close button (X icon) in top-right of header
+
+**Legacy Modal Pattern** (for complex modals with custom content):
 
 ```tsx
 {showModal && (
@@ -1190,6 +1261,8 @@ const [activeTab, setActiveTab] = useState<'tab1' | 'tab2'>('tab1');
   </div>
 )}
 ```
+
+**Note**: Complex modals with forms, tables, or multi-step processes may use the legacy pattern, but simple notifications and confirmations MUST use the branded modal components.
 
 ### Loading State Pattern
 
