@@ -37,6 +37,13 @@ export function BillingConfigModal({
   const [adjustType, setAdjustType] = useState<'add' | 'deduct'>('add');
   const { profile } = useAuth();
 
+  const formatBillingPlan = (plan: string) => {
+    if (plan === 'pay_per_use') return 'Pay Per Use';
+    if (plan === 'unlimited') return 'Unlimited';
+    if (plan === 'complimentary') return 'Complimentary';
+    return plan;
+  };
+
   useEffect(() => {
     loadBilling();
   }, [userId]);
@@ -243,7 +250,7 @@ export function BillingConfigModal({
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-gray-700">Current Plan:</span>
-                    <span className="text-gray-900 capitalize">{billing.billing_plan.replace('_', ' ')}</span>
+                    <span className="text-gray-900">{formatBillingPlan(billing.billing_plan)}</span>
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button
