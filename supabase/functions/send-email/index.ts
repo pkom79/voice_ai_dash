@@ -12,7 +12,7 @@ interface EmailRequest {
   html?: string;
   templateId?: string;
   userId: string;
-  emailType: 'low_balance_alert' | 'insufficient_balance_alert' | 'weekly_summary' | 'service_interruption_warning';
+  emailType: 'low_balance_alert' | 'insufficient_balance_alert' | 'weekly_summary' | 'service_interruption_warning' | 'test_notification';
   templateData: any;
 }
 
