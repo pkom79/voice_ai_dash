@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link } from 'lucide-react';
+import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
 import { useNotification } from '../hooks/useNotification';
@@ -61,6 +61,9 @@ export function UserDetailsPage() {
   const [apiConnection, setApiConnection] = useState<any>(null);
   const [assignedAgents, setAssignedAgents] = useState<any[]>([]);
   const [loadingApiData, setLoadingApiData] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+  const [unassigningAgent, setUnassigningAgent] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -360,6 +363,54 @@ export function UserDetailsPage() {
       showError(err.message || 'Failed to send test email');
     } finally {
       setSendingTestEmail(null);
+    }
+  };
+
+  const handleDisconnectHighLevel = async () => {
+    if (!apiConnection || !userId) return;
+
+    setDisconnecting(true);
+    try {
+      // Deactivate the API key
+      const { error } = await supabase
+        .from('api_keys')
+        .update({ is_active: false })
+        .eq('id', apiConnection.id);
+
+      if (error) throw error;
+
+      showSuccess('HighLevel connection disconnected successfully');
+      setShowDisconnectModal(false);
+      await loadApiData();
+    } catch (error: any) {
+      console.error('Error disconnecting:', error);
+      showError(error.message || 'Failed to disconnect HighLevel');
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const handleUnassignAgent = async (agentId: string) => {
+    if (!userId) return;
+
+    setUnassigningAgent(agentId);
+    try {
+      // Remove from user_agents junction table
+      const { error } = await supabase
+        .from('user_agents')
+        .delete()
+        .eq('user_id', userId)
+        .eq('agent_id', agentId);
+
+      if (error) throw error;
+
+      showSuccess('Agent unassigned successfully');
+      await loadApiData();
+    } catch (error: any) {
+      console.error('Error unassigning agent:', error);
+      showError(error.message || 'Failed to unassign agent');
+    } finally {
+      setUnassigningAgent(null);
     }
   };
 
@@ -819,6 +870,15 @@ export function UserDetailsPage() {
                           : 'Never'}
                       </div>
                     </div>
+                    <div className="pt-4 border-t border-gray-200">
+                      <button
+                        onClick={() => setShowDisconnectModal(true)}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium"
+                      >
+                        <X className="h-4 w-4" />
+                        Disconnect HighLevel
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -871,6 +931,23 @@ export function UserDetailsPage() {
                                 {agent.agent_phone_numbers.length} phone {agent.agent_phone_numbers.length === 1 ? 'number' : 'numbers'} assigned
                               </div>
                             )}
+                            <button
+                              onClick={() => handleUnassignAgent(agent.id)}
+                              disabled={unassigningAgent === agent.id}
+                              className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {unassigningAgent === agent.id ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Unassigning...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="h-4 w-4" />
+                                  Unassign Agent
+                                </>
+                              )}
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -903,6 +980,47 @@ export function UserDetailsPage() {
           </div>
         )}
       </div>
+
+      {/* Disconnect Confirmation Modal */}
+      {showDisconnectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Disconnect HighLevel?</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to disconnect this HighLevel connection? This will deactivate the API key and stop syncing data.
+              All assigned agents will remain in the system but will no longer sync.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDisconnectModal(false)}
+                disabled={disconnecting}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDisconnectHighLevel}
+                disabled={disconnecting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {disconnecting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Disconnecting...
+                  </>
+                ) : (
+                  'Disconnect'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <NotificationModal
         isOpen={notification.isOpen}
