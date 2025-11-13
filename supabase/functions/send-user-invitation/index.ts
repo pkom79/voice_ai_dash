@@ -200,26 +200,22 @@ Deno.serve(async (req: Request) => {
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
 
     if (resendApiKey) {
-      const emailPayload = {
-        from: 'Voice AI Dash <onboarding@resend.dev>',
-        to: [userEmail],
-        template_id: 'account-setup-invitation',
-        template_data: {
-          first_name: targetUser.first_name,
-          invitation_link: invitationLink,
-          email: userEmail,
-        },
-      };
-
-      console.log("Sending email with payload:", JSON.stringify(emailPayload, null, 2));
-
-      const emailResponse = await fetch('https://api.resend.com/emails', {
+      const emailResponse = await fetch(`https://api.resend.com/emails/send-with-template`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${resendApiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(emailPayload),
+        body: JSON.stringify({
+          from: 'Voice AI Dash <onboarding@resend.dev>',
+          to: [userEmail],
+          template_name: 'account-setup-invitation',
+          variables: {
+            first_name: targetUser.first_name,
+            invitation_link: invitationLink,
+            email: userEmail,
+          },
+        }),
       });
 
       const emailResult = await emailResponse.text();
