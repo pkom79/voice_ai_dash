@@ -25,6 +25,7 @@ interface NotificationEmail {
   insufficient_balance_enabled: boolean;
   service_interruption_enabled: boolean;
   weekly_summary_enabled: boolean;
+  daily_summary_enabled: boolean;
 }
 
 interface BillingData {
@@ -144,6 +145,7 @@ export function UserDetailsPage() {
             insufficient_balance_enabled: emailRecord.insufficient_balance_enabled,
             service_interruption_enabled: emailRecord.service_interruption_enabled,
             weekly_summary_enabled: emailRecord.weekly_summary_enabled,
+            daily_summary_enabled: emailRecord.daily_summary_enabled,
           })
           .eq('id', emailRecord.id);
 
@@ -220,6 +222,7 @@ export function UserDetailsPage() {
           insufficient_balance_enabled: true,
           service_interruption_enabled: true,
           weekly_summary_enabled: true,
+          daily_summary_enabled: true,
         });
 
       if (insertError) throw insertError;
@@ -599,6 +602,16 @@ export function UserDetailsPage() {
                             className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 rounded"
                           />
                           <span className="text-sm text-gray-700">Weekly Summary Reports</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={emailRecord.daily_summary_enabled}
+                            onChange={(e) => updateEmailPreference(emailRecord.id, 'daily_summary_enabled', e.target.checked)}
+                            className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <span className="text-sm text-gray-700">Daily Activity Summaries</span>
                         </label>
                       </div>
                     </div>

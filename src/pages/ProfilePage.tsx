@@ -18,6 +18,7 @@ export function ProfilePage() {
     insufficient_balance_enabled: boolean;
     service_interruption_enabled: boolean;
     weekly_summary_enabled: boolean;
+    daily_summary_enabled: boolean;
   }>>([]);
   const [newEmailAddress, setNewEmailAddress] = useState('');
   const [addingEmail, setAddingEmail] = useState(false);
@@ -124,6 +125,7 @@ export function ProfilePage() {
             insufficient_balance_enabled: email.insufficient_balance_enabled,
             service_interruption_enabled: email.service_interruption_enabled,
             weekly_summary_enabled: email.weekly_summary_enabled,
+            daily_summary_enabled: email.daily_summary_enabled,
           })
           .eq('id', email.id);
 
@@ -164,6 +166,7 @@ export function ProfilePage() {
           insufficient_balance_enabled: true,
           service_interruption_enabled: true,
           weekly_summary_enabled: true,
+          daily_summary_enabled: true,
         });
 
       if (insertError) throw insertError;
@@ -566,6 +569,16 @@ export function ProfilePage() {
                             className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                           />
                           <span className="text-sm text-gray-700 dark:text-gray-300">Weekly Summary Reports</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={email.daily_summary_enabled}
+                            onChange={(e) => updateEmailPreference(email.id, 'daily_summary_enabled', e.target.checked)}
+                            className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">Daily Activity Summaries</span>
                         </label>
                       </div>
                     </div>
