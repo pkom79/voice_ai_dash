@@ -1713,9 +1713,58 @@ voice-ai-dash/
 
 ---
 
+## Email System Configuration
+
+### Overview
+All system emails are sent through Resend API using the verified domain `voiceaidash.com`.
+
+### Email Configuration
+
+**Sender Address**: `Voice AI Dash <no-reply@voiceaidash.com>`
+
+**Domain Verification**:
+- Domain: `voiceaidash.com`
+- Status: Verified in Resend
+- Records configured: SPF, DKIM, DMARC
+
+**Email Types**:
+- Password Reset Emails
+- User Invitation Emails
+- Low Balance Alerts (PPU plans)
+- Insufficient Balance Alerts (PPU plans)
+- Weekly Activity Summaries
+- Service Interruption Warnings (Unlimited plans)
+
+### Edge Functions Using Email
+
+1. **send-password-reset** - Password recovery emails
+2. **send-user-invitation** - Account setup invitations
+3. **send-email** - Base email sending function
+4. **check-low-balance-alerts** - Wallet balance notifications
+5. **check-insufficient-balance-alerts** - Monthly invoice warnings
+6. **send-weekly-summaries** - Call activity reports
+7. **check-service-interruption-warnings** - Payment overdue alerts
+
+### Email Branding
+
+All emails use consistent Voice AI Dash branding:
+- Logo: Voice AI Dash logo with text (dark version)
+- Primary Color: Blue (#2563eb)
+- Background: Dark theme (#0b1220, #0f172a)
+- Font: Inter, Segoe UI, Roboto, Arial, sans-serif
+- Responsive HTML templates optimized for all email clients
+
+### Support Contact
+
+**Support Email**: `support@smartcompanyai.com`
+- Displayed in email footers
+- For user assistance and questions
+
+---
+
 **End of Documentation**
 
-Last Updated: November 11, 2025
+Last Updated: November 13, 2025
 Maintained by: Development Team
 For questions or updates: Please update this README when making significant changes
 
