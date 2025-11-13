@@ -75,9 +75,8 @@ Deno.serve(async (req: Request) => {
     const userPrimaryEmail = primaryEmail?.email || email;
 
     const templateData = {
-      userName: `${user.first_name} ${user.last_name}`,
-      userEmail: userPrimaryEmail,
-      recipientEmail: email,
+      userEmail: email,
+      recipientEmail: userPrimaryEmail,
       sentAt: new Date().toLocaleString(),
     };
 
@@ -91,7 +90,7 @@ Deno.serve(async (req: Request) => {
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f5f5f5;">
         <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden;">
           <div style="padding: 30px 30px 0 30px;">
-            <p style="font-size: 18px; margin: 0 0 20px 0;">Hi ${templateData.userName},</p>
+            <p style="font-size: 18px; margin: 0 0 20px 0;">Hi ${user.first_name} ${user.last_name},</p>
           </div>
           <div style="margin: 0 30px; background-color: #d1fae5; border-left: 4px solid #10b981; padding: 15px; border-radius: 4px;">
             <p style="margin: 0; font-weight: 600;">✅ Success! This is a test notification.</p>
@@ -106,8 +105,8 @@ Deno.serve(async (req: Request) => {
           </div>
           <div style="margin: 0 30px 30px 30px; background-color: #e0e7ff; border: 1px solid #818cf8; padding: 20px; border-radius: 6px;">
             <p style="margin: 0 0 15px 0; font-weight: 600;">Test Details:</p>
-            <p style="margin: 5px 0;">📧 <strong>Recipient:</strong> ${templateData.recipientEmail}</p>
-            <p style="margin: 5px 0;">👤 <strong>Account:</strong> ${templateData.userEmail}</p>
+            <p style="margin: 5px 0;">📧 <strong>Recipient:</strong> ${templateData.userEmail}</p>
+            <p style="margin: 5px 0;">👤 <strong>Account:</strong> ${templateData.recipientEmail}</p>
             <p style="margin: 5px 0;">📅 <strong>Sent:</strong> ${templateData.sentAt}</p>
           </div>
           <div style="padding: 0 30px 30px 30px;">
