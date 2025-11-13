@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
       throw new Error('Stripe secret key not configured');
     }
 
-    const { userId, type, amountCents, walletCents } = await req.json();
+    const { userId, type, amountCents, walletCents, inboundPlan, outboundPlan, walletTopupCents, subscriptionRequired } = await req.json();
 
     if (!userId || !type) {
       return new Response(
@@ -143,6 +143,142 @@ Deno.serve(async (req: Request) => {
 
       const session = await response.json();
       checkoutUrl = session.url;
+
+    } else if (type === 'first_login_billing') {
+      // Handle dual-plan first login billing
+      const needsWallet = walletTopupCents && walletTopupCents > 0;
+      const needsSubscription = subscriptionRequired === true;
+
+      if (!needsWallet && !needsSubscription) {
+        return new Response(
+          JSON.stringify({ error: 'No payment required' }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // If both wallet and subscription are needed, create a combined payment
+      if (needsWallet && needsSubscription) {
+        if (!STRIPE_UNLIMITED_PRICE_ID) {
+          throw new Error('Unlimited plan not configured');
+        }
+
+        const params = new URLSearchParams({
+          'payment_method_types[]': 'card',
+          'line_items[0][price]': STRIPE_UNLIMITED_PRICE_ID,
+          'line_items[0][quantity]': '1',
+          'line_items[1][price_data][currency]': 'usd',
+          'line_items[1][price_data][product_data][name]': 'Wallet Credit',
+          'line_items[1][price_data][unit_amount]': walletTopupCents.toString(),
+          'line_items[1][quantity]': '1',
+          'mode': 'subscription',
+          'success_url': successUrl,
+          'cancel_url': cancelUrl,
+        });
+
+        params.append('metadata[user_id]', userId);
+        params.append('metadata[type]', 'first_login_combined');
+        params.append('metadata[inbound_plan]', inboundPlan || '');
+        params.append('metadata[outbound_plan]', outboundPlan || '');
+        params.append('metadata[wallet_topup_cents]', walletTopupCents.toString());
+        params.append('subscription_data[metadata][user_id]', userId);
+        params.append('subscription_data[metadata][plan]', 'unlimited');
+
+        const response = await fetch(`${baseUrl}/checkout/sessions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: params.toString(),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error('Stripe API error:', error);
+          throw new Error('Failed to create combined checkout session');
+        }
+
+        const session = await response.json();
+        checkoutUrl = session.url;
+      } else if (needsSubscription) {
+        // Only subscription needed
+        if (!STRIPE_UNLIMITED_PRICE_ID) {
+          throw new Error('Unlimited plan not configured');
+        }
+
+        const params = new URLSearchParams({
+          'payment_method_types[]': 'card',
+          'line_items[0][price]': STRIPE_UNLIMITED_PRICE_ID,
+          'line_items[0][quantity]': '1',
+          'mode': 'subscription',
+          'success_url': successUrl,
+          'cancel_url': cancelUrl,
+        });
+
+        params.append('metadata[user_id]', userId);
+        params.append('metadata[type]', 'first_login_subscription');
+        params.append('metadata[inbound_plan]', inboundPlan || '');
+        params.append('metadata[outbound_plan]', outboundPlan || '');
+        params.append('subscription_data[metadata][user_id]', userId);
+        params.append('subscription_data[metadata][plan]', 'unlimited');
+
+        const response = await fetch(`${baseUrl}/checkout/sessions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: params.toString(),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error('Stripe API error:', error);
+          throw new Error('Failed to create subscription session');
+        }
+
+        const session = await response.json();
+        checkoutUrl = session.url;
+      } else {
+        // Only wallet needed
+        const params = new URLSearchParams({
+          'payment_method_types[]': 'card',
+          'line_items[0][price_data][currency]': 'usd',
+          'line_items[0][price_data][product_data][name]': 'Initial Wallet Credit',
+          'line_items[0][price_data][unit_amount]': walletTopupCents.toString(),
+          'line_items[0][quantity]': '1',
+          'mode': 'payment',
+          'success_url': successUrl,
+          'cancel_url': cancelUrl,
+        });
+
+        params.append('metadata[user_id]', userId);
+        params.append('metadata[type]', 'first_login_wallet');
+        params.append('metadata[inbound_plan]', inboundPlan || '');
+        params.append('metadata[outbound_plan]', outboundPlan || '');
+        params.append('metadata[amount_cents]', walletTopupCents.toString());
+
+        const response = await fetch(`${baseUrl}/checkout/sessions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: params.toString(),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error('Stripe API error:', error);
+          throw new Error('Failed to create wallet checkout session');
+        }
+
+        const session = await response.json();
+        checkoutUrl = session.url;
+      }
 
     } else {
       return new Response(

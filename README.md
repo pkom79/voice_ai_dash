@@ -1,7 +1,7 @@
 # Voice AI Dash
 
-**Version:** 1.6.0
-**Last Updated:** November 13, 2025
+**Version:** 3.0.0
+**Last Updated:** November 13, 2025 (Dual-Plan Billing System)
 
 A comprehensive Voice AI Dashboard for managing HighLevel voice agents, call logs, billing, and OAuth integrations.
 
@@ -1517,16 +1517,46 @@ const [activeTab, setActiveTab] = useState<'tab1' | 'tab2'>('tab1');
 
 ---
 
-## Stripe Billing System (v2.0.0 - November 11, 2025)
+## Stripe Billing System (v3.0.0 - November 13, 2025)
 
 ### Overview
-Complete Stripe-backed billing system with three plan types (Pay Per Use, Unlimited, Complimentary) and dynamic inline pricing.
+Complete Stripe-backed billing system with **dual-direction plan structure** supporting independent Inbound and Outbound plans. Users can have Inbound-only, Outbound-only, or combined plans with separate rate configuration for each direction.
 
-### Billing Plans
+### Billing Plans (Dual-Direction System)
 
-**Pay Per Use (PPU)** - Wallet-based with monthly invoicing on the 1st
-**Unlimited** - $500/month fixed subscription with immediate charge
-**Complimentary** - Free accounts with zero-cost tracking (admin-only)
+**NEW in v3.0.0**: The billing system now supports separate plans for Inbound and Outbound calls.
+
+#### Inbound Plans
+- **Inbound Pay Per Use (PPU)** - Wallet-based charging per minute for inbound calls
+  - Rate configurable per user (default $5.00/min)
+  - Charged from wallet balance
+  - Initial $50 wallet minimum
+
+- **Inbound Unlimited** - $500/month fixed subscription
+  - Unlimited inbound call minutes
+  - Monthly recurring billing
+  - Immediate charge on signup
+
+#### Outbound Plans
+- **Outbound Pay Per Use (PPU)** - Wallet-based charging per minute for outbound calls
+  - Rate configurable per user (default $5.00/min)
+  - Charged from wallet balance
+  - Shares wallet with Inbound PPU if both selected
+  - Initial $50 wallet minimum
+
+#### Plan Combinations
+Users can have:
+1. **Inbound Only** - PPU or Unlimited (e.g., call center receiving calls)
+2. **Outbound Only** - PPU (e.g., outreach campaigns)
+3. **Both Inbound + Outbound** - Any combination (e.g., full call center)
+4. **Complimentary** - Free accounts with zero-cost tracking (admin-only)
+
+**Important**: At least one plan must be selected for client users (excluding Complimentary).
+
+### Payment Requirements
+- **Inbound/Outbound PPU**: $50 wallet minimum (shared if both selected)
+- **Inbound Unlimited**: $500 first month subscription
+- **Combined PPU + Unlimited**: $550 total ($50 wallet + $500 subscription)
 
 ### Key Features
 - Dynamic per-user rate configuration (stored in cents, not Stripe)
@@ -1536,11 +1566,47 @@ Complete Stripe-backed billing system with three plan types (Pay Per Use, Unlimi
 - Complete audit trail for all wallet transactions
 - Per-call usage tracking with rate at time of call
 
-### Files Created
+### Files Created/Updated (v3.0.0)
 - `src/services/stripe.ts` - Stripe integration with dynamic pricing
 - `src/services/billingEngine.ts` - Billing calculations and wallet management
 - `supabase/functions/stripe-webhook/index.ts` - Webhook handler
-- `supabase/migrations/20251111215019_add_stripe_billing_system.sql` - Database schema
+- `supabase/functions/stripe-checkout/index.ts` - **UPDATED** for dual-plan checkout
+- `supabase/functions/admin-create-user/index.ts` - **UPDATED** for dual-plan user creation
+- `src/components/admin/DualPlanSelector.tsx` - **NEW** reusable plan selector component
+- `src/components/admin/CreateUserModal.tsx` - **UPDATED** with dual-plan UI
+- `src/components/admin/BillingConfigModal.tsx` - **UPDATED** with dual-plan UI
+- `src/components/admin/InviteUserModal.tsx` - **UPDATED** with dual-plan UI
+- `src/components/FirstLoginBillingModal.tsx` - **UPDATED** for dual-plan payment calculation
+- `src/pages/AdminUsersPage.tsx` - **UPDATED** with comprehensive status tags
+- `supabase/migrations/20251113160000_add_dual_plan_billing_structure.sql` - **NEW** Dual-plan schema
+
+### Database Schema Changes (v3.0.0)
+**Migration**: `20251113160000_add_dual_plan_billing_structure.sql`
+
+#### billing_accounts Table
+New columns:
+- `inbound_plan` (text) - 'inbound_pay_per_use' | 'inbound_unlimited' | null
+- `outbound_plan` (text) - 'outbound_pay_per_use' | null
+- `inbound_rate_cents` (integer, default 500) - Rate for inbound PPU calls
+- `outbound_rate_cents` (integer, default 500) - Rate for outbound PPU calls
+- `first_login_billing_completed` (boolean, default false) - Tracks initial payment
+
+Legacy column (deprecated but kept):
+- `billing_plan` - Kept for backward compatibility, marked deprecated
+
+#### users Table
+- `business_name` - Now NOT NULL (required field)
+
+#### calls Table
+New columns for soft-delete archiving:
+- `archived_at` (timestamptz)
+- `archived_by` (uuid)
+- `archived_reason` (text)
+
+#### Helper Functions (NEW)
+- `get_user_billing_status(uuid)` - Returns 'active', 'past_due', 'insufficient_balance', or 'unknown'
+- `calculate_required_payment(text, text, integer)` - Calculates total payment in cents for plan combination
+- `user_has_ppu_plan(uuid)` - Returns true if user has any PPU plan
 
 ### Environment Variables Required
 ```
@@ -1559,15 +1625,28 @@ VITE_STRIPE_UNLIMITED_PRICE_ID=price_... (create $500/month product in Stripe)
 6. Run database migration to add new schema
 7. Deploy stripe-webhook edge function
 
-### Admin Controls
-- Set billing plan (PPU/Unlimited/Complimentary) per user
-- Configure custom rate_per_minute_cents for each PPU user
-- Manually add/deduct wallet credits with audit trail
-- View complete transaction history
+### Admin Controls (v3.0.0)
+- **Dual-Plan Selection** - Choose Inbound and/or Outbound plans independently
+- **Separate Rate Configuration** - Set `inbound_rate_cents` and `outbound_rate_cents` per user
+- **Billing Plan Modal** - Update user plans with live validation
+- **Create User Modal** - Select plans during user creation with payment summary
+- **Invite User Modal** - Include billing configuration in invitation
+- **User List View** - See comprehensive status tags showing:
+  - **Account Status**: ACTIVE / SUSPENDED
+  - **Plan Type**: INBOUND UNL / INBOUND PPU / OUTBOUND PPU
+  - **Billing Status**: LOW BALANCE / ACTIVE
+  - **Integration Status**: HL CONNECTED / AGENT / PHONE
+- **Business Name Prominence** - Business names displayed as primary identifier
 
-### User Experience
-- **PPU**: See rate, wallet, monthly stats, add funds, upgrade option
-- **Unlimited**: See plan/price, next payment, manage payment methods
+### User Experience (v3.0.0)
+- **First Login Billing Modal**: Shows assigned plan combination with payment breakdown
+  - Calculates total payment based on plan selection
+  - Shows wallet top-up requirement ($50 if PPU)
+  - Shows subscription charge ($500 if Unlimited)
+  - Displays separate cards for Inbound and Outbound plans
+- **PPU Users**: See rate, wallet, monthly stats, add funds, plan details per direction
+- **Unlimited Users**: See plan/price, next payment, manage payment methods
+- **Combined Plan Users**: See wallet + subscription management
 - **Complimentary**: See plan indication, no billing UI
 
 For detailed documentation, see inline comments in migration file and service modules.

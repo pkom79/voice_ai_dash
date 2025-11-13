@@ -45,6 +45,11 @@ interface UserWithStatus extends User {
   hasConnection?: boolean;
   hasAgents?: boolean;
   hasPhoneNumbers?: boolean;
+  inboundPlan?: string | null;
+  outboundPlan?: string | null;
+  walletCents?: number;
+  monthSpentCents?: number;
+  billingStatus?: string;
 }
 
 interface OAuthConnection {
@@ -135,11 +140,31 @@ export function AdminUsersPage() {
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id);
 
+          // Load billing information
+          const { data: billing } = await supabase
+            .from('billing_accounts')
+            .select('inbound_plan, outbound_plan, wallet_cents, month_spent_cents')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          let billingStatus = 'ACTIVE';
+          if (billing) {
+            const hasPPU = billing.inbound_plan === 'inbound_pay_per_use' || billing.outbound_plan === 'outbound_pay_per_use';
+            if (hasPPU && billing.wallet_cents < billing.month_spent_cents) {
+              billingStatus = 'LOW BALANCE';
+            }
+          }
+
           return {
             ...user,
             hasConnection: !!connection,
             hasAgents: agents.length > 0,
             hasPhoneNumbers: (phoneCount || 0) > 0,
+            inboundPlan: billing?.inbound_plan,
+            outboundPlan: billing?.outbound_plan,
+            walletCents: billing?.wallet_cents || 0,
+            monthSpentCents: billing?.month_spent_cents || 0,
+            billingStatus,
           };
         } catch (error) {
           console.error(`Error loading status for user ${user.id}:`, error);
@@ -468,39 +493,81 @@ export function AdminUsersPage() {
                       className="flex-1 cursor-pointer"
                       onClick={() => handleSelectUser(user)}
                     >
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium text-gray-900">
-                          {user.first_name} {user.last_name}
+                      {/* Business Name - Prominent Display */}
+                      {user.business_name && (
+                        <h3 className="font-semibold text-gray-900 text-base mb-0.5">
+                          {user.business_name}
                         </h3>
-                        {!user.is_active && (
-                          <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded-full">
-                            Suspended
+                      )}
+
+                      {/* User Name - Secondary */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="text-sm text-gray-600">
+                          {user.first_name} {user.last_name}
+                        </p>
+                        <span className="text-xs text-gray-400 uppercase font-medium">
+                          {user.role}
+                        </span>
+                      </div>
+
+                      {/* Comprehensive Status Tags - ALL CAPS */}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        {/* Account Status */}
+                        {!user.is_active ? (
+                          <span className="px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded uppercase">
+                            SUSPENDED
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
+                            ACTIVE
                           </span>
                         )}
-                      </div>
-                      {user.business_name && (
-                        <p className="text-sm text-gray-600">{user.business_name}</p>
-                      )}
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs text-gray-500 capitalize">{user.role}</span>
+
+                        {/* Billing Plan Tags */}
+                        {user.inboundPlan === 'inbound_unlimited' && (
+                          <span className="px-2 py-0.5 text-xs font-bold bg-blue-100 text-blue-700 rounded uppercase">
+                            INBOUND UNL
+                          </span>
+                        )}
+                        {user.inboundPlan === 'inbound_pay_per_use' && (
+                          <span className="px-2 py-0.5 text-xs font-bold bg-cyan-100 text-cyan-700 rounded uppercase">
+                            INBOUND PPU
+                          </span>
+                        )}
+                        {user.outboundPlan === 'outbound_pay_per_use' && (
+                          <span className="px-2 py-0.5 text-xs font-bold bg-teal-100 text-teal-700 rounded uppercase">
+                            OUTBOUND PPU
+                          </span>
+                        )}
+
+                        {/* Billing Status */}
+                        {user.billingStatus === 'LOW BALANCE' && (
+                          <span className="px-2 py-0.5 text-xs font-bold bg-orange-100 text-orange-700 rounded uppercase">
+                            LOW BALANCE
+                          </span>
+                        )}
+
+                        {/* Integration Status */}
                         {user.hasConnection && (
-                          <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                            HL Connected
+                          <span className="px-2 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700 rounded uppercase">
+                            HL CONNECTED
                           </span>
                         )}
                         {user.hasAgents && (
-                          <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
-                            Agent
+                          <span className="px-2 py-0.5 text-xs font-bold bg-indigo-100 text-indigo-700 rounded uppercase">
+                            AGENT
                           </span>
                         )}
                         {user.hasPhoneNumbers && (
-                          <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
-                            Phone
+                          <span className="px-2 py-0.5 text-xs font-bold bg-purple-100 text-purple-700 rounded uppercase">
+                            PHONE
                           </span>
                         )}
                       </div>
+
+                      {/* Last Login */}
                       {user.last_login && (
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500 mt-2">
                           Last login: {format(new Date(user.last_login), 'MMM d, yyyy')}
                         </p>
                       )}

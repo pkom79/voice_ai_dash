@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Loader2, Mail, Copy, Check } from 'lucide-react';
 import { adminService } from '../../services/admin';
+import { DualPlanSelector } from './DualPlanSelector';
 
 interface InviteUserModalProps {
   onClose: () => void;
@@ -10,6 +11,10 @@ interface InviteUserModalProps {
 export function InviteUserModal({ onClose, onSuccess }: InviteUserModalProps) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'client' | 'admin'>('client');
+  const [inboundPlan, setInboundPlan] = useState<string | null>(null);
+  const [outboundPlan, setOutboundPlan] = useState<string | null>(null);
+  const [inboundRate, setInboundRate] = useState('500');
+  const [outboundRate, setOutboundRate] = useState('500');
   const [expiresInDays, setExpiresInDays] = useState(7);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +27,24 @@ export function InviteUserModal({ onClose, onSuccess }: InviteUserModalProps) {
     setError(null);
 
     try {
-      const invitation = await adminService.createUserInvitation(email, role, expiresInDays);
+      // Validate for client role
+      if (role === 'client' && !inboundPlan && !outboundPlan) {
+        setError('Please select at least one plan for client users');
+        setLoading(false);
+        return;
+      }
+
+      const invitation = await adminService.createUserInvitation(
+        email,
+        role,
+        expiresInDays,
+        role === 'client' ? {
+          inboundPlan,
+          outboundPlan,
+          inboundRateCents: parseInt(inboundRate),
+          outboundRateCents: parseInt(outboundRate),
+        } : undefined
+      );
 
       if (invitation) {
         const link = `${window.location.origin}/signup?invitation=${invitation.invitation_token}`;
@@ -98,6 +120,25 @@ export function InviteUserModal({ onClose, onSuccess }: InviteUserModalProps) {
                   <option value="admin">Admin</option>
                 </select>
               </div>
+
+              {role === 'client' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Billing Plans <span className="text-red-600">*</span>
+                  </label>
+                  <DualPlanSelector
+                    inboundPlan={inboundPlan}
+                    outboundPlan={outboundPlan}
+                    inboundRate={inboundRate}
+                    outboundRate={outboundRate}
+                    onInboundPlanChange={setInboundPlan}
+                    onOutboundPlanChange={setOutboundPlan}
+                    onInboundRateChange={setInboundRate}
+                    onOutboundRateChange={setOutboundRate}
+                    showRates={true}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -46,7 +46,13 @@ class AdminService {
   async createUserInvitation(
     email: string,
     role: 'client' | 'admin' = 'client',
-    expiresInDays: number = 7
+    expiresInDays: number = 7,
+    billingConfig?: {
+      inboundPlan: string | null;
+      outboundPlan: string | null;
+      inboundRateCents: number;
+      outboundRateCents: number;
+    }
   ): Promise<UserInvitation | null> {
     try {
       const token = await this.generateInvitationToken();
@@ -61,6 +67,10 @@ class AdminService {
           role,
           expires_at: expiresAt.toISOString(),
           status: 'pending',
+          inbound_plan: billingConfig?.inboundPlan,
+          outbound_plan: billingConfig?.outboundPlan,
+          inbound_rate_cents: billingConfig?.inboundRateCents,
+          outbound_rate_cents: billingConfig?.outboundRateCents,
         })
         .select()
         .single();
@@ -69,7 +79,7 @@ class AdminService {
 
       await supabase.rpc('log_admin_action', {
         p_action: 'invite_user',
-        p_details: { email, role },
+        p_details: { email, role, billingConfig },
       });
 
       return data;

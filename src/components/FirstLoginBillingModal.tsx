@@ -10,8 +10,11 @@ interface FirstLoginBillingModalProps {
 
 export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBillingModalProps) {
   const { profile } = useAuth();
-  const [billingPlan, setBillingPlan] = useState<'pay_per_use' | 'unlimited' | null>(null);
-  const [ratePerMinute, setRatePerMinute] = useState<number>(0);
+  const [inboundPlan, setInboundPlan] = useState<string | null>(null);
+  const [outboundPlan, setOutboundPlan] = useState<string | null>(null);
+  const [inboundRate, setInboundRate] = useState<number>(0);
+  const [outboundRate, setOutboundRate] = useState<number>(0);
+  const [walletCents, setWalletCents] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
@@ -26,15 +29,18 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
     try {
       const { data, error } = await supabase
         .from('billing_accounts')
-        .select('billing_plan, rate_per_minute_cents')
+        .select('inbound_plan, outbound_plan, inbound_rate_cents, outbound_rate_cents, wallet_cents')
         .eq('user_id', profile.id)
         .maybeSingle();
 
       if (error) throw error;
 
       if (data) {
-        setBillingPlan(data.billing_plan === 'complimentary' ? null : data.billing_plan);
-        setRatePerMinute(data.rate_per_minute_cents || 500);
+        setInboundPlan(data.inbound_plan);
+        setOutboundPlan(data.outbound_plan);
+        setInboundRate(data.inbound_rate_cents || 500);
+        setOutboundRate(data.outbound_rate_cents || 500);
+        setWalletCents(data.wallet_cents || 0);
       }
     } catch (err) {
       console.error('Error loading billing info:', err);
@@ -43,8 +49,27 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
     }
   };
 
+  const calculateTotalPayment = () => {
+    let walletRequired = 0;
+    let subscriptionRequired = 0;
+
+    // Check if PPU wallet is needed ($50 = 5000 cents)
+    if (inboundPlan === 'inbound_pay_per_use' || outboundPlan === 'outbound_pay_per_use') {
+      if (walletCents < 5000) {
+        walletRequired = 5000 - walletCents;
+      }
+    }
+
+    // Check if Unlimited subscription is needed ($500 = 50000 cents)
+    if (inboundPlan === 'inbound_unlimited') {
+      subscriptionRequired = 50000;
+    }
+
+    return { walletRequired, subscriptionRequired, total: walletRequired + subscriptionRequired };
+  };
+
   const handleContinue = async () => {
-    if (!profile?.id || !billingPlan) {
+    if (!profile?.id || (!inboundPlan && !outboundPlan)) {
       setError('Unable to proceed. Please try again.');
       return;
     }
@@ -55,10 +80,16 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`;
+      const payment = calculateTotalPayment();
 
-      const requestBody = billingPlan === 'unlimited'
-        ? { userId: profile.id, type: 'unlimited_upgrade' }
-        : { userId: profile.id, type: 'wallet_topup', amountCents: 5000 };
+      const requestBody = {
+        userId: profile.id,
+        type: 'first_login_billing',
+        inboundPlan,
+        outboundPlan,
+        walletTopupCents: payment.walletRequired,
+        subscriptionRequired: payment.subscriptionRequired > 0,
+      };
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -99,9 +130,15 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
     );
   }
 
-  if (!billingPlan) {
+  if (!inboundPlan && !outboundPlan) {
     return null;
   }
+
+  const payment = calculateTotalPayment();
+  const hasInboundUnlimited = inboundPlan === 'inbound_unlimited';
+  const hasInboundPPU = inboundPlan === 'inbound_pay_per_use';
+  const hasOutboundPPU = outboundPlan === 'outbound_pay_per_use';
+  const hasPPU = hasInboundPPU || hasOutboundPPU;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -133,72 +170,110 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
             </div>
           )}
 
-          {/* Billing Plan */}
-          <div className="mb-8">
-            {billingPlan === 'unlimited' ? (
-              <div className="relative p-8 rounded-xl border-2 border-blue-600 bg-blue-50">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Zap className="w-6 h-6 text-blue-600" />
+          {/* Billing Plan Summary */}
+          <div className="mb-8 space-y-4">
+            <div className="text-center mb-4">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Your Plan Configuration</h3>
+              <p className="text-sm text-gray-600">Initial payment required to activate your account</p>
+            </div>
+
+            {/* Inbound Plan Card */}
+            {inboundPlan && (
+              <div className={`relative p-6 rounded-xl border-2 ${
+                hasInboundUnlimited ? 'border-blue-600 bg-blue-50' : 'border-green-600 bg-green-50'
+              }`}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    hasInboundUnlimited ? 'bg-blue-100' : 'bg-green-100'
+                  }`}>
+                    {hasInboundUnlimited ? (
+                      <Zap className="w-5 h-5 text-blue-600" />
+                    ) : (
+                      <Wallet className="w-5 h-5 text-green-600" />
+                    )}
                   </div>
                   <div>
-                    <h3 className="font-bold text-xl text-gray-900">Unlimited Plan</h3>
-                    <p className="text-sm text-gray-500">Monthly subscription</p>
+                    <h4 className="font-bold text-lg text-gray-900">
+                      {hasInboundUnlimited ? 'Inbound Unlimited' : 'Inbound Pay Per Use'}
+                    </h4>
+                    <p className="text-xs text-gray-500">Incoming AI Voice Calls</p>
                   </div>
                 </div>
-
-                <div className="mb-4">
-                  <div className="flex items-baseline gap-1 mb-2">
-                    <span className="text-4xl font-bold text-gray-900">$500</span>
-                    <span className="text-gray-500">/month</span>
-                  </div>
-                  <p className="text-sm text-gray-600">Unlimited AI Voice Inbound Calls</p>
-                </div>
-
-                <ul className="space-y-2">
-                  {['Unlimited inbound minutes', 'Priority support', 'Advanced analytics', 'No per-call charges'].map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
-                      <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <div className="relative p-8 rounded-xl border-2 border-blue-600 bg-blue-50">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <Wallet className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-xl text-gray-900">Pay Per Use</h3>
-                    <p className="text-sm text-gray-500">Flexible wallet credits</p>
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <div className="flex items-baseline gap-1 mb-2">
-                    <span className="text-4xl font-bold text-gray-900">$50</span>
-                    <span className="text-gray-500">minimum credit</span>
-                  </div>
-                  <p className="text-sm text-gray-600">Only pay for what you use</p>
-                </div>
-
-                <ul className="space-y-2">
-                  {[
-                    `$${(ratePerMinute / 100).toFixed(2)} per minute`,
-                    'No monthly commitment',
-                    'Refillable wallet',
-                    'Perfect for flexible usage'
-                  ].map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
-                      <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
+                <ul className="space-y-1.5">
+                  {hasInboundUnlimited ? (
+                    <>
+                      <li className="flex items-center gap-2 text-sm text-gray-600">
+                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <span>Unlimited inbound minutes</span>
+                      </li>
+                      <li className="flex items-center gap-2 text-sm text-gray-600">
+                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <span>$500/month subscription</span>
+                      </li>
+                    </>
+                  ) : (
+                    <>
+                      <li className="flex items-center gap-2 text-sm text-gray-600">
+                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <span>${(inboundRate / 100).toFixed(2)} per minute</span>
+                      </li>
+                      <li className="flex items-center gap-2 text-sm text-gray-600">
+                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <span>Charged from wallet balance</span>
+                      </li>
+                    </>
+                  )}
                 </ul>
               </div>
             )}
+
+            {/* Outbound Plan Card */}
+            {outboundPlan && (
+              <div className="relative p-6 rounded-xl border-2 border-green-600 bg-green-50">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <Wallet className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-lg text-gray-900">Outbound Pay Per Use</h4>
+                    <p className="text-xs text-gray-500">Outgoing AI Voice Calls</p>
+                  </div>
+                </div>
+                <ul className="space-y-1.5">
+                  <li className="flex items-center gap-2 text-sm text-gray-600">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>${(outboundRate / 100).toFixed(2)} per minute</span>
+                  </li>
+                  <li className="flex items-center gap-2 text-sm text-gray-600">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>Charged from wallet balance</span>
+                  </li>
+                </ul>
+              </div>
+            )}
+
+            {/* Payment Summary */}
+            <div className="p-6 rounded-xl border-2 border-gray-300 bg-gray-50">
+              <h4 className="font-bold text-lg text-gray-900 mb-3">Payment Summary</h4>
+              <div className="space-y-2">
+                {hasPPU && payment.walletRequired > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Wallet Credit (minimum $50)</span>
+                    <span className="font-semibold text-gray-900">${(payment.walletRequired / 100).toFixed(2)}</span>
+                  </div>
+                )}
+                {hasInboundUnlimited && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Unlimited Subscription (first month)</span>
+                    <span className="font-semibold text-gray-900">${(payment.subscriptionRequired / 100).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="pt-2 mt-2 border-t border-gray-300 flex justify-between">
+                  <span className="font-bold text-gray-900">Total Due Today</span>
+                  <span className="font-bold text-xl text-blue-600">${(payment.total / 100).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Call to Action */}
