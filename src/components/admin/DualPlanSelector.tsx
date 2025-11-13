@@ -103,10 +103,10 @@ export function DualPlanSelector({
                 onChange={(e) => onInboundRateChange(e.target.value)}
                 disabled={disabled}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="500"
+                placeholder="100"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Default: 500 cents ($5.00/min). Example: 300 = $3.00/min, 1000 = $10.00/min
+                Default: 100 cents ($1.00/min). Example: 50 = $0.50/min, 150 = $1.50/min
               </p>
             </div>
           )}
@@ -125,10 +125,10 @@ export function DualPlanSelector({
                 onChange={(e) => onOutboundRateChange(e.target.value)}
                 disabled={disabled}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="500"
+                placeholder="100"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Default: 500 cents ($5.00/min). Example: 300 = $3.00/min, 1000 = $10.00/min
+                Default: 100 cents ($1.00/min). Example: 50 = $0.50/min, 150 = $1.50/min
               </p>
             </div>
           )}

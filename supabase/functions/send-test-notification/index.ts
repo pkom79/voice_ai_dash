@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, first_name, last_name, email')
+      .select('id, first_name, last_name')
       .eq('id', userId)
       .single();
 
@@ -119,7 +119,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: emailRecord, error: emailError } = await supabase
       .from('user_notification_emails')
-      .select('email')
+      .select('email, is_primary')
       .eq('user_id', userId)
       .eq('email', email)
       .maybeSingle();
@@ -134,12 +134,21 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const { data: primaryEmail } = await supabase
+      .from('user_notification_emails')
+      .select('email')
+      .eq('user_id', userId)
+      .eq('is_primary', true)
+      .maybeSingle();
+
+    const userPrimaryEmail = primaryEmail?.email || email;
+
     const emailPayload = {
       to: email,
       subject: '✅ Test Notification - Voice AI Dash',
       userId: user.id,
       emailType: 'test_notification',
-      html: generateTestEmail(`${user.first_name} ${user.last_name}`, user.email, email),
+      html: generateTestEmail(`${user.first_name} ${user.last_name}`, userPrimaryEmail, email),
     };
 
     const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
