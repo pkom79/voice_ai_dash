@@ -72,6 +72,7 @@ async function handleCheckoutCompleted(event: any): Promise<void> {
   const session = event.data.object;
   const userId = session.metadata?.user_id;
   const type = session.metadata?.type;
+  const customerId = session.customer;
 
   if (!userId) {
     return;
@@ -82,7 +83,7 @@ async function handleCheckoutCompleted(event: any): Promise<void> {
 
     const { data: billing } = await supabase
       .from('billing_accounts')
-      .select('wallet_cents, month_added_cents')
+      .select('wallet_cents, month_added_cents, stripe_customer_id')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -94,12 +95,18 @@ async function handleCheckoutCompleted(event: any): Promise<void> {
     const balanceBefore = billing.wallet_cents || 0;
     const balanceAfter = balanceBefore + amountCents;
 
+    const updateData: any = {
+      wallet_cents: balanceAfter,
+      month_added_cents: (billing.month_added_cents || 0) + amountCents,
+    };
+
+    if (!billing.stripe_customer_id && customerId) {
+      updateData.stripe_customer_id = customerId;
+    }
+
     await supabase
       .from('billing_accounts')
-      .update({
-        wallet_cents: balanceAfter,
-        month_added_cents: (billing.month_added_cents || 0) + amountCents,
-      })
+      .update(updateData)
       .eq('user_id', userId);
 
     await supabase.from('wallet_transactions').insert({
@@ -119,13 +126,20 @@ async function handleCheckoutCompleted(event: any): Promise<void> {
 
     const { data: billing } = await supabase
       .from('billing_accounts')
-      .select('wallet_cents')
+      .select('wallet_cents, stripe_customer_id')
       .eq('user_id', userId)
       .maybeSingle();
 
     if (!billing) {
       console.error('No billing account found for user:', userId);
       return;
+    }
+
+    if (!billing.stripe_customer_id && customerId) {
+      await supabase
+        .from('billing_accounts')
+        .update({ stripe_customer_id: customerId })
+        .eq('user_id', userId);
     }
 
     const walletAppliedCents = Math.min(walletCents, 50000);
