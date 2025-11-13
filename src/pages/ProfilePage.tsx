@@ -513,7 +513,7 @@ export function ProfilePage() {
                             <Send className="h-3.5 w-3.5" />
                             {sendingTestEmail === email.email ? 'Sending...' : 'Test'}
                           </button>
-                          {!email.is_primary && (
+                          {!email.is_primary ? (
                             <button
                               type="button"
                               onClick={() => handleRemoveEmail(email.id)}
@@ -522,6 +522,8 @@ export function ProfilePage() {
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
+                          ) : (
+                            <div className="w-9"></div>
                           )}
                         </div>
                       </div>

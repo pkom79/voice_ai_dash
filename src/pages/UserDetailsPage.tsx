@@ -546,7 +546,7 @@ export function UserDetailsPage() {
                             )}
                             {sendingTestEmail === emailRecord.email ? 'Sending...' : 'Test'}
                           </button>
-                          {!emailRecord.is_primary && (
+                          {!emailRecord.is_primary ? (
                             <button
                               type="button"
                               onClick={() => handleRemoveEmail(emailRecord.id)}
@@ -555,6 +555,8 @@ export function UserDetailsPage() {
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
+                          ) : (
+                            <div className="w-9"></div>
                           )}
                         </div>
                       </div>
