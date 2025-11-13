@@ -136,7 +136,7 @@ Deno.serve(async (req: Request) => {
             <td align="center" style="padding:24px 32px 8px 32px;">
               <a href="https://voiceaidash.com/" class="btn"
                  style="display:inline-block; background:#2563eb; color:#ffffff; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif; font-size:16px; font-weight:600; line-height:44px; padding:0 24px; border-radius:12px; text-align:center; min-width:200px;">
-                Add Credits
+                Top Up Your Wallet
               </a>
               <div style="height:8px; line-height:8px;">&nbsp;</div>
               <p style="margin:8px 0 0 0; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif; font-size:12px; line-height:18px; color:#94a3b8;">
