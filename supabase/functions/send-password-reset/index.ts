@@ -36,8 +36,10 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const resend = new Resend(resendApiKey);
 
-    // Check if user exists
-    const { data: user, error: userError } = await supabase.auth.admin.getUserByEmail(email);
+    // Check if user exists by listing users with this email
+    const { data: { users }, error: userError } = await supabase.auth.admin.listUsers();
+
+    const user = users?.find(u => u.email === email);
 
     if (userError || !user) {
       console.log('User not found for email:', email);
