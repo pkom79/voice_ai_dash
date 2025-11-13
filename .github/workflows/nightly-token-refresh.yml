@@ -1,0 +1,110 @@
+name: Nightly HighLevel Token Refresh
+
+# Runs every night at midnight (UTC)
+# Adjust the cron schedule to match your timezone
+# Current: 00:00 UTC (midnight UTC)
+# For PST (UTC-8): use '0 8 * * *' for midnight PST
+# For EST (UTC-5): use '0 5 * * *' for midnight EST
+
+on:
+  schedule:
+    # Every day at midnight UTC
+    - cron: '0 0 * * *'
+
+  # Allow manual trigger from GitHub Actions UI for testing
+  workflow_dispatch:
+    inputs:
+      hoursAhead:
+        description: 'Hours ahead to check for expiring tokens'
+        required: false
+        default: '24'
+      dryRun:
+        description: 'Dry run mode (test without actually refreshing tokens)'
+        required: false
+        default: 'false'
+
+jobs:
+  refresh-tokens:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Refresh expiring HighLevel OAuth tokens
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "Starting nightly token refresh..."
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+
+          HOURS_AHEAD="${{ github.event.inputs.hoursAhead || '24' }}"
+          DRY_RUN="${{ github.event.inputs.dryRun || 'false' }}"
+
+          echo "Configuration:"
+          echo "  Hours ahead: $HOURS_AHEAD"
+          echo "  Dry run: $DRY_RUN"
+          echo ""
+
+          RESPONSE=$(curl -X POST "$SUPABASE_URL/functions/v1/refresh-expiring-tokens" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -d "{\"hoursAhead\": $HOURS_AHEAD, \"scheduledBy\": \"github_actions\", \"dryRun\": $DRY_RUN}" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            -s)
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS/d')
+
+          echo "Response from edge function:"
+          echo "$BODY" | jq '.' || echo "$BODY"
+          echo ""
+
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            TOKENS_CHECKED=$(echo "$BODY" | jq -r '.tokensChecked // 0')
+            TOKENS_REFRESHED=$(echo "$BODY" | jq -r '.tokensRefreshed // 0')
+            TOKENS_FAILED=$(echo "$BODY" | jq -r '.tokensFailed // 0')
+
+            echo "✅ Token refresh job completed successfully"
+            echo "   Tokens checked: $TOKENS_CHECKED"
+            echo "   Tokens refreshed: $TOKENS_REFRESHED"
+            echo "   Tokens failed: $TOKENS_FAILED"
+
+            if [ "$TOKENS_FAILED" -gt 0 ]; then
+              echo "⚠️  Warning: $TOKENS_FAILED token(s) failed to refresh"
+              echo "   Admin notification has been sent via email"
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "ℹ️  This was a dry run - no tokens were actually refreshed"
+            fi
+          else
+            echo "❌ Token refresh job failed with HTTP status: $HTTP_STATUS"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+      - name: Create job summary
+        if: always()
+        run: |
+          echo "# 🔄 Nightly Token Refresh Job" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ **Status:** Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See logs above for detailed results." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Token refresh job failed!"
+          echo "Please check the logs above for details."
+          echo "You may need to manually refresh tokens or investigate the issue."
