@@ -5,6 +5,8 @@ import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plu
 import { format } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
 import { useNotification } from '../hooks/useNotification';
+import { useAuth } from '../contexts/AuthContext';
+import { oauthService } from '../services/oauth';
 
 interface UserData {
   id: string;
@@ -39,6 +41,7 @@ export function UserDetailsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const userId = searchParams.get('userId');
+  const { user: currentUser } = useAuth();
 
   const { notification, showError, showSuccess, hideNotification } = useNotification();
   const [user, setUser] = useState<UserData | null>(null);
@@ -411,6 +414,21 @@ export function UserDetailsPage() {
       showError(error.message || 'Failed to unassign agent');
     } finally {
       setUnassigningAgent(null);
+    }
+  };
+
+  const handleConnectHighLevel = async () => {
+    if (!userId || !currentUser) {
+      showError('Unable to initiate connection');
+      return;
+    }
+
+    try {
+      const authUrl = await oauthService.generateAuthorizationUrl(userId, currentUser.id);
+      window.location.href = authUrl;
+    } catch (error: any) {
+      console.error('Error generating auth URL:', error);
+      showError(error.message || 'Failed to initiate HighLevel connection');
     }
   };
 
@@ -811,7 +829,7 @@ export function UserDetailsPage() {
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Not Connected</h3>
                   <p className="text-gray-600 mb-6">This user is not connected to any accounts yet</p>
                   <button
-                    onClick={() => window.open('/oauth/authorize?userId=' + userId, '_blank')}
+                    onClick={handleConnectHighLevel}
                     className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                   >
                     <Link className="h-5 w-5" />
@@ -862,13 +880,14 @@ export function UserDetailsPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Last Used
+                        Last API Call
                       </label>
                       <div className="text-gray-900">
                         {apiConnection.last_used_at
                           ? format(new Date(apiConnection.last_used_at), 'MMM d, yyyy h:mm a')
                           : 'Never'}
                       </div>
+                      <p className="text-xs text-gray-500 mt-1">Last time data was synced from HighLevel</p>
                     </div>
                     <div className="pt-4 border-t border-gray-200">
                       <button
