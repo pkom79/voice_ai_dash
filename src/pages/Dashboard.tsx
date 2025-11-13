@@ -67,7 +67,7 @@ export function Dashboard() {
     try {
       const { data: billingAccount } = await supabase
         .from('billing_accounts')
-        .select('stripe_customer_id, billing_plan, wallet_cents')
+        .select('stripe_customer_id, billing_plan, wallet_cents, stripe_subscription_status')
         .eq('user_id', effectiveUserId)
         .maybeSingle();
 
@@ -83,6 +83,18 @@ export function Dashboard() {
       if (!billingAccount.stripe_customer_id) {
         setShowBillingModal(true);
         return;
+      }
+
+      if (billingAccount.billing_plan === 'unlimited') {
+        if (billingAccount.stripe_subscription_status === 'active') {
+          return;
+        }
+      }
+
+      if (billingAccount.billing_plan === 'pay_per_use') {
+        if ((billingAccount.wallet_cents || 0) > 0) {
+          return;
+        }
       }
     } catch (error) {
       console.error('Error checking billing status:', error);
