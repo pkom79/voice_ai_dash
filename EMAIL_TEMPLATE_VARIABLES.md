@@ -136,7 +136,35 @@ You can calculate these in your Resend template if needed:
 
 ---
 
-## 4. Service Interruption Warning (Unlimited Plan Only)
+## 4. Password Reset (All Users)
+
+**Email Type:** `password_reset`
+**Trigger:** User requests password reset or admin sends reset link
+**Frequency:** On demand
+**Plan:** All users
+
+### Available Variables - COPY & PASTE READY
+
+**Formatted Values (Use These in Templates):**
+```
+{{confirmationUrl}}
+{{user.first_name}}
+{{user.last_name}}
+{{user.email}}
+```
+
+### Complete Variable Reference
+
+| Variable | Type | Description | Example Output |
+|----------|------|-------------|----------------|
+| `confirmationUrl` | String | Complete password reset URL with token | `https://voiceaidash.com/reset-password?token=abc123&type=recovery` |
+| `user.first_name` | String | User's first name | `John` |
+| `user.last_name` | String | User's last name | `Doe` |
+| `user.email` | String | User's email address | `john.doe@example.com` |
+
+---
+
+## 5. Service Interruption Warning (Unlimited Plan Only)
 
 **Email Type:** `service_interruption_warning`
 **Trigger:** 9 days after grace period expires
@@ -191,6 +219,7 @@ All emails include these standard properties:
 | Insufficient Balance Alert | `🚨 Insufficient Balance - Action Required` |
 | Weekly Summary | `📊 Your Weekly Call Summary` |
 | Service Interruption Warning | `⚠️ URGENT: Service Suspension Notice - Action Required` |
+| Password Reset | `Reset your password` |
 
 ---
 
@@ -342,6 +371,18 @@ Use these sample values when testing email templates in Resend:
 }
 ```
 
+### Password Reset Test Data
+```json
+{
+  "confirmationUrl": "https://voiceaidash.com/reset-password?token=abc123xyz&type=recovery",
+  "user": {
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john.doe@example.com"
+  }
+}
+```
+
 ---
 
 ## Resend Template Setup
@@ -415,6 +456,14 @@ When creating templates in Resend, use Handlebars syntax:
 {{user.email}}                      → john.doe@example.com
 ```
 
+### Password Reset
+```
+{{confirmationUrl}}                 → https://voiceaidash.com/reset-password?token=...
+{{user.first_name}}                 → John
+{{user.last_name}}                  → Doe
+{{user.email}}                      → john.doe@example.com
+```
+
 ---
 
 ## Resend Template Setup Guide
@@ -438,6 +487,7 @@ RESEND_TEMPLATE_LOW_BALANCE=template_your_id_here
 RESEND_TEMPLATE_INSUFFICIENT_BALANCE=template_your_id_here
 RESEND_TEMPLATE_WEEKLY_SUMMARY=template_your_id_here
 RESEND_TEMPLATE_SERVICE_INTERRUPTION=template_your_id_here
+RESEND_TEMPLATE_PASSWORD_RESET=template_your_id_here
 ```
 
 ### Step 3: Deploy Edge Functions

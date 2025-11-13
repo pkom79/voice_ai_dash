@@ -170,11 +170,21 @@ export function UserDetailsPage() {
 
     setSendingPasswordReset(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(primaryEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-password-reset`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ email: primaryEmail }),
+        }
+      );
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to send password reset email');
+      }
 
       alert(`Password reset link sent to ${primaryEmail}`);
     } catch (error) {
