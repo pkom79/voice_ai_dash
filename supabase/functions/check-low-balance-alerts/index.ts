@@ -27,57 +27,6 @@ function formatCurrency(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-function generateLowBalanceEmail(user: User, walletCents: number, thresholdCents: number): string {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-        .content { background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
-        .alert-box { background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px; }
-        .balance { font-size: 32px; font-weight: bold; color: #dc2626; margin: 20px 0; }
-        .button { display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
-        .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Low Balance Alert</h1>
-        </div>
-        <div class="content">
-          <p>Hi ${user.first_name},</p>
-
-          <div class="alert-box">
-            <strong>⚠️ Your wallet balance is running low</strong>
-          </div>
-
-          <p>Your current wallet balance has fallen below your alert threshold:</p>
-
-          <div class="balance">${formatCurrency(walletCents)}</div>
-
-          <p>Alert threshold: <strong>${formatCurrency(thresholdCents)}</strong></p>
-
-          <p>To avoid service interruption, we recommend adding funds to your wallet as soon as possible.</p>
-
-          <a href="https://voiceaidash.com/billing" class="button">Add Funds Now</a>
-
-          <p style="margin-top: 30px;">If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
-
-          <div class="footer">
-            <p>Voice AI Dash - Voice Agent Management Platform</p>
-            <p>You're receiving this email because you have low balance alerts enabled in your notification preferences.</p>
-            <p><a href="https://voiceaidash.com/profile">Manage notification preferences</a></p>
-          </div>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
