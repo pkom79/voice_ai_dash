@@ -83,9 +83,16 @@ export function UserDetailsPage() {
       setLastName(data.last_name);
       setBusinessName(data.business_name || '');
 
-      // Get email from auth.users
-      const { data: authUser } = await supabase.auth.admin.getUserById(userId);
-      setEmail(authUser?.user?.email || '');
+      // Load notification emails first to get email
+      const { data: emails } = await supabase
+        .from('user_notification_emails')
+        .select('*')
+        .eq('user_id', userId)
+        .order('is_primary', { ascending: false });
+      setNotificationEmails(emails || []);
+
+      const primaryEmail = emails?.find(e => e.is_primary)?.email || '';
+      setEmail(primaryEmail);
 
       // Load agent count
       const { count } = await supabase
@@ -101,14 +108,6 @@ export function UserDetailsPage() {
         .eq('user_id', userId)
         .maybeSingle();
       setBillingData(billing);
-
-      // Load notification emails
-      const { data: emails } = await supabase
-        .from('user_notification_emails')
-        .select('*')
-        .eq('user_id', userId)
-        .order('is_primary', { ascending: false });
-      setNotificationEmails(emails || []);
     } catch (error) {
       console.error('Error loading user:', error);
       alert('Failed to load user details');
