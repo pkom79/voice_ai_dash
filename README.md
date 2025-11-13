@@ -1720,10 +1720,10 @@ All system emails are sent through Resend API using the verified domain `voiceai
 
 ### Email Configuration
 
-**Sender Address**: `Voice AI Dash <no-reply@voiceaidash.com>`
+**Sender Address**: `Voice AI Dash <no-reply@updates.voiceaidash.com>`
 
 **Domain Verification**:
-- Domain: `voiceaidash.com`
+- Domain: `updates.voiceaidash.com`
 - Status: Verified in Resend
 - Records configured: SPF, DKIM, DMARC
 

@@ -33,7 +33,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const emailPayload: any = {
-      from: 'Voice AI Dash <no-reply@voiceaidash.com>',
+      from: 'Voice AI Dash <no-reply@updates.voiceaidash.com>',
       to: [to],
       subject: subject,
     };
