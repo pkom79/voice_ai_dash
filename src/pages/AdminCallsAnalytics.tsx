@@ -15,8 +15,10 @@ import {
   ChevronDown,
   X,
   Volume2,
+  Calendar,
 } from 'lucide-react';
 import { format, subDays, startOfToday, endOfToday } from 'date-fns';
+import DateRangePicker from '../components/DateRangePicker';
 import { formatContactName } from '../utils/formatting';
 
 interface Call {
@@ -55,9 +57,9 @@ interface Agent {
   name: string;
 }
 
-interface DatePreset {
-  label: string;
-  getValue: () => { start: Date; end: Date };
+interface PhoneNumber {
+  id: string;
+  phone_number: string;
 }
 
 export function AdminCallsAnalytics() {
@@ -68,32 +70,19 @@ export function AdminCallsAnalytics() {
 
   const [users, setUsers] = useState<User[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
 
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
-  const [direction, setDirection] = useState<'all' | 'inbound' | 'outbound'>('all');
+  const [selectedPhoneNumberId, setSelectedPhoneNumberId] = useState<string>('all');
+  const [direction, setDirection] = useState<'inbound' | 'outbound'>('inbound');
   const [searchQuery, setSearchQuery] = useState('');
-  const [datePreset, setDatePreset] = useState<string>('today');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const [startDate, setStartDate] = useState<Date | null>(startOfToday());
+  const [endDate, setEndDate] = useState<Date | null>(endOfToday());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [showModal, setShowModal] = useState<'summary' | 'transcript' | 'notes' | 'recording' | null>(null);
-
-  const datePresets: DatePreset[] = [
-    {
-      label: 'Today',
-      getValue: () => ({ start: startOfToday(), end: endOfToday() }),
-    },
-    {
-      label: 'Last 7 Days',
-      getValue: () => ({ start: subDays(new Date(), 7), end: new Date() }),
-    },
-    {
-      label: 'Last 30 Days',
-      getValue: () => ({ start: subDays(new Date(), 30), end: new Date() }),
-    },
-  ];
 
   useEffect(() => {
     loadData();
@@ -101,27 +90,30 @@ export function AdminCallsAnalytics() {
 
   useEffect(() => {
     filterCalls();
-  }, [calls, selectedUserId, selectedAgentId, direction, searchQuery, datePreset, customStartDate, customEndDate]);
+  }, [calls, selectedUserId, selectedAgentId, selectedPhoneNumberId, direction, searchQuery, startDate, endDate]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [callsResult, usersResult, agentsResult] = await Promise.all([
+      const [callsResult, usersResult, agentsResult, phoneNumbersResult] = await Promise.all([
         supabase
           .from('calls')
           .select(`
             *,
-            users:user_id(first_name, last_name)
+            users:user_id(first_name, last_name),
+            phone_numbers:phone_number_id(id, phone_number)
           `)
           .eq('is_test_call', false)
           .order('call_started_at', { ascending: false }),
         supabase.from('users').select('id, first_name, last_name').eq('role', 'client'),
         supabase.from('agents').select('id, name').eq('is_active', true),
+        supabase.from('phone_numbers').select('id, phone_number').eq('is_active', true),
       ]);
 
       if (callsResult.data) setCalls(callsResult.data);
       if (usersResult.data) setUsers(usersResult.data);
       if (agentsResult.data) setAgents(agentsResult.data);
+      if (phoneNumbersResult.data) setPhoneNumbers(phoneNumbersResult.data);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -140,9 +132,11 @@ export function AdminCallsAnalytics() {
       filtered = filtered.filter((call) => call.agent_id === selectedAgentId);
     }
 
-    if (direction !== 'all') {
-      filtered = filtered.filter((call) => call.direction === direction);
+    if (selectedPhoneNumberId !== 'all') {
+      filtered = filtered.filter((call) => call.phone_number_id === selectedPhoneNumberId);
     }
+
+    filtered = filtered.filter((call) => call.direction === direction);
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -156,23 +150,10 @@ export function AdminCallsAnalytics() {
       );
     }
 
-    let dateRange;
-    if (datePreset === 'custom' && customStartDate && customEndDate) {
-      dateRange = {
-        start: new Date(customStartDate),
-        end: new Date(customEndDate),
-      };
-    } else {
-      const preset = datePresets.find((p) => p.label.toLowerCase().replace(' ', '-') === datePreset);
-      if (preset) {
-        dateRange = preset.getValue();
-      }
-    }
-
-    if (dateRange) {
+    if (startDate && endDate) {
       filtered = filtered.filter((call) => {
         const callDate = new Date(call.call_started_at);
-        return callDate >= dateRange.start && callDate <= dateRange.end;
+        return callDate >= startDate && callDate <= endDate;
       });
     }
 
@@ -301,6 +282,47 @@ export function AdminCallsAnalytics() {
 
       {/* Global Controls */}
       <div className="bg-white rounded-lg shadow p-6">
+        {/* Top Row: Direction Toggle | Date Range */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-4">
+          {/* Direction Toggle */}
+          <div className="flex">
+            <button
+              onClick={() => setDirection('inbound')}
+              className={`px-6 py-2 rounded-l-lg border transition-colors ${
+                direction === 'inbound'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Inbound
+            </button>
+            <button
+              onClick={() => setDirection('outbound')}
+              className={`px-6 py-2 rounded-r-lg border-t border-r border-b transition-colors ${
+                direction === 'outbound'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Outbound
+            </button>
+          </div>
+
+          {/* Date Range Picker Button */}
+          <button
+            onClick={() => setShowDatePicker(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+          >
+            <Calendar className="h-4 w-4 text-gray-500" />
+            <span className="text-gray-700">
+              {startDate && endDate
+                ? `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`
+                : 'Select Date Range'}
+            </span>
+          </button>
+        </div>
+
+        {/* Second Row: User | Agent | Phone Numbers | Search */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* User Selector */}
           <div>
@@ -336,71 +358,35 @@ export function AdminCallsAnalytics() {
             </select>
           </div>
 
-          {/* Direction Toggle */}
+          {/* Phone Numbers Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Direction</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Phone Numbers</label>
             <select
-              value={direction}
-              onChange={(e) => setDirection(e.target.value as any)}
+              value={selectedPhoneNumberId}
+              onChange={(e) => setSelectedPhoneNumberId(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="all">All Calls</option>
-              <option value="inbound">Inbound</option>
-              <option value="outbound">Outbound</option>
+              <option value="all">All Phone Numbers</option>
+              {phoneNumbers.map((phone) => (
+                <option key={phone.id} value={phone.id}>
+                  {phone.phone_number}
+                </option>
+              ))}
             </select>
           </div>
 
-          {/* Date Preset */}
+          {/* Search */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
-            <select
-              value={datePreset}
-              onChange={(e) => setDatePreset(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="today">Today</option>
-              <option value="last-7-days">Last 7 Days</option>
-              <option value="last-30-days">Last 30 Days</option>
-              <option value="custom">Custom Range</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Custom Date Range */}
-        {datePreset === 'custom' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                type="text"
+                placeholder="Contact, phone, action..." value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Search */}
-        <div className="mt-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by contact, phone, action, or keyword..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
           </div>
         </div>
 
@@ -611,6 +597,19 @@ export function AdminCallsAnalytics() {
           </table>
         </div>
       </div>
+
+      {/* Date Range Picker Modal */}
+      {showDatePicker && (
+        <DateRangePicker
+          startDate={startDate}
+          endDate={endDate}
+          onDateRangeChange={(start, end) => {
+            setStartDate(start);
+            setEndDate(end);
+          }}
+          onClose={() => setShowDatePicker(false)}
+        />
+      )}
 
       {/* Modals */}
       {showModal && selectedCall && (

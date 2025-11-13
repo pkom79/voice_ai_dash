@@ -59,8 +59,6 @@ export function DashboardLayout() {
   ];
 
   const adminNavigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Call Logs', href: '/calls', icon: Phone },
     { name: 'Call Analytics', href: '/admin/calls', icon: BarChart3 },
     { name: 'Users', href: '/admin/users', icon: Users },
     { name: 'Configuration', href: '/admin/config', icon: Settings },
@@ -165,20 +163,22 @@ export function DashboardLayout() {
             <div className="flex-1 lg:flex-none" />
 
             <div className="flex items-center gap-3 sm:gap-4">
-              <div className="flex flex-col items-center">
-                <button
-                  onClick={syncData}
-                  disabled={isSyncing}
-                  className="flex items-center justify-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Sync data"
-                >
-                  <RefreshCw className={`h-5 w-5 ${isSyncing ? 'animate-spin' : ''}`} />
-                  <span className="hidden sm:inline">Sync</span>
-                </button>
-                <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 whitespace-nowrap">
-                  {getLastSyncDisplay()}
-                </span>
-              </div>
+              {profile?.role !== 'admin' && (
+                <div className="flex flex-col items-center">
+                  <button
+                    onClick={syncData}
+                    disabled={isSyncing}
+                    className="flex items-center justify-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Sync data"
+                  >
+                    <RefreshCw className={`h-5 w-5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">Sync</span>
+                  </button>
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 whitespace-nowrap">
+                    {getLastSyncDisplay()}
+                  </span>
+                </div>
+              )}
 
               <button
                 onClick={toggleTheme}

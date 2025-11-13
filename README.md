@@ -1,7 +1,7 @@
 # Voice AI Dash
 
-**Version:** 1.5.7
-**Last Updated:** November 12, 2025
+**Version:** 1.6.0
+**Last Updated:** November 13, 2025
 
 A comprehensive Voice AI Dashboard for managing HighLevel voice agents, call logs, billing, and OAuth integrations.
 
@@ -1907,6 +1907,86 @@ curl -X POST "https://your-project.supabase.co/functions/v1/check-service-interr
 - [ ] User timezone support for scheduled emails
 - [ ] Unsubscribe link management
 - [ ] Email bounce handling and cleanup
+
+---
+
+## Admin Dashboard Redesign (v1.6.0 - November 13, 2025)
+
+### Admin Navigation Streamlining
+
+**Purpose**: Simplified admin interface by removing redundant navigation items and UI elements that don't apply to admin workflows.
+
+**Changes Made**:
+
+1. **Removed Navigation Items**:
+   - Removed "Dashboard" from admin navigation (was redundant with Call Analytics)
+   - Removed "Call Logs" from admin navigation (not needed for admin role)
+   - Admin navigation now shows: Call Analytics, Users, Configuration, Profile
+
+2. **Removed Sync Button for Admin**:
+   - Sync button hidden in header for admin users
+   - Admins don't have individual HighLevel accounts to sync
+   - Sync functionality remains for regular users only
+   - Implementation uses conditional rendering: `{profile?.role !== 'admin' && ...}`
+
+### Admin Call Analytics Page Redesign
+
+**Location**: `/admin/calls`
+**Component**: `src/pages/AdminCallsAnalytics.tsx`
+
+**Major UI Overhaul**:
+
+1. **Direction Filter** - Changed from dropdown to toggle button:
+   - Toggle button design: Inbound | Outbound
+   - Default selection: Inbound (most common use case)
+   - Brand blue (`bg-blue-600`) for active state
+   - White background for inactive state with hover effect
+
+2. **Date Range Picker** - Replaced preset dropdown with calendar modal:
+   - Uses existing `DateRangePicker` component
+   - Default: Today (startOfToday to endOfToday)
+   - Button shows selected date range or "Select Date Range"
+   - Calendar icon for visual clarity
+   - Full modal interface for date selection
+
+3. **Assigned Phone Numbers Filter** - New dropdown added:
+   - Shows all active phone numbers from database
+   - Filters calls by phone_number_id
+   - Labeled "Assigned Phone Numbers" for clarity
+   - Positioned between Agent and Search filters
+
+4. **Filter Layout Reorganization**:
+   - **Top Row**: Inbound/Outbound toggle | Date Range picker button
+   - **Second Row**: User | Agent | Assigned Phone Numbers | Search
+   - Improved visual hierarchy with two-row layout
+   - Better use of horizontal space
+
+5. **Database Query Enhancement**:
+   - Added phone_numbers join to calls query
+   - Now fetches: `phone_numbers:phone_number_id(id, phone_number)`
+   - Enables phone number filtering functionality
+   - Admin can see all calls from all users (RLS already configured)
+
+**Brand Consistency**:
+- Uses brand blue (`bg-blue-600`, `border-blue-600`) for active states
+- Consistent border styling with other filters
+- Maintains rounded corners (`rounded-lg`, `rounded-l-lg`, `rounded-r-lg`)
+- Proper hover states on all interactive elements
+
+**Metric Tiles** (unchanged):
+- Total Calls with inbound/outbound breakdown
+- Actions Triggered with success rate
+- Average Duration with total duration
+- Total Cost with average per call
+
+**Call Details Table** (unchanged):
+- All existing functionality preserved
+- Summary, Transcript, Recording, Notes modals
+- Export to CSV functionality
+
+**Files Modified**:
+- `src/components/DashboardLayout.tsx` - Navigation and sync button changes
+- `src/pages/AdminCallsAnalytics.tsx` - Complete filter redesign
 
 ---
 
