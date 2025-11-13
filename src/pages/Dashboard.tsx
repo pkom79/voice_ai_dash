@@ -84,10 +84,6 @@ export function Dashboard() {
         setShowBillingModal(true);
         return;
       }
-
-      if (billingAccount.billing_plan === 'pay_per_use' && billingAccount.wallet_cents === 0) {
-        setShowBillingModal(true);
-      }
     } catch (error) {
       console.error('Error checking billing status:', error);
     }
