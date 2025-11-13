@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { User, Building, Phone, Mail, Bell, Lock, Save } from 'lucide-react';
+import { User, Building, Phone, Mail, Bell, Lock, Save, Plus, Trash2, Check } from 'lucide-react';
 
 export function ProfilePage() {
   const { profile, user, updatePassword } = useAuth();
@@ -9,20 +9,24 @@ export function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
-  const [billingPlan, setBillingPlan] = useState<'pay_per_use' | 'unlimited' | 'complimentary' | null>(null);
+  const [billingPlan, setBillingPlan] = useState<{inbound_plan: string | null; outbound_plan: string | null} | null>(null);
+  const [notificationEmails, setNotificationEmails] = useState<Array<{
+    id: string;
+    email: string;
+    is_primary: boolean;
+    low_balance_enabled: boolean;
+    insufficient_balance_enabled: boolean;
+    service_interruption_enabled: boolean;
+    weekly_summary_enabled: boolean;
+  }>>([]);
+  const [newEmailAddress, setNewEmailAddress] = useState('');
+  const [addingEmail, setAddingEmail] = useState(false);
 
   const [profileData, setProfileData] = useState({
     first_name: '',
     last_name: '',
     business_name: '',
     phone_number: '',
-  });
-
-  const [notifications, setNotifications] = useState({
-    low_balance_alerts: true,
-    weekly_summaries: true,
-    service_interruption_alerts: true,
-    insufficient_balance_alerts: true,
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -38,8 +42,8 @@ export function ProfilePage() {
         business_name: profile.business_name || '',
         phone_number: profile.phone_number || '',
       });
-      setNotifications(profile.notification_preferences);
       loadBillingPlan();
+      loadNotificationEmails();
     }
   }, [profile]);
 
@@ -47,16 +51,31 @@ export function ProfilePage() {
     try {
       const { data, error } = await supabase
         .from('billing_accounts')
-        .select('billing_plan')
+        .select('inbound_plan, outbound_plan')
         .eq('user_id', profile?.id)
         .maybeSingle();
 
       if (error) throw error;
       if (data) {
-        setBillingPlan(data.billing_plan);
+        setBillingPlan(data);
       }
     } catch (err) {
       console.error('Error loading billing plan:', err);
+    }
+  };
+
+  const loadNotificationEmails = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_notification_emails')
+        .select('*')
+        .eq('user_id', profile?.id)
+        .order('is_primary', { ascending: false });
+
+      if (error) throw error;
+      setNotificationEmails(data || []);
+    } catch (err) {
+      console.error('Error loading notification emails:', err);
     }
   };
 
@@ -96,15 +115,19 @@ export function ProfilePage() {
     setSuccess('');
 
     try {
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
-          notification_preferences: notifications,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', profile?.id);
+      for (const email of notificationEmails) {
+        const { error: updateError } = await supabase
+          .from('user_notification_emails')
+          .update({
+            low_balance_enabled: email.low_balance_enabled,
+            insufficient_balance_enabled: email.insufficient_balance_enabled,
+            service_interruption_enabled: email.service_interruption_enabled,
+            weekly_summary_enabled: email.weekly_summary_enabled,
+          })
+          .eq('id', email.id);
 
-      if (updateError) throw updateError;
+        if (updateError) throw updateError;
+      }
 
       setSuccess('Notification preferences updated');
       setTimeout(() => setSuccess(''), 3000);
@@ -114,6 +137,82 @@ export function ProfilePage() {
       setLoading(false);
     }
   };
+
+  const handleAddEmail = async () => {
+    if (!newEmailAddress || !newEmailAddress.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    if (notificationEmails.some(e => e.email.toLowerCase() === newEmailAddress.toLowerCase())) {
+      setError('This email address is already added');
+      return;
+    }
+
+    setAddingEmail(true);
+    setError('');
+
+    try {
+      const { error: insertError } = await supabase
+        .from('user_notification_emails')
+        .insert({
+          user_id: profile?.id,
+          email: newEmailAddress,
+          is_primary: false,
+          low_balance_enabled: true,
+          insufficient_balance_enabled: true,
+          service_interruption_enabled: true,
+          weekly_summary_enabled: true,
+        });
+
+      if (insertError) throw insertError;
+
+      await loadNotificationEmails();
+      setNewEmailAddress('');
+      setSuccess('Email address added successfully');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to add email address');
+    } finally {
+      setAddingEmail(false);
+    }
+  };
+
+  const handleRemoveEmail = async (emailId: string) => {
+    if (!window.confirm('Are you sure you want to remove this email address?')) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('user_notification_emails')
+        .delete()
+        .eq('id', emailId);
+
+      if (deleteError) throw deleteError;
+
+      await loadNotificationEmails();
+      setSuccess('Email address removed successfully');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove email address');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateEmailPreference = (emailId: string, field: string, value: boolean) => {
+    setNotificationEmails(emails =>
+      emails.map(email =>
+        email.id === emailId ? { ...email, [field]: value } : email
+      )
+    );
+  };
+
+  const hasPPUPlan = billingPlan && (billingPlan.inbound_plan === 'inbound_pay_per_use' || billingPlan.outbound_plan === 'outbound_pay_per_use');
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -317,109 +416,117 @@ export function ProfilePage() {
           {/* Notifications Tab */}
           {activeTab === 'notifications' && (
             <form onSubmit={handleUpdateNotifications} className="space-y-6">
-              <div className="space-y-4">
-                {billingPlan === 'pay_per_use' && (
-                  <>
-                    <div className="flex items-start">
-                      <div className="flex items-center h-5">
-                        <input
-                          id="low-balance"
-                          type="checkbox"
-                          checked={notifications.low_balance_alerts}
-                          onChange={(e) =>
-                            setNotifications({
-                              ...notifications,
-                              low_balance_alerts: e.target.checked,
-                            })
-                          }
-                          className="h-4 w-4 text-blue-600 bg-white dark:bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                        />
-                      </div>
-                      <div className="ml-3">
-                        <label htmlFor="low-balance" className="font-medium text-gray-900 dark:text-white">
-                          Low Balance Alerts
-                        </label>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Receive notifications when your wallet balance falls below $10
-                        </p>
-                      </div>
+              <div className="space-y-6">
+                {/* Add New Email Section */}
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Add Notification Email</h3>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <input
+                        type="email"
+                        value={newEmailAddress}
+                        onChange={(e) => setNewEmailAddress(e.target.value)}
+                        placeholder="email@example.com"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
                     </div>
-
-                    <div className="flex items-start">
-                      <div className="flex items-center h-5">
-                        <input
-                          id="insufficient-balance"
-                          type="checkbox"
-                          checked={notifications.insufficient_balance_alerts}
-                          onChange={(e) =>
-                            setNotifications({
-                              ...notifications,
-                              insufficient_balance_alerts: e.target.checked,
-                            })
-                          }
-                          className="h-4 w-4 text-blue-600 bg-white dark:bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                        />
-                      </div>
-                      <div className="ml-3">
-                        <label htmlFor="insufficient-balance" className="font-medium text-gray-900 dark:text-white">
-                          Insufficient Balance Alerts
-                        </label>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Receive monthly alerts when your wallet balance cannot cover the upcoming invoice
-                        </p>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <div className="flex items-start">
-                  <div className="flex items-center h-5">
-                    <input
-                      id="weekly-summaries"
-                      type="checkbox"
-                      checked={notifications.weekly_summaries}
-                      onChange={(e) =>
-                        setNotifications({
-                          ...notifications,
-                          weekly_summaries: e.target.checked,
-                        })
-                      }
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                    />
+                    <button
+                      type="button"
+                      onClick={handleAddEmail}
+                      disabled={addingEmail || !newEmailAddress}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add
+                    </button>
                   </div>
-                  <div className="ml-3">
-                    <label htmlFor="weekly-summaries" className="font-medium text-gray-900 dark:text-white">
-                      Weekly Summaries
-                    </label>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Receive weekly email summaries of your call activity and costs
-                    </p>
-                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Add additional email addresses to receive different types of notifications
+                  </p>
                 </div>
 
-                <div className="flex items-start">
-                  <div className="flex items-center h-5">
-                    <input
-                      id="service-interruption"
-                      type="checkbox"
-                      checked={notifications.service_interruption_alerts}
-                      onChange={(e) =>
-                        setNotifications({
-                          ...notifications,
-                          service_interruption_alerts: e.target.checked,
-                        })
-                      }
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                    />
-                  </div>
-                  <div className="ml-3">
-                    <label htmlFor="service-interruption" className="font-medium text-gray-900 dark:text-white">
-                      Service Interruption Alerts
-                    </label>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Receive notifications when payment issues may result in service suspension
-                    </p>
-                  </div>
+                {/* Notification Emails List */}
+                <div className="space-y-4">
+                  {notificationEmails.map((email) => (
+                    <div
+                      key={email.id}
+                      className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                          <span className="font-medium text-gray-900 dark:text-white">{email.email}</span>
+                          {email.is_primary && (
+                            <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full">
+                              Primary
+                            </span>
+                          )}
+                        </div>
+                        {!email.is_primary && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEmail(email.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            title="Remove email"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-2 ml-6">
+                        {hasPPUPlan && (
+                          <>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={email.low_balance_enabled}
+                                onChange={(e) => updateEmailPreference(email.id, 'low_balance_enabled', e.target.checked)}
+                                className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">Low Balance Alerts</span>
+                            </label>
+
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={email.insufficient_balance_enabled}
+                                onChange={(e) => updateEmailPreference(email.id, 'insufficient_balance_enabled', e.target.checked)}
+                                className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">Insufficient Balance Alerts</span>
+                            </label>
+                          </>
+                        )}
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={email.service_interruption_enabled}
+                            onChange={(e) => updateEmailPreference(email.id, 'service_interruption_enabled', e.target.checked)}
+                            className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">Service Interruption Warnings</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={email.weekly_summary_enabled}
+                            onChange={(e) => updateEmailPreference(email.id, 'weekly_summary_enabled', e.target.checked)}
+                            className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">Weekly Summary Reports</span>
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+
+                  {notificationEmails.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      No notification emails configured. Add one above to get started.
+                    </div>
+                  )}
                 </div>
               </div>
 

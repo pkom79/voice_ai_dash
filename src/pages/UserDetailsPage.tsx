@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, User, Key, DollarSign, Phone, Activity, Loader2, Mail } from 'lucide-react';
+import { ArrowLeft, User, Key, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
 import { useNotification } from '../hooks/useNotification';
@@ -54,11 +54,8 @@ export function UserDetailsPage() {
   const [lastName, setLastName] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
-  const [notificationEmailEnabled, setNotificationEmailEnabled] = useState(true);
-  const [notificationLowBalance, setNotificationLowBalance] = useState(true);
-  const [notificationInsufficientBalance, setNotificationInsufficientBalance] = useState(true);
-  const [notificationServiceInterruption, setNotificationServiceInterruption] = useState(true);
-  const [notificationWeeklySummary, setNotificationWeeklySummary] = useState(true);
+  const [newEmailAddress, setNewEmailAddress] = useState('');
+  const [addingEmail, setAddingEmail] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -196,6 +193,78 @@ export function UserDetailsPage() {
     } finally {
       setSendingPasswordReset(false);
     }
+  };
+
+  const handleAddEmail = async () => {
+    if (!newEmailAddress || !newEmailAddress.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      showError('Please enter a valid email address');
+      return;
+    }
+
+    if (notificationEmails.some(e => e.email.toLowerCase() === newEmailAddress.toLowerCase())) {
+      showError('This email address is already added');
+      return;
+    }
+
+    setAddingEmail(true);
+
+    try {
+      const { error: insertError } = await supabase
+        .from('user_notification_emails')
+        .insert({
+          user_id: userId,
+          email: newEmailAddress,
+          is_primary: false,
+          low_balance_enabled: true,
+          insufficient_balance_enabled: true,
+          service_interruption_enabled: true,
+          weekly_summary_enabled: true,
+        });
+
+      if (insertError) throw insertError;
+
+      await loadUser();
+      setNewEmailAddress('');
+      showSuccess('Email address added successfully');
+    } catch (error: any) {
+      console.error('Error adding email:', error);
+      showError(error.message || 'Failed to add email address');
+    } finally {
+      setAddingEmail(false);
+    }
+  };
+
+  const handleRemoveEmail = async (emailId: string) => {
+    if (!window.confirm('Are you sure you want to remove this email address?')) {
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('user_notification_emails')
+        .delete()
+        .eq('id', emailId);
+
+      if (deleteError) throw deleteError;
+
+      await loadUser();
+      showSuccess('Email address removed successfully');
+    } catch (error: any) {
+      console.error('Error removing email:', error);
+      showError(error.message || 'Failed to remove email address');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateEmailPreference = (emailId: string, field: string, value: boolean) => {
+    setNotificationEmails(emails =>
+      emails.map(email =>
+        email.id === emailId ? { ...email, [field]: value } : email
+      )
+    );
   };
 
   if (loading) {
@@ -378,102 +447,120 @@ export function UserDetailsPage() {
             {/* Notifications Section */}
             <div className="bg-white rounded-lg shadow">
               <div className="p-6 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Notifications</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Notification Emails</h2>
               </div>
-              <div className="p-6 space-y-4">
-                <div className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    id="notification-email-enabled"
-                    checked={notificationEmailEnabled}
-                    onChange={(e) => setNotificationEmailEnabled(e.target.checked)}
-                    className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <div className="flex-1">
-                    <label htmlFor="notification-email-enabled" className="block text-sm font-medium text-gray-900 cursor-pointer">
-                      Enable Email Notifications
-                    </label>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Master switch for all email notifications
-                    </p>
+              <div className="p-6 space-y-6">
+                {/* Add New Email Section */}
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <h3 className="text-sm font-medium text-gray-900 mb-3">Add Notification Email</h3>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <input
+                        type="email"
+                        value={newEmailAddress}
+                        onChange={(e) => setNewEmailAddress(e.target.value)}
+                        placeholder="email@example.com"
+                        className="w-full px-4 py-2 border border-gray-300 bg-white text-gray-900 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddEmail}
+                      disabled={addingEmail || !newEmailAddress}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      {addingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      Add
+                    </button>
                   </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Add additional email addresses to receive different types of notifications
+                  </p>
                 </div>
 
-                {notificationEmailEnabled && (
-                  <>
-                    <div className="flex items-start gap-3 ml-6">
-                      <input
-                        type="checkbox"
-                        id="notification-low-balance"
-                        checked={notificationLowBalance}
-                        onChange={(e) => setNotificationLowBalance(e.target.checked)}
-                        className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="notification-low-balance" className="block text-sm font-medium text-gray-900 cursor-pointer">
-                          Low Balance Alerts
-                        </label>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Notify when wallet balance is low (PPU plans only)
-                        </p>
+                {/* Notification Emails List */}
+                <div className="space-y-4">
+                  {notificationEmails.map((emailRecord) => (
+                    <div
+                      key={emailRecord.id}
+                      className="bg-white rounded-lg shadow border border-gray-200 p-4"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-gray-400" />
+                          <span className="font-medium text-gray-900">{emailRecord.email}</span>
+                          {emailRecord.is_primary && (
+                            <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                              Primary
+                            </span>
+                          )}
+                        </div>
+                        {!emailRecord.is_primary && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEmail(emailRecord.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Remove email"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
-                    </div>
 
-                    <div className="flex items-start gap-3 ml-6">
-                      <input
-                        type="checkbox"
-                        id="notification-insufficient-balance"
-                        checked={notificationInsufficientBalance}
-                        onChange={(e) => setNotificationInsufficientBalance(e.target.checked)}
-                        className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="notification-insufficient-balance" className="block text-sm font-medium text-gray-900 cursor-pointer">
-                          Insufficient Balance Alerts
-                        </label>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Notify when wallet cannot cover monthly invoice (PPU plans only)
-                        </p>
-                      </div>
-                    </div>
+                      <div className="space-y-2 ml-6">
+                        {(billingData?.inbound_plan === 'inbound_pay_per_use' || billingData?.outbound_plan === 'outbound_pay_per_use') && (
+                          <>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={emailRecord.low_balance_enabled}
+                                onChange={(e) => updateEmailPreference(emailRecord.id, 'low_balance_enabled', e.target.checked)}
+                                className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 rounded"
+                              />
+                              <span className="text-sm text-gray-700">Low Balance Alerts</span>
+                            </label>
 
-                    <div className="flex items-start gap-3 ml-6">
-                      <input
-                        type="checkbox"
-                        id="notification-service-interruption"
-                        checked={notificationServiceInterruption}
-                        onChange={(e) => setNotificationServiceInterruption(e.target.checked)}
-                        className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="notification-service-interruption" className="block text-sm font-medium text-gray-900 cursor-pointer">
-                          Service Interruption Warnings
-                        </label>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Notify when account is at risk of service interruption
-                        </p>
-                      </div>
-                    </div>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={emailRecord.insufficient_balance_enabled}
+                                onChange={(e) => updateEmailPreference(emailRecord.id, 'insufficient_balance_enabled', e.target.checked)}
+                                className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 rounded"
+                              />
+                              <span className="text-sm text-gray-700">Insufficient Balance Alerts</span>
+                            </label>
+                          </>
+                        )}
 
-                    <div className="flex items-start gap-3 ml-6">
-                      <input
-                        type="checkbox"
-                        id="notification-weekly-summary"
-                        checked={notificationWeeklySummary}
-                        onChange={(e) => setNotificationWeeklySummary(e.target.checked)}
-                        className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="notification-weekly-summary" className="block text-sm font-medium text-gray-900 cursor-pointer">
-                          Weekly Summary Reports
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={emailRecord.service_interruption_enabled}
+                            onChange={(e) => updateEmailPreference(emailRecord.id, 'service_interruption_enabled', e.target.checked)}
+                            className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <span className="text-sm text-gray-700">Service Interruption Warnings</span>
                         </label>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Receive weekly usage and billing summaries
-                        </p>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={emailRecord.weekly_summary_enabled}
+                            onChange={(e) => updateEmailPreference(emailRecord.id, 'weekly_summary_enabled', e.target.checked)}
+                            className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <span className="text-sm text-gray-700">Weekly Summary Reports</span>
+                        </label>
                       </div>
                     </div>
-                  </>
-                )}
+                  ))}
+
+                  {notificationEmails.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      No notification emails configured. Add one above to get started.
+                    </div>
+                  )}
+                </div>
 
                 <div className="pt-4">
                   <button

@@ -119,14 +119,19 @@ Deno.serve(async (req: Request) => {
 
       const { data: user, error: userError } = await supabase
         .from('users')
-        .select('id, first_name, last_name, email, notification_preferences')
+        .select('id, first_name, last_name, email')
         .eq('id', account.user_id)
         .single<User>();
 
       if (userError || !user) continue;
 
-      const prefs = user.notification_preferences || {};
-      if (prefs.low_balance_alerts !== true) {
+      const { data: notificationEmails, error: emailsError } = await supabase
+        .from('user_notification_emails')
+        .select('email, low_balance_enabled')
+        .eq('user_id', user.id)
+        .eq('low_balance_enabled', true);
+
+      if (emailsError || !notificationEmails || notificationEmails.length === 0) {
         continue;
       }
 
@@ -142,45 +147,47 @@ Deno.serve(async (req: Request) => {
         },
       };
 
-      const emailPayload: any = {
-        to: user.email,
-        subject: 'Low Wallet Balance Alert',
-        userId: user.id,
-        emailType: 'low_balance_alert',
-        templateData,
-      };
-
-      if (templateId) {
-        emailPayload.templateId = templateId;
-      } else {
-        emailPayload.html = generateLowBalanceEmail(
-          user,
-          account.wallet_cents,
-          account.low_balance_threshold_cents
-        );
-      }
-
-      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(emailPayload),
-      });
-
-      if (emailResponse.ok) {
-        await supabase.rpc('update_last_alert_timestamp', {
-          p_user_id: user.id,
-          p_alert_type: 'low_balance',
-        });
-
-        alertsSent.push({
+      for (const notifEmail of notificationEmails) {
+        const emailPayload: any = {
+          to: notifEmail.email,
+          subject: 'Low Wallet Balance Alert',
           userId: user.id,
-          email: user.email,
-          walletBalance: formatCurrency(account.wallet_cents),
+          emailType: 'low_balance_alert',
+          templateData,
+        };
+
+        if (templateId) {
+          emailPayload.templateId = templateId;
+        } else {
+          emailPayload.html = generateLowBalanceEmail(
+            user,
+            account.wallet_cents,
+            account.low_balance_threshold_cents
+          );
+        }
+
+        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(emailPayload),
         });
+
+        if (emailResponse.ok) {
+          alertsSent.push({
+            userId: user.id,
+            email: notifEmail.email,
+            walletBalance: formatCurrency(account.wallet_cents),
+          });
+        }
       }
+
+      await supabase.rpc('update_last_alert_timestamp', {
+        p_user_id: user.id,
+        p_alert_type: 'low_balance',
+      });
     }
 
     return new Response(
