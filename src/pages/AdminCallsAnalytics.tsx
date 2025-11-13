@@ -69,8 +69,10 @@ export function AdminCallsAnalytics() {
   const [syncing, setSyncing] = useState(false);
 
   const [users, setUsers] = useState<User[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
+  const [allAgents, setAllAgents] = useState<Agent[]>([]);
+  const [allPhoneNumbers, setAllPhoneNumbers] = useState<PhoneNumber[]>([]);
+  const [userAgentMap, setUserAgentMap] = useState<Record<string, string[]>>({});
+  const [agentPhoneMap, setAgentPhoneMap] = useState<Record<string, string[]>>({});
 
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
@@ -92,15 +94,27 @@ export function AdminCallsAnalytics() {
     filterCalls();
   }, [calls, selectedUserId, selectedAgentId, selectedPhoneNumberId, direction, searchQuery, startDate, endDate]);
 
+  useEffect(() => {
+    if (selectedUserId !== 'all') {
+      setSelectedAgentId('all');
+      setSelectedPhoneNumberId('all');
+    }
+  }, [selectedUserId]);
+
+  useEffect(() => {
+    if (selectedAgentId !== 'all') {
+      setSelectedPhoneNumberId('all');
+    }
+  }, [selectedAgentId]);
+
   const loadData = async () => {
     setLoading(true);
     try {
-      const [callsResult, usersResult, agentsResult, phoneNumbersResult] = await Promise.all([
+      const [callsResult, usersResult, agentsResult, phoneNumbersResult, userAgentsResult, agentPhonesResult] = await Promise.all([
         supabase
           .from('calls')
           .select(`
             *,
-            users:user_id(first_name, last_name),
             phone_numbers:phone_number_id(id, phone_number)
           `)
           .eq('is_test_call', false)
@@ -108,12 +122,32 @@ export function AdminCallsAnalytics() {
         supabase.from('users').select('id, first_name, last_name').eq('role', 'client'),
         supabase.from('agents').select('id, name').eq('is_active', true),
         supabase.from('phone_numbers').select('id, phone_number').eq('is_active', true),
+        supabase.from('user_agents').select('user_id, agent_id'),
+        supabase.from('agent_phone_numbers').select('agent_id, phone_number_id'),
       ]);
 
       if (callsResult.data) setCalls(callsResult.data);
       if (usersResult.data) setUsers(usersResult.data);
-      if (agentsResult.data) setAgents(agentsResult.data);
-      if (phoneNumbersResult.data) setPhoneNumbers(phoneNumbersResult.data);
+      if (agentsResult.data) setAllAgents(agentsResult.data);
+      if (phoneNumbersResult.data) setAllPhoneNumbers(phoneNumbersResult.data);
+
+      if (userAgentsResult.data) {
+        const map: Record<string, string[]> = {};
+        userAgentsResult.data.forEach((ua) => {
+          if (!map[ua.user_id]) map[ua.user_id] = [];
+          map[ua.user_id].push(ua.agent_id);
+        });
+        setUserAgentMap(map);
+      }
+
+      if (agentPhonesResult.data) {
+        const map: Record<string, string[]> = {};
+        agentPhonesResult.data.forEach((ap) => {
+          if (!map[ap.agent_id]) map[ap.agent_id] = [];
+          map[ap.agent_id].push(ap.phone_number_id);
+        });
+        setAgentPhoneMap(map);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -121,11 +155,40 @@ export function AdminCallsAnalytics() {
     }
   };
 
+  const getAvailableAgents = () => {
+    if (selectedUserId === 'all') {
+      return allAgents;
+    }
+    const agentIds = userAgentMap[selectedUserId] || [];
+    return allAgents.filter((agent) => agentIds.includes(agent.id));
+  };
+
+  const getAvailablePhoneNumbers = () => {
+    if (selectedAgentId === 'all') {
+      if (selectedUserId === 'all') {
+        return allPhoneNumbers;
+      }
+      const agentIds = userAgentMap[selectedUserId] || [];
+      const phoneIds = agentIds.flatMap((agentId) => agentPhoneMap[agentId] || []);
+      return allPhoneNumbers.filter((phone) => phoneIds.includes(phone.id));
+    }
+    const phoneIds = agentPhoneMap[selectedAgentId] || [];
+    return allPhoneNumbers.filter((phone) => phoneIds.includes(phone.id));
+  };
+
+  const getUserForAgent = (agentId: string | null) => {
+    if (!agentId) return null;
+    const userId = Object.keys(userAgentMap).find((uid) => userAgentMap[uid].includes(agentId));
+    if (!userId) return null;
+    return users.find((u) => u.id === userId);
+  };
+
   const filterCalls = () => {
     let filtered = [...calls];
 
     if (selectedUserId !== 'all') {
-      filtered = filtered.filter((call) => call.user_id === selectedUserId);
+      const allowedAgentIds = userAgentMap[selectedUserId] || [];
+      filtered = filtered.filter((call) => call.agent_id && allowedAgentIds.includes(call.agent_id));
     }
 
     if (selectedAgentId !== 'all') {
@@ -208,19 +271,22 @@ export function AdminCallsAnalytics() {
       'User',
     ];
 
-    const rows = filteredCalls.map((call) => [
-      format(new Date(call.call_started_at), 'yyyy-MM-dd HH:mm:ss'),
-      call.direction,
-      formatContactName(call.contact_name),
-      call.from_number,
-      call.to_number,
-      formatDuration(call.duration_seconds),
-      call.status || 'N/A',
-      call.action_triggered || 'None',
-      call.sentiment || 'N/A',
-      `$${call.cost.toFixed(2)}`,
-      call.users ? `${call.users.first_name} ${call.users.last_name}` : 'N/A',
-    ]);
+    const rows = filteredCalls.map((call) => {
+      const user = getUserForAgent(call.agent_id);
+      return [
+        format(new Date(call.call_started_at), 'yyyy-MM-dd HH:mm:ss'),
+        call.direction.toUpperCase(),
+        formatContactName(call.contact_name),
+        call.from_number,
+        call.to_number,
+        formatDuration(call.duration_seconds),
+        call.status || 'N/A',
+        call.action_triggered || 'None',
+        call.sentiment || 'N/A',
+        `$${call.cost.toFixed(2)}`,
+        user ? `${user.first_name} ${user.last_name}` : 'N/A',
+      ];
+    });
 
     const csv = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -350,7 +416,7 @@ export function AdminCallsAnalytics() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Agents</option>
-              {agents.map((agent) => (
+              {getAvailableAgents().map((agent) => (
                 <option key={agent.id} value={agent.id}>
                   {agent.name}
                 </option>
@@ -367,7 +433,7 @@ export function AdminCallsAnalytics() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Phone Numbers</option>
-              {phoneNumbers.map((phone) => (
+              {getAvailablePhoneNumbers().map((phone) => (
                 <option key={phone.id} value={phone.id}>
                   {phone.phone_number}
                 </option>
@@ -512,7 +578,10 @@ export function AdminCallsAnalytics() {
                       <div className="text-sm text-gray-500 font-mono">{call.from_number}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {call.users ? `${call.users.first_name} ${call.users.last_name}` : 'N/A'}
+                      {(() => {
+                        const user = getUserForAgent(call.agent_id);
+                        return user ? `${user.first_name} ${user.last_name}` : 'N/A';
+                      })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -522,7 +591,7 @@ export function AdminCallsAnalytics() {
                             : 'bg-green-100 text-green-800'
                         }`}
                       >
-                        {call.direction}
+                        {call.direction.toUpperCase()}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
