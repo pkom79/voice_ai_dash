@@ -260,7 +260,6 @@ export function AdminUsersPage() {
         const agents = await highLevelService.getUserAgents(selectedUser.id);
         setAssignedAgents(agents);
         loadUserStatuses();
-        alert('Agent assigned successfully');
       } else {
         alert('Failed to assign agent');
       }
