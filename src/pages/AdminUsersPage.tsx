@@ -42,6 +42,7 @@ interface User {
 interface UserWithStatus extends User {
   hasConnection?: boolean;
   hasAgents?: boolean;
+  agentCount?: number;
   hasPhoneNumbers?: boolean;
   inboundPlan?: string | null;
   outboundPlan?: string | null;
@@ -155,6 +156,7 @@ export function AdminUsersPage() {
             ...user,
             hasConnection: !!connection,
             hasAgents: agents.length > 0,
+            agentCount: agents.length,
             hasPhoneNumbers: (phoneCount || 0) > 0,
             inboundPlan: billing?.inbound_plan,
             outboundPlan: billing?.outbound_plan,
@@ -168,6 +170,7 @@ export function AdminUsersPage() {
             ...user,
             hasConnection: false,
             hasAgents: false,
+            agentCount: 0,
             hasPhoneNumbers: false,
           };
         }
@@ -483,7 +486,7 @@ export function AdminUsersPage() {
                         )}
                         {user.hasAgents && (
                           <span className="px-2 py-0.5 text-xs font-bold bg-indigo-100 text-indigo-700 rounded uppercase">
-                            AGENT
+                            {user.agentCount === 1 ? 'AGENT' : `AGENTS (${user.agentCount})`}
                           </span>
                         )}
                         {user.hasPhoneNumbers && (

@@ -9,16 +9,10 @@ interface UserData {
   first_name: string;
   last_name: string;
   business_name: string;
-  email: string;
   role: 'client' | 'admin';
   is_active: boolean;
   created_at: string;
   last_login: string | null;
-  notification_email_enabled: boolean;
-  notification_low_balance_enabled: boolean;
-  notification_insufficient_balance_enabled: boolean;
-  notification_service_interruption_enabled: boolean;
-  notification_weekly_summary_enabled: boolean;
 }
 
 interface NotificationEmail {
@@ -88,12 +82,10 @@ export function UserDetailsPage() {
       setFirstName(data.first_name);
       setLastName(data.last_name);
       setBusinessName(data.business_name || '');
-      setEmail(data.email);
-      setNotificationEmailEnabled(data.notification_email_enabled ?? true);
-      setNotificationLowBalance(data.notification_low_balance_enabled ?? true);
-      setNotificationInsufficientBalance(data.notification_insufficient_balance_enabled ?? true);
-      setNotificationServiceInterruption(data.notification_service_interruption_enabled ?? true);
-      setNotificationWeeklySummary(data.notification_weekly_summary_enabled ?? true);
+
+      // Get email from auth.users
+      const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+      setEmail(authUser?.user?.email || '');
 
       // Load agent count
       const { count } = await supabase
@@ -131,21 +123,32 @@ export function UserDetailsPage() {
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      // Update user profile
+      const { error: userError } = await supabase
         .from('users')
         .update({
           first_name: firstName,
           last_name: lastName,
           business_name: businessName,
-          notification_email_enabled: notificationEmailEnabled,
-          notification_low_balance_enabled: notificationLowBalance,
-          notification_insufficient_balance_enabled: notificationInsufficientBalance,
-          notification_service_interruption_enabled: notificationServiceInterruption,
-          notification_weekly_summary_enabled: notificationWeeklySummary,
         })
         .eq('id', userId);
 
-      if (error) throw error;
+      if (userError) throw userError;
+
+      // Update notification preferences for each email
+      for (const emailRecord of notificationEmails) {
+        const { error: emailError } = await supabase
+          .from('user_notification_emails')
+          .update({
+            low_balance_enabled: emailRecord.low_balance_enabled,
+            insufficient_balance_enabled: emailRecord.insufficient_balance_enabled,
+            service_interruption_enabled: emailRecord.service_interruption_enabled,
+            weekly_summary_enabled: emailRecord.weekly_summary_enabled,
+          })
+          .eq('id', emailRecord.id);
+
+        if (emailError) throw emailError;
+      }
 
       await loadUser();
       alert('Profile updated successfully');
@@ -160,15 +163,21 @@ export function UserDetailsPage() {
   const handleSendPasswordReset = async () => {
     if (!user) return;
 
+    const primaryEmail = notificationEmails.find(e => e.is_primary)?.email || email;
+    if (!primaryEmail) {
+      alert('No email address found for this user');
+      return;
+    }
+
     setSendingPasswordReset(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(primaryEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
       if (error) throw error;
 
-      alert(`Password reset link sent to ${user.email}`);
+      alert(`Password reset link sent to ${primaryEmail}`);
     } catch (error) {
       console.error('Error sending password reset:', error);
       alert('Failed to send password reset link');
