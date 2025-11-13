@@ -569,8 +569,7 @@ export function AdminUsersPage() {
                     <div className="flex flex-col gap-2 ml-4">
                       <button
                         onClick={() => {
-                          // TODO: Navigate to user details page
-                          console.log('View details for user:', user.id);
+                          window.location.href = `/admin/users/${user.id}?userId=${user.id}`;
                         }}
                         className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
                       >

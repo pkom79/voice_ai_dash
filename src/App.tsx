@@ -14,6 +14,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AdminConfigPage } from './pages/AdminConfigPage';
 import { AdminCallsAnalytics } from './pages/AdminCallsAnalytics';
+import { UserDetailsPage } from './pages/UserDetailsPage';
 import { OAuthCallback } from './pages/OAuthCallback';
 
 function App() {
@@ -47,6 +48,14 @@ function App() {
               element={
                 <ProtectedRoute requireAdmin>
                   <AdminUsersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="admin/users/:userId"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <UserDetailsPage />
                 </ProtectedRoute>
               }
             />
