@@ -270,59 +270,20 @@ export function BillingConfigModal({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Billing Plan
                 </label>
-                <div className="space-y-3">
-                  <label className="flex items-start p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                    <input
-                      type="radio"
-                      name="billingPlan"
-                      value="pay_per_use"
-                      checked={billingPlan === 'pay_per_use'}
-                      onChange={(e) => setBillingPlan(e.target.value as 'pay_per_use')}
-                      className="mt-1 flex-shrink-0"
-                    />
-                    <div className="ml-3 flex-1">
-                      <p className="font-medium text-gray-900">Pay Per Use</p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Charges deducted from wallet based on usage. Invoiced monthly on the 1st.
-                        Rate is customizable per user.
-                      </p>
-                    </div>
-                  </label>
-
-                  <label className="flex items-start p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                    <input
-                      type="radio"
-                      name="billingPlan"
-                      value="unlimited"
-                      checked={billingPlan === 'unlimited'}
-                      onChange={(e) => setBillingPlan(e.target.value as 'unlimited')}
-                      className="mt-1 flex-shrink-0"
-                    />
-                    <div className="ml-3 flex-1">
-                      <p className="font-medium text-gray-900">Unlimited ($500/month)</p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Fixed monthly subscription with unlimited usage. Charged immediately.
-                      </p>
-                    </div>
-                  </label>
-
-                  <label className="flex items-start p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                    <input
-                      type="radio"
-                      name="billingPlan"
-                      value="complimentary"
-                      checked={billingPlan === 'complimentary'}
-                      onChange={(e) => setBillingPlan(e.target.value as 'complimentary')}
-                      className="mt-1 flex-shrink-0"
-                    />
-                    <div className="ml-3 flex-1">
-                      <p className="font-medium text-gray-900">Complimentary</p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Free account with unlimited usage. No billing or charges. Admin-only option.
-                      </p>
-                    </div>
-                  </label>
-                </div>
+                <select
+                  value={billingPlan}
+                  onChange={(e) => setBillingPlan(e.target.value as 'pay_per_use' | 'unlimited' | 'complimentary')}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="pay_per_use">Pay Per Use - Charges deducted from wallet based on usage</option>
+                  <option value="unlimited">Unlimited ($500/month) - Fixed monthly subscription</option>
+                  <option value="complimentary">Complimentary - Free account (Admin-only)</option>
+                </select>
+                <p className="mt-2 text-xs text-gray-500">
+                  {billingPlan === 'pay_per_use' && 'Charges deducted from wallet based on usage. Invoiced monthly on the 1st. Rate is customizable per user.'}
+                  {billingPlan === 'unlimited' && 'Fixed monthly subscription with unlimited usage. Charged immediately.'}
+                  {billingPlan === 'complimentary' && 'Free account with unlimited usage. No billing or charges. Admin-only option.'}
+                </p>
               </div>
 
               {billingPlan === 'pay_per_use' && (
