@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Loader2, UserPlus, Mail, Check, Copy } from 'lucide-react';
 import { adminService } from '../../services/admin';
+import { DualPlanSelector } from './DualPlanSelector';
 
 interface CreateUserModalProps {
   onClose: () => void;
@@ -15,8 +16,10 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
     businessName: '',
     phoneNumber: '',
     role: 'client' as 'client' | 'admin',
-    billingPlan: 'pay_per_use' as 'pay_per_use' | 'unlimited' | 'complimentary',
-    ratePerMinuteCents: '500',
+    inboundPlan: null as string | null,
+    outboundPlan: null as string | null,
+    inboundRate: '500',
+    outboundRate: '500',
     adminNotes: '',
   });
   const [loading, setLoading] = useState(false);
@@ -43,18 +46,45 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
     setError(null);
 
     try {
-      const rateCents = parseInt(formData.ratePerMinuteCents);
+      // Validation
+      if (!formData.businessName.trim()) {
+        setError('Business name is required');
+        setLoading(false);
+        return;
+      }
 
-      if (formData.billingPlan === 'pay_per_use' && (isNaN(rateCents) || rateCents < 0)) {
-        setError('Invalid rate per minute value');
+      if (!formData.inboundPlan && !formData.outboundPlan) {
+        setError('Please select at least one plan (Inbound or Outbound)');
+        setLoading(false);
+        return;
+      }
+
+      const inboundRateCents = parseInt(formData.inboundRate);
+      const outboundRateCents = parseInt(formData.outboundRate);
+
+      if (formData.inboundPlan === 'inbound_pay_per_use' && (isNaN(inboundRateCents) || inboundRateCents < 0)) {
+        setError('Invalid inbound rate per minute value');
+        setLoading(false);
+        return;
+      }
+
+      if (formData.outboundPlan === 'outbound_pay_per_use' && (isNaN(outboundRateCents) || outboundRateCents < 0)) {
+        setError('Invalid outbound rate per minute value');
         setLoading(false);
         return;
       }
 
       const result = await adminService.createUser({
-        ...formData,
-        billingPlan: formData.billingPlan,
-        ratePerMinuteCents: rateCents,
+        email: formData.email,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        businessName: formData.businessName,
+        phoneNumber: formData.phoneNumber,
+        role: formData.role,
+        inboundPlan: formData.inboundPlan,
+        outboundPlan: formData.outboundPlan,
+        inboundRateCents: inboundRateCents,
+        outboundRateCents: outboundRateCents,
         adminNotes: formData.adminNotes || undefined,
         sendInvite,
       });
@@ -154,10 +184,11 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Business Name
+                Business Name <span className="text-red-600">*</span>
               </label>
               <input
                 type="text"
+                required
                 value={formData.businessName}
                 onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -198,39 +229,21 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
             {formData.role === 'client' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Billing Plan <span className="text-red-600">*</span>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Billing Plans <span className="text-red-600">*</span>
                   </label>
-                  <select
-                    value={formData.billingPlan}
-                    onChange={(e) => setFormData({ ...formData, billingPlan: e.target.value as 'pay_per_use' | 'unlimited' | 'complimentary' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="pay_per_use">Pay Per Use - Charged based on usage</option>
-                    <option value="unlimited">Unlimited - Fixed monthly subscription</option>
-                    <option value="complimentary">Complimentary - Free account</option>
-                  </select>
+                  <DualPlanSelector
+                    inboundPlan={formData.inboundPlan}
+                    outboundPlan={formData.outboundPlan}
+                    inboundRate={formData.inboundRate}
+                    outboundRate={formData.outboundRate}
+                    onInboundPlanChange={(plan) => setFormData({ ...formData, inboundPlan: plan })}
+                    onOutboundPlanChange={(plan) => setFormData({ ...formData, outboundPlan: plan })}
+                    onInboundRateChange={(rate) => setFormData({ ...formData, inboundRate: rate })}
+                    onOutboundRateChange={(rate) => setFormData({ ...formData, outboundRate: rate })}
+                    showRates={true}
+                  />
                 </div>
-
-                {formData.billingPlan === 'pay_per_use' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Rate Per Minute (cents) <span className="text-red-600">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={formData.ratePerMinuteCents}
-                      onChange={(e) => setFormData({ ...formData, ratePerMinuteCents: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="500"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Default is 500 cents ($0.05/minute). Example: 300 = $0.03/min, 1000 = $0.10/min
-                    </p>
-                  </div>
-                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

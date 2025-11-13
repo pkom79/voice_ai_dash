@@ -3,6 +3,7 @@ import { X, Loader2, DollarSign, Plus, Minus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { adminService } from '../../services/admin';
 import { useAuth } from '../../contexts/AuthContext';
+import { DualPlanSelector } from './DualPlanSelector';
 
 interface BillingConfigModalProps {
   userId: string;
@@ -13,8 +14,11 @@ interface BillingConfigModalProps {
 
 interface BillingAccount {
   billing_plan: 'pay_per_use' | 'unlimited' | 'complimentary';
+  inbound_plan: string | null;
+  outbound_plan: string | null;
   wallet_cents: number;
-  rate_per_minute_cents: number;
+  inbound_rate_cents: number;
+  outbound_rate_cents: number;
   admin_notes: string | null;
 }
 
@@ -25,8 +29,10 @@ export function BillingConfigModal({
   onSuccess,
 }: BillingConfigModalProps) {
   const [billing, setBilling] = useState<BillingAccount | null>(null);
-  const [billingPlan, setBillingPlan] = useState<'pay_per_use' | 'unlimited' | 'complimentary'>('pay_per_use');
-  const [ratePerMinuteCents, setRatePerMinuteCents] = useState('500');
+  const [inboundPlan, setInboundPlan] = useState<string | null>(null);
+  const [outboundPlan, setOutboundPlan] = useState<string | null>(null);
+  const [inboundRate, setInboundRate] = useState('500');
+  const [outboundRate, setOutboundRate] = useState('500');
   const [adminNotes, setAdminNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,8 +67,10 @@ export function BillingConfigModal({
 
       if (data) {
         setBilling(data);
-        setBillingPlan(data.billing_plan || 'pay_per_use');
-        setRatePerMinuteCents(String(data.rate_per_minute_cents || 500));
+        setInboundPlan(data.inbound_plan);
+        setOutboundPlan(data.outbound_plan);
+        setInboundRate(String(data.inbound_rate_cents || 500));
+        setOutboundRate(String(data.outbound_rate_cents || 500));
         setAdminNotes(data.admin_notes || '');
       }
     } catch (err) {
@@ -78,10 +86,24 @@ export function BillingConfigModal({
     setError(null);
 
     try {
-      const rateCents = parseInt(ratePerMinuteCents);
+      // Validation
+      if (!inboundPlan && !outboundPlan) {
+        setError('Please select at least one plan (Inbound or Outbound)');
+        setSaving(false);
+        return;
+      }
 
-      if (isNaN(rateCents) || rateCents < 0) {
-        setError('Invalid rate per minute value');
+      const inboundRateCents = parseInt(inboundRate);
+      const outboundRateCents = parseInt(outboundRate);
+
+      if (inboundPlan === 'inbound_pay_per_use' && (isNaN(inboundRateCents) || inboundRateCents < 0)) {
+        setError('Invalid inbound rate per minute value');
+        setSaving(false);
+        return;
+      }
+
+      if (outboundPlan === 'outbound_pay_per_use' && (isNaN(outboundRateCents) || outboundRateCents < 0)) {
+        setError('Invalid outbound rate per minute value');
         setSaving(false);
         return;
       }
@@ -90,8 +112,10 @@ export function BillingConfigModal({
       const { error: updateError } = await supabase
         .from('billing_accounts')
         .update({
-          billing_plan: billingPlan,
-          rate_per_minute_cents: rateCents,
+          inbound_plan: inboundPlan,
+          outbound_plan: outboundPlan,
+          inbound_rate_cents: inboundRateCents,
+          outbound_rate_cents: outboundRateCents,
           admin_notes: adminNotes,
         })
         .eq('user_id', userId);
@@ -103,8 +127,10 @@ export function BillingConfigModal({
         action: 'update_billing_config',
         target_user_id: userId,
         details: {
-          billing_plan: billingPlan,
-          rate_per_minute_cents: rateCents,
+          inbound_plan: inboundPlan,
+          outbound_plan: outboundPlan,
+          inbound_rate_cents: inboundRateCents,
+          outbound_rate_cents: outboundRateCents,
         },
       });
 
@@ -249,8 +275,20 @@ export function BillingConfigModal({
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-700">Current Plan:</span>
-                    <span className="text-gray-900">{formatBillingPlan(billing.billing_plan)}</span>
+                    <span className="font-medium text-gray-700">Current Plans:</span>
+                    <div className="text-right">
+                      {billing.inbound_plan && (
+                        <div className="text-gray-900 text-sm">
+                          {billing.inbound_plan === 'inbound_pay_per_use' ? 'Inbound PPU' : 'Inbound Unlimited'}
+                        </div>
+                      )}
+                      {billing.outbound_plan && (
+                        <div className="text-gray-900 text-sm">Outbound PPU</div>
+                      )}
+                      {!billing.inbound_plan && !billing.outbound_plan && (
+                        <div className="text-gray-500 text-sm">No plans selected</div>
+                      )}
+                    </div>
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button
@@ -275,45 +313,20 @@ export function BillingConfigModal({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Billing Plan
+                  Billing Plans
                 </label>
-                <select
-                  value={billingPlan}
-                  onChange={(e) => setBillingPlan(e.target.value as 'pay_per_use' | 'unlimited' | 'complimentary')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="pay_per_use">Pay Per Use - Charges deducted from wallet based on usage</option>
-                  <option value="unlimited">Unlimited ($500/month) - Fixed monthly subscription</option>
-                  <option value="complimentary">Complimentary - Free account (Admin-only)</option>
-                </select>
-                <p className="mt-2 text-xs text-gray-500">
-                  {billingPlan === 'pay_per_use' && 'Charges deducted from wallet based on usage. Invoiced monthly on the 1st. Rate is customizable per user.'}
-                  {billingPlan === 'unlimited' && 'Fixed monthly subscription with unlimited usage. Charged immediately.'}
-                  {billingPlan === 'complimentary' && 'Free account with unlimited usage. No billing or charges. Admin-only option.'}
-                </p>
+                <DualPlanSelector
+                  inboundPlan={inboundPlan}
+                  outboundPlan={outboundPlan}
+                  inboundRate={inboundRate}
+                  outboundRate={outboundRate}
+                  onInboundPlanChange={setInboundPlan}
+                  onOutboundPlanChange={setOutboundPlan}
+                  onInboundRateChange={setInboundRate}
+                  onOutboundRateChange={setOutboundRate}
+                  showRates={true}
+                />
               </div>
-
-              {billingPlan === 'pay_per_use' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Rate Per Minute (in cents)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={ratePerMinuteCents}
-                      onChange={(e) => setRatePerMinuteCents(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="500"
-                    />
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Rate in cents. Default is 500 cents ($5.00/minute). Example: 50 = $0.50/min, 100 = $1.00/min
-                  </p>
-                </div>
-              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -149,11 +149,13 @@ class AdminService {
     email: string;
     firstName: string;
     lastName: string;
-    businessName?: string;
+    businessName: string;
     phoneNumber?: string;
     role?: 'client' | 'admin';
-    billingPlan?: 'pay_per_use' | 'unlimited' | 'complimentary';
-    ratePerMinuteCents?: number;
+    inboundPlan?: string | null;
+    outboundPlan?: string | null;
+    inboundRateCents?: number;
+    outboundRateCents?: number;
     adminNotes?: string;
     sendInvite?: boolean;
   }): Promise<{ success: boolean; userId?: string; invitationLink?: string; error?: string }> {

@@ -11,11 +11,13 @@ interface CreateUserRequest {
   email: string;
   firstName: string;
   lastName: string;
-  businessName?: string;
+  businessName: string;
   phoneNumber?: string;
   role?: 'client' | 'admin';
-  billingPlan?: 'pay_per_use' | 'unlimited' | 'complimentary';
-  ratePerMinuteCents?: number;
+  inboundPlan?: string | null;
+  outboundPlan?: string | null;
+  inboundRateCents?: number;
+  outboundRateCents?: number;
   adminNotes?: string;
   sendInvite?: boolean;
 }
@@ -141,7 +143,7 @@ Deno.serve(async (req: Request) => {
       id: newUser.user.id,
       first_name: requestData.firstName,
       last_name: requestData.lastName,
-      business_name: requestData.businessName || null,
+      business_name: requestData.businessName,
       phone_number: requestData.phoneNumber || null,
       role: requestData.role || "client",
       is_active: true,
@@ -160,14 +162,19 @@ Deno.serve(async (req: Request) => {
     }
 
     if (requestData.role === "client" || !requestData.role) {
-      const billingPlan = requestData.billingPlan || 'pay_per_use';
-      const ratePerMinuteCents = requestData.ratePerMinuteCents || 500;
+      const inboundPlan = requestData.inboundPlan || null;
+      const outboundPlan = requestData.outboundPlan || null;
+      const inboundRateCents = requestData.inboundRateCents || 500;
+      const outboundRateCents = requestData.outboundRateCents || 500;
 
       const { error: billingError } = await supabaseAdmin.from("billing_accounts").insert({
         user_id: newUser.user.id,
-        billing_plan: billingPlan,
-        rate_per_minute_cents: ratePerMinuteCents,
+        inbound_plan: inboundPlan,
+        outbound_plan: outboundPlan,
+        inbound_rate_cents: inboundRateCents,
+        outbound_rate_cents: outboundRateCents,
         wallet_cents: 0,
+        first_login_billing_completed: false,
         admin_notes: requestData.adminNotes || null,
       });
 
@@ -183,7 +190,8 @@ Deno.serve(async (req: Request) => {
       details: {
         email: requestData.email,
         role: requestData.role || "client",
-        billing_plan: requestData.billingPlan || 'pay_per_use',
+        inbound_plan: requestData.inboundPlan,
+        outbound_plan: requestData.outboundPlan,
       },
     });
 
@@ -205,8 +213,10 @@ Deno.serve(async (req: Request) => {
           },
           body: JSON.stringify({
             userId: newUser.user.id,
-            billingPlan: requestData.billingPlan,
-            ratePerMinuteCents: requestData.ratePerMinuteCents,
+            inboundPlan: requestData.inboundPlan,
+            outboundPlan: requestData.outboundPlan,
+            inboundRateCents: requestData.inboundRateCents,
+            outboundRateCents: requestData.outboundRateCents,
             adminNotes: requestData.adminNotes,
           }),
         });
