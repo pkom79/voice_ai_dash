@@ -83,7 +83,7 @@ Deno.serve(async (req: Request) => {
 
     const emailPayload = {
       to: email,
-      subject: '✅ Test Notification - Voice AI Dash',
+      subject: 'Test Notification - Voice AI Dash',
       userId: user.id,
       emailType: 'test_notification',
       templateId: 'test_notification',

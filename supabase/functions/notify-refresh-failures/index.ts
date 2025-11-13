@@ -100,7 +100,7 @@ Deno.serve(async (req: Request) => {
 
     const failedUsers = Array.from(uniqueUsers.values());
 
-    const emailSubject = `⚠️ HighLevel Token Refresh Failures Detected`;
+    const emailSubject = `HighLevel Token Refresh Failures Detected`;
 
     const emailHtml = `
 <!DOCTYPE html>

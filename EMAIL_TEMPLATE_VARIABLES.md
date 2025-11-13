@@ -255,11 +255,12 @@ All emails include these standard properties:
 
 | Email Type | Subject Line |
 |------------|--------------|
-| Low Balance Alert | `⚠️ Low Wallet Balance Alert` |
-| Insufficient Balance Alert | `🚨 Insufficient Balance - Action Required` |
-| Weekly Summary | `📊 Your Weekly Call Summary` |
-| Service Interruption Warning | `⚠️ URGENT: Service Suspension Notice - Action Required` |
-| Test Notification | `✅ Test Notification - Voice AI Dash` |
+| Low Balance Alert | `Low Wallet Balance Alert` |
+| Insufficient Balance Alert | `Insufficient Balance - Action Required` |
+| Weekly Summary | `Your Weekly Call Summary` |
+| Daily Summary | `Daily Activity Summary - [Date]` |
+| Service Interruption Warning | `URGENT: Service Suspension Notice - Action Required` |
+| Test Notification | `Test Notification - Voice AI Dash` |
 | Password Reset | `Reset your password` |
 
 ---
@@ -545,8 +546,9 @@ Update your `.env` file with the Template IDs you just created:
 RESEND_TEMPLATE_LOW_BALANCE=template_your_id_here
 RESEND_TEMPLATE_INSUFFICIENT_BALANCE=template_your_id_here
 RESEND_TEMPLATE_WEEKLY_SUMMARY=template_your_id_here
+RESEND_TEMPLATE_DAILY_SUMMARY=daily-activity-summary
 RESEND_TEMPLATE_SERVICE_INTERRUPTION=template_your_id_here
-RESEND_TEMPLATE_TEST_NOTIFICATION=template_your_id_here
+RESEND_TEMPLATE_TEST_NOTIFICATION=email-notification-test
 RESEND_TEMPLATE_PASSWORD_RESET=template_your_id_here
 ```
 
