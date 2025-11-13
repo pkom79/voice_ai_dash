@@ -18,8 +18,8 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
     role: 'client' as 'client' | 'admin',
     inboundPlan: null as string | null,
     outboundPlan: null as string | null,
-    inboundRate: '500',
-    outboundRate: '500',
+    inboundRate: '100',
+    outboundRate: '100',
     adminNotes: '',
   });
   const [loading, setLoading] = useState(false);

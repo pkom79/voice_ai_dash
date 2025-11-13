@@ -137,9 +137,9 @@ export function DualPlanSelector({
 
       {/* Plan Combination Summary */}
       {(inboundPlan || outboundPlan) && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm font-medium text-blue-900 mb-1">Plan Summary</p>
-          <div className="text-xs text-blue-700 space-y-1">
+        <div className="p-4 bg-white border border-gray-200 rounded-lg">
+          <p className="text-sm font-medium text-gray-900 mb-2">Plan Summary</p>
+          <div className="text-sm text-gray-700 space-y-1">
             {inboundPlan === 'inbound_pay_per_use' && (
               <p>• Inbound Pay Per Use: ${(parseInt(inboundRate) / 100).toFixed(2)}/minute</p>
             )}
@@ -150,10 +150,10 @@ export function DualPlanSelector({
               <p>• Outbound Pay Per Use: ${(parseInt(outboundRate) / 100).toFixed(2)}/minute</p>
             )}
             {(inboundPlan === 'inbound_pay_per_use' || outboundPlan === 'outbound_pay_per_use') && (
-              <p className="mt-2 font-medium">Initial wallet requirement: $50.00</p>
+              <p className="mt-2 font-medium text-gray-900">Initial wallet requirement: $50.00</p>
             )}
             {inboundPlan === 'inbound_unlimited' && (
-              <p className="mt-2 font-medium">Initial subscription charge: $500.00</p>
+              <p className="mt-2 font-medium text-gray-900">Initial subscription charge: $500.00</p>
             )}
           </div>
         </div>
