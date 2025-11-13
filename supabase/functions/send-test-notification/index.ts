@@ -73,81 +73,153 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     const userPrimaryEmail = primaryEmail?.email || email;
+    const sentAt = new Date().toLocaleString();
 
-    const templateData = {
-      userEmail: email,
-      recipientEmail: userPrimaryEmail,
-      sentAt: new Date().toLocaleString(),
-    };
-
-    const fallbackHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f5f5f5;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden;">
-          <div style="padding: 30px 30px 0 30px;">
-            <p style="font-size: 18px; margin: 0 0 20px 0;">Hi ${user.first_name} ${user.last_name},</p>
-          </div>
-          <div style="margin: 0 30px; background-color: #d1fae5; border-left: 4px solid #10b981; padding: 15px; border-radius: 4px;">
-            <p style="margin: 0; font-weight: 600;">✅ Success! This is a test notification.</p>
-          </div>
-          <div style="text-align: center; padding: 30px 0;">
-            <div style="font-size: 60px; color: #10b981;">✓</div>
-          </div>
-          <div style="padding: 0 30px;">
-            <p style="text-align: center; font-size: 20px; font-weight: 600; color: #059669; margin: 0 0 30px 0;">
-              Your email notifications are working correctly!
-            </p>
-          </div>
-          <div style="margin: 0 30px 30px 30px; background-color: #e0e7ff; border: 1px solid #818cf8; padding: 20px; border-radius: 6px;">
-            <p style="margin: 0 0 15px 0; font-weight: 600;">Test Details:</p>
-            <p style="margin: 5px 0;">📧 <strong>Recipient:</strong> ${templateData.userEmail}</p>
-            <p style="margin: 5px 0;">👤 <strong>Account:</strong> ${templateData.recipientEmail}</p>
-            <p style="margin: 5px 0;">📅 <strong>Sent:</strong> ${templateData.sentAt}</p>
-          </div>
-          <div style="padding: 0 30px 30px 30px;">
-            <p style="margin: 0 0 10px 0;">This test confirms that:</p>
-            <ul style="margin: 10px 0; padding-left: 20px;">
-              <li style="margin: 8px 0;">Your notification email address is correctly configured</li>
-              <li style="margin: 8px 0;">Our email delivery system is functioning properly</li>
-              <li style="margin: 8px 0;">You will receive important alerts and notifications at this address</li>
-            </ul>
-          </div>
-          <div style="text-align: center; padding: 0 30px 30px 30px;">
-            <a href="https://voiceaidash.com/profile"
-               style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
-              Manage Notification Settings
-            </a>
-          </div>
-          <div style="padding: 0 30px 20px 30px; text-align: center;">
-            <p style="font-size: 14px; color: #6b7280; margin: 0;">
-              If you did not request this test email, please contact support immediately.
-            </p>
-          </div>
-          <div style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-            <p style="margin: 0 0 5px 0; font-weight: 600; font-size: 14px; color: #374151;"><strong>Voice AI Dash</strong> - Voice Agent Management Platform</p>
-            <p style="margin: 5px 0; font-size: 13px; color: #6b7280;">This is a test notification sent from your notification preferences.</p>
-            <p style="margin: 5px 0; font-size: 13px;">
-              <a href="https://voiceaidash.com/profile" style="color: #2563eb; text-decoration: none;">Manage notification preferences</a>
-            </p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    const html = `<!doctype html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml">
+<head>
+  <meta charset="utf-8">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Test Notification</title>
+  <style>
+    a { text-decoration: none; }
+    .hover-underline:hover { text-decoration: underline !important; }
+    @media (max-width: 600px) {
+      .container { width: 100% !important; }
+      .px-24 { padding-left: 16px !important; padding-right: 16px !important; }
+      .py-32 { padding-top: 24px !important; padding-bottom: 24px !important; }
+      .btn { width: 100% !important; }
+    }
+  </style>
+</head>
+<body style="margin:0; padding:0; background:#0b1220;">
+  <div style="display:none; overflow:hidden; line-height:1px; opacity:0; max-height:0; max-width:0;">
+    Success! This is a test notification from Voice AI Dash. Your email notifications are working correctly.
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1220;">
+    <tr>
+      <td align="center" class="px-24" style="padding:24px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" class="container"
+               style="width:600px; background:#0f172a; border-radius:16px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.35);">
+          <tr>
+            <td align="center" style="padding:28px 24px 8px 24px; background:#0b1220;">
+              <a href="https://voiceaidash.com" target="_blank" rel="noopener">
+                <img src="https://voiceaidash.com/assets/Voice%20AI%20Dash%20Logo%20with%20Text%20Dark-Di3zKMgu.png"
+                     alt="Voice AI Dash" width="180" style="display:block; border:0; outline:0;">
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td class="py-32 px-24" style="padding:32px 32px 0 32px;">
+              <h1 style="margin:0; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                         font-size:24px; line-height:32px; color:#ffffff;">
+                Test Notification
+              </h1>
+              <p style="margin:12px 0 0 0; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                        font-size:15px; line-height:24px; color:#cbd5e1;">
+                Success! This is a test notification.
+              </p>
+              <p style="margin:4px 0 0 0; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                        font-size:15px; line-height:24px; color:#cbd5e1;">
+                Your email notifications are working correctly.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 32px 8px 32px;">
+              <p style="margin:0 0 8px 0; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                        font-size:14px; line-height:22px; color:#e5e7eb; font-weight:600;">
+                Test Details
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                     style="border-collapse:separate; background:#0b1220; border:1px solid #1f2937; border-radius:12px;">
+                <tr>
+                  <td style="padding:12px 16px; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                             font-size:13px; line-height:20px; color:#cbd5e1;">
+                    Recipient
+                  </td>
+                  <td align="right" style="padding:12px 16px; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                                          font-size:13px; line-height:20px; color:#ffffff;">
+                    ${email}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                             font-size:13px; line-height:20px; color:#cbd5e1;">
+                    Account
+                  </td>
+                  <td align="right" style="padding:12px 16px; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                                          font-size:13px; line-height:20px; color:#ffffff;">
+                    ${userPrimaryEmail}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                             font-size:13px; line-height:20px; color:#cbd5e1;">
+                    Sent
+                  </td>
+                  <td align="right" style="padding:12px 16px; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                                          font-size:13px; line-height:20px; color:#ffffff;">
+                    ${sentAt}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 24px 32px;">
+              <p style="margin:0 0 6px 0; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                        font-size:14px; line-height:22px; color:#e5e7eb; font-weight:600;">
+                This test confirms that:
+              </p>
+              <ul style="margin:6px 0 0 18px; padding:0; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                         font-size:13px; line-height:20px; color:#cbd5e1;">
+                <li>Your notification email address is correctly configured.</li>
+                <li>Our email delivery system is functioning properly.</li>
+                <li>You will receive important alerts and notifications at this address.</li>
+              </ul>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 32px 24px 32px;">
+              <a href="https://voiceaidash.com/" class="btn"
+                 style="display:inline-block; background:#2563eb; color:#ffffff;
+                        font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                        font-size:14px; font-weight:600; line-height:40px;
+                        padding:0 20px; border-radius:12px; text-align:center; min-width:180px;">
+                Open Dashboard
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:20px 24px 28px 24px; background:#0b1220;">
+              <p style="margin:0; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                        font-size:12px; line-height:18px; color:#64748b;">
+                © <span style="white-space:nowrap;">Voice AI Dash</span>
+              </p>
+              <p style="margin:6px 0 0 0; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+                        font-size:12px; line-height:18px; color:#64748b;">
+                Need help? Contact support at
+                <a href="mailto:support@smartcompanyai.com" style="color:#93c5fd; text-decoration:none;">
+                  support@smartcompanyai.com
+                </a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 
     const emailPayload = {
       to: email,
-      subject: '✅ Test Notification - Voice AI Dash',
+      subject: 'Test Notification - Voice AI Dash',
       userId: user.id,
       emailType: 'test_notification',
-      templateId: 'test_notification',
-      templateData: templateData,
-      html: fallbackHtml,
+      html: html,
     };
 
     const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {

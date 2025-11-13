@@ -9,11 +9,9 @@ const corsHeaders = {
 interface EmailRequest {
   to: string;
   subject: string;
-  html?: string;
-  templateId?: string;
+  html: string;
   userId: string;
   emailType: 'low_balance_alert' | 'insufficient_balance_alert' | 'weekly_summary' | 'daily_summary' | 'service_interruption_warning' | 'test_notification';
-  templateData: any;
 }
 
 Deno.serve(async (req: Request) => {
@@ -25,43 +23,23 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { to, subject, html, templateId, userId, emailType, templateData }: EmailRequest = await req.json();
+    const { to, subject, html, userId, emailType }: EmailRequest = await req.json();
+
+    if (!html) {
+      throw new Error('HTML content is required');
+    }
 
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     if (!resendApiKey) {
       throw new Error('RESEND_API_KEY not configured');
     }
 
-    const emailPayload: any = {
+    const emailPayload = {
       from: 'Voice AI Dash <no-reply@updates.voiceaidash.com>',
       to: [to],
       subject: subject,
+      html: html,
     };
-
-    if (templateId) {
-      const templateIdFromEnv = Deno.env.get(`RESEND_TEMPLATE_${emailType.toUpperCase()}`);
-      console.log('Template lookup:', { emailType, lookupKey: `RESEND_TEMPLATE_${emailType.toUpperCase()}`, templateIdFromEnv });
-
-      if (templateIdFromEnv) {
-        emailPayload.template_id = templateIdFromEnv;
-        if (templateData && Object.keys(templateData).length > 0) {
-          Object.assign(emailPayload, templateData);
-        }
-        console.log('Using Resend template:', { templateIdFromEnv, templateData });
-      } else if (html) {
-        emailPayload.html = html;
-        console.log('Template not found, using HTML fallback');
-      } else {
-        throw new Error('Template ID not configured and no HTML fallback provided');
-      }
-    } else if (html) {
-      emailPayload.html = html;
-      console.log('No templateId provided, using HTML');
-    } else {
-      throw new Error('Either templateId or html must be provided');
-    }
-
-    console.log('Sending to Resend API:', JSON.stringify(emailPayload, null, 2));
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -77,8 +55,6 @@ Deno.serve(async (req: Request) => {
       console.error('Resend API error:', errorData);
       throw new Error(`Resend API error: ${errorData}`);
     }
-
-    console.log('Email sent successfully via Resend');
 
     const result = await response.json();
 
@@ -100,7 +76,6 @@ Deno.serve(async (req: Request) => {
           subject: subject,
           status: 'sent',
           resend_message_id: result.id,
-          template_data: templateData,
           sent_at: new Date().toISOString(),
         }),
       });
