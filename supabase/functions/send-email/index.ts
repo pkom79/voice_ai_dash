@@ -41,10 +41,16 @@ Deno.serve(async (req: Request) => {
     if (templateId) {
       const templateIdFromEnv = Deno.env.get(`RESEND_TEMPLATE_${emailType.toUpperCase()}`);
 
-      emailPayload.template = {
-        id: templateIdFromEnv || templateId,
-        variables: templateData
-      };
+      if (templateIdFromEnv) {
+        emailPayload.template = {
+          id: templateIdFromEnv,
+          variables: templateData
+        };
+      } else if (html) {
+        emailPayload.html = html;
+      } else {
+        throw new Error('Template ID not configured and no HTML fallback provided');
+      }
     } else if (html) {
       emailPayload.html = html;
     } else {

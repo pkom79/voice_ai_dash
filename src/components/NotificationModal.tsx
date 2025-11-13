@@ -47,7 +47,7 @@ export function NotificationModal({ isOpen, onClose, title, message, type = 'inf
         </div>
 
         <div className="px-6 py-8 bg-slate-50 dark:bg-slate-900">
-          <p className="text-gray-900 dark:text-gray-100 text-center leading-relaxed">{message}</p>
+          <p className="text-gray-900 dark:text-gray-100 text-center leading-relaxed whitespace-pre-wrap break-words">{message}</p>
         </div>
 
         <div className="px-6 py-4 bg-white dark:bg-slate-800 flex justify-center">
