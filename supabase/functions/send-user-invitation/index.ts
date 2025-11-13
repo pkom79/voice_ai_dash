@@ -200,27 +200,34 @@ Deno.serve(async (req: Request) => {
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
 
     if (resendApiKey) {
+      const emailPayload = {
+        from: 'Voice AI Dash <onboarding@resend.dev>',
+        to: [userEmail],
+        template_id: 'account-setup-invitation',
+        template_data: {
+          first_name: targetUser.first_name,
+          invitation_link: invitationLink,
+          email: userEmail,
+        },
+      };
+
+      console.log("Sending email with payload:", JSON.stringify(emailPayload, null, 2));
+
       const emailResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${resendApiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          from: 'Voice AI Dash <onboarding@resend.dev>',
-          to: [userEmail],
-          subject: 'Complete Your Voice AI Dash Account Setup',
-          template: 'account-setup-invitation',
-          template_data: {
-            first_name: targetUser.first_name,
-            invitation_link: invitationLink,
-            email: userEmail,
-          },
-        }),
+        body: JSON.stringify(emailPayload),
       });
 
+      const emailResult = await emailResponse.text();
       if (!emailResponse.ok) {
-        console.error("Failed to send email:", await emailResponse.text());
+        console.error("Failed to send email. Status:", emailResponse.status);
+        console.error("Response:", emailResult);
+      } else {
+        console.log("Email sent successfully:", emailResult);
       }
     } else {
       console.log("Resend API key not configured, skipping email send");
