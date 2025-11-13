@@ -82,10 +82,11 @@ Deno.serve(async (req: Request) => {
         'mode': 'payment',
         'success_url': successUrl,
         'cancel_url': cancelUrl,
-        'metadata[user_id]': userId,
-        'metadata[type]': 'wallet_topup',
-        'metadata[amount_cents]': amountCents.toString(),
       });
+
+      params.append('metadata[user_id]', userId);
+      params.append('metadata[type]', 'wallet_topup');
+      params.append('metadata[amount_cents]', amountCents.toString());
 
       const response = await fetch(`${baseUrl}/checkout/sessions`, {
         method: 'POST',
@@ -117,12 +118,13 @@ Deno.serve(async (req: Request) => {
         'mode': 'subscription',
         'success_url': successUrl,
         'cancel_url': cancelUrl,
-        'metadata[user_id]': userId,
-        'metadata[type]': 'unlimited_upgrade',
-        'metadata[wallet_cents]': (walletCents || 0).toString(),
-        'subscription_data[metadata][user_id]': userId,
-        'subscription_data[metadata][plan]': 'unlimited',
       });
+
+      params.append('metadata[user_id]', userId);
+      params.append('metadata[type]', 'unlimited_upgrade');
+      params.append('metadata[wallet_cents]', (walletCents || 0).toString());
+      params.append('subscription_data[metadata][user_id]', userId);
+      params.append('subscription_data[metadata][plan]', 'unlimited');
 
       const response = await fetch(`${baseUrl}/checkout/sessions`, {
         method: 'POST',
