@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useSearchParams } from 'react-router-dom';
+import { NotificationModal } from '../components/NotificationModal';
+import { useNotification } from '../hooks/useNotification';
 import {
   Wallet,
   CreditCard,
@@ -44,6 +46,7 @@ interface WalletTransaction {
 }
 
 export function BillingPage() {
+  const { notification, showError, showWarning, hideNotification } = useNotification();
   const { profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [billingAccount, setBillingAccount] = useState<BillingAccount | null>(null);
@@ -116,7 +119,7 @@ export function BillingPage() {
     const amount = parseFloat(replenishAmount);
 
     if (isNaN(amount) || amount < 50) {
-      alert('Minimum replenishment amount is $50');
+      showWarning('Minimum replenishment amount is $50');
       return;
     }
 
@@ -148,7 +151,7 @@ export function BillingPage() {
       window.location.href = url;
     } catch (error) {
       console.error('Error processing replenishment:', error);
-      alert(error instanceof Error ? error.message : 'Failed to process replenishment');
+      showError(error instanceof Error ? error.message : 'Failed to process replenishment');
       setProcessing(false);
     }
   };
@@ -182,14 +185,14 @@ export function BillingPage() {
       window.location.href = url;
     } catch (error) {
       console.error('Error processing upgrade:', error);
-      alert(error instanceof Error ? error.message : 'Failed to process upgrade');
+      showError(error instanceof Error ? error.message : 'Failed to process upgrade');
       setProcessing(false);
     }
   };
 
   const handleOpenStripePortal = async () => {
     if (!billingAccount?.stripe_customer_id) {
-      alert('To access payment management, please make a payment first by adding funds to your wallet or upgrading to an Unlimited plan. This will create your payment profile.');
+      showWarning('To access payment management, please make a payment first by adding funds to your wallet or upgrading to an Unlimited plan. This will create your payment profile.');
       return;
     }
 
@@ -225,7 +228,7 @@ export function BillingPage() {
       window.location.href = url;
     } catch (error) {
       console.error('Error opening portal:', error);
-      alert(error instanceof Error ? error.message : 'Unable to open billing portal. Please try again later.');
+      showError(error instanceof Error ? error.message : 'Unable to open billing portal. Please try again later.');
       setLoadingPortal(false);
     }
   };
@@ -567,6 +570,14 @@ export function BillingPage() {
           </div>
         </div>
       )}
+
+      <NotificationModal
+        isOpen={notification.isOpen}
+        onClose={hideNotification}
+        title={notification.title}
+        message={notification.message}
+        type={notification.type}
+      />
     </div>
   );
 }

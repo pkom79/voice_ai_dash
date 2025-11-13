@@ -27,6 +27,8 @@ import { UserSessionsModal } from '../components/admin/UserSessionsModal';
 import { BillingConfigModal } from '../components/admin/BillingConfigModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { format } from 'date-fns';
+import { NotificationModal } from '../components/NotificationModal';
+import { useNotification } from '../hooks/useNotification';
 
 interface User {
   id: string;
@@ -66,6 +68,7 @@ interface HighLevelAgent {
 }
 
 export function AdminUsersPage() {
+  const { notification, showError, showSuccess, hideNotification } = useNotification();
   const { profile } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [usersWithStatus, setUsersWithStatus] = useState<UserWithStatus[]>([]);
@@ -222,7 +225,7 @@ export function AdminUsersPage() {
       window.location.href = authUrl;
     } catch (error) {
       console.error('Error initiating OAuth:', error);
-      alert('Failed to initiate HighLevel connection');
+      showError('Failed to initiate HighLevel connection');
     }
   };
 
@@ -241,10 +244,10 @@ export function AdminUsersPage() {
           setAssignedAgents([]);
           await loadUserStatuses();
           setConfirmModal({ ...confirmModal, isOpen: false });
-          alert('Successfully disconnected from HighLevel');
+          showSuccess('Successfully disconnected from HighLevel');
         } catch (error) {
           console.error('Error disconnecting:', error);
-          alert('Failed to disconnect from HighLevel');
+          showError('Failed to disconnect from HighLevel');
           setConfirmModal({ ...confirmModal, isOpen: false });
         }
       },
@@ -263,7 +266,7 @@ export function AdminUsersPage() {
     } catch (error) {
       console.error('Error fetching agents:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Failed to fetch agents from HighLevel: ${errorMessage}\n\nPlease check the browser console for more details.`);
+      showError(`Failed to fetch agents from HighLevel: ${errorMessage}. Please check the browser console for more details.`);
     } finally {
       setLoadingAgents(false);
     }
@@ -285,11 +288,11 @@ export function AdminUsersPage() {
         setAssignedAgents(agents);
         loadUserStatuses();
       } else {
-        alert('Failed to assign agent');
+        showError('Failed to assign agent');
       }
     } catch (error) {
       console.error('Error assigning agent:', error);
-      alert('Failed to assign agent');
+      showError('Failed to assign agent');
     }
   };
 
@@ -313,15 +316,15 @@ export function AdminUsersPage() {
             setAssignedAgents(agents);
             loadUserStatuses();
             setConfirmModal({ ...confirmModal, isOpen: false });
-            alert('Agent unassigned successfully');
+            showSuccess('Agent unassigned successfully');
           } else {
             setConfirmModal({ ...confirmModal, isOpen: false });
-            alert('Failed to unassign agent');
+            showError('Failed to unassign agent');
           }
         } catch (error) {
           console.error('Error unassigning agent:', error);
           setConfirmModal({ ...confirmModal, isOpen: false });
-          alert('Failed to unassign agent');
+          showError('Failed to unassign agent');
         }
       },
     });
@@ -334,13 +337,13 @@ export function AdminUsersPage() {
       const result = await adminService.sendInvitationToUser(userId);
 
       if (result.success) {
-        alert('Invitation sent successfully! The user will receive an email to set up their password.');
+        showSuccess('Invitation sent successfully! The user will receive an email to set up their password.');
       } else {
-        alert(`Failed to send invitation: ${result.error}`);
+        showError(`Failed to send invitation: ${result.error}`);
       }
     } catch (error) {
       console.error('Error sending invitation:', error);
-      alert('Failed to send invitation');
+      showError('Failed to send invitation');
     } finally {
       setSendingInvite(null);
     }
@@ -364,10 +367,10 @@ export function AdminUsersPage() {
             handleSelectUser({ ...selectedUser, is_active: !suspend });
           }
           setConfirmModal({ ...confirmModal, isOpen: false });
-          alert(`User ${action}ed successfully`);
+          showSuccess(`User ${action}ed successfully`);
         } else {
           setConfirmModal({ ...confirmModal, isOpen: false });
-          alert(`Failed to ${action} user`);
+          showError(`Failed to ${action} user`);
         }
       },
     });
@@ -526,10 +529,10 @@ export function AdminUsersPage() {
                               if (success) {
                                 await loadUsers();
                                 setConfirmModal({ ...confirmModal, isOpen: false });
-                                alert('User removed successfully');
+                                showSuccess('User removed successfully');
                               } else {
                                 setConfirmModal({ ...confirmModal, isOpen: false });
-                                alert('Failed to remove user');
+                                showError('Failed to remove user');
                               }
                             },
                           });
@@ -672,6 +675,14 @@ export function AdminUsersPage() {
         type={confirmModal.type}
         onConfirm={confirmModal.onConfirm}
         onCancel={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+      />
+
+      <NotificationModal
+        isOpen={notification.isOpen}
+        onClose={hideNotification}
+        title={notification.title}
+        message={notification.message}
+        type={notification.type}
       />
     </div>
   );

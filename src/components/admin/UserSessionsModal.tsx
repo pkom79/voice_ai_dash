@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { X, Loader2, Monitor, Smartphone, Tablet, XCircle } from 'lucide-react';
 import { adminService, ActiveSession } from '../../services/admin';
 import { format } from 'date-fns';
+import { ConfirmationModal } from '../ConfirmationModal';
+import { NotificationModal } from '../NotificationModal';
+import { useNotification } from '../../hooks/useNotification';
 
 interface UserSessionsModalProps {
   userId: string;
@@ -10,8 +13,10 @@ interface UserSessionsModalProps {
 }
 
 export function UserSessionsModal({ userId, userName, onClose }: UserSessionsModalProps) {
+  const { notification, showError, hideNotification } = useNotification();
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmTerminate, setConfirmTerminate] = useState<string | null>(null);
 
   useEffect(() => {
     loadSessions();
@@ -30,15 +35,13 @@ export function UserSessionsModal({ userId, userName, onClose }: UserSessionsMod
   };
 
   const handleTerminateSession = async (sessionId: string) => {
-    if (!confirm('Are you sure you want to terminate this session?')) {
-      return;
-    }
-
     const success = await adminService.terminateSession(sessionId);
     if (success) {
       await loadSessions();
+      setConfirmTerminate(null);
     } else {
-      alert('Failed to terminate session');
+      showError('Failed to terminate session');
+      setConfirmTerminate(null);
     }
   };
 
@@ -133,7 +136,7 @@ export function UserSessionsModal({ userId, userName, onClose }: UserSessionsMod
                       </div>
                     </div>
                     <button
-                      onClick={() => handleTerminateSession(session.id)}
+                      onClick={() => setConfirmTerminate(session.id)}
                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       title="Terminate session"
                     >
@@ -155,6 +158,23 @@ export function UserSessionsModal({ userId, userName, onClose }: UserSessionsMod
           </button>
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={confirmTerminate !== null}
+        title="Terminate Session"
+        message="Are you sure you want to terminate this session? The user will be logged out immediately."
+        type="danger"
+        onConfirm={() => confirmTerminate && handleTerminateSession(confirmTerminate)}
+        onCancel={() => setConfirmTerminate(null)}
+      />
+
+      <NotificationModal
+        isOpen={notification.isOpen}
+        onClose={hideNotification}
+        title={notification.title}
+        message={notification.message}
+        type={notification.type}
+      />
     </div>
   );
 }

@@ -31,6 +31,8 @@ Deno.serve(async (req: Request) => {
     const resendApiKey = Deno.env.get('RESEND_API_KEY')!;
     const appUrl = 'https://voiceaidash.com';
 
+    console.log('Processing password reset for:', email);
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const resend = new Resend(resendApiKey);
 
@@ -38,12 +40,15 @@ Deno.serve(async (req: Request) => {
     const { data: user, error: userError } = await supabase.auth.admin.getUserByEmail(email);
 
     if (userError || !user) {
+      console.log('User not found for email:', email);
       // Don't reveal whether user exists for security
       return new Response(
         JSON.stringify({ message: 'If an account exists with this email, you will receive a password reset link.' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('User found, generating reset token...');
 
     // Generate password reset token
     const { data: tokenData, error: tokenError } = await supabase.auth.admin.generateLink({
@@ -56,6 +61,8 @@ Deno.serve(async (req: Request) => {
       throw new Error('Failed to generate reset token');
     }
 
+    console.log('Token generated successfully');
+
     // Extract the token from the generated link
     const resetUrl = new URL(tokenData.properties.action_link);
     const token = resetUrl.searchParams.get('token');
@@ -67,6 +74,8 @@ Deno.serve(async (req: Request) => {
 
     // Construct our custom reset URL
     const confirmationUrl = `${appUrl}/reset-password?token=${token}&type=${type || 'recovery'}`;
+
+    console.log('Sending email via Resend...');
 
     // Send email using Resend with the HTML template
     const emailHtml = `<!doctype html>
@@ -167,16 +176,19 @@ Deno.serve(async (req: Request) => {
 </body>
 </html>`;
 
-    const { error: emailError } = await resend.emails.send({
-      from: 'Voice AI Dash <noreply@smartcompanyai.com>',
-      to: email,
-      subject: 'Reset your password',
-      html: emailHtml,
-    });
+    try {
+      const result = await resend.emails.send({
+        from: 'Voice AI Dash <noreply@smartcompanyai.com>',
+        to: email,
+        subject: 'Reset your password',
+        html: emailHtml,
+      });
 
-    if (emailError) {
-      console.error('Error sending email:', emailError);
-      throw new Error('Failed to send reset email');
+      console.log('Email sent successfully:', result);
+    } catch (emailError: any) {
+      console.error('Resend API error:', emailError);
+      console.error('Error details:', JSON.stringify(emailError, null, 2));
+      throw new Error(`Failed to send email: ${emailError.message || 'Unknown error'}`);
     }
 
     return new Response(
@@ -184,10 +196,11 @@ Deno.serve(async (req: Request) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in send-password-reset:', error);
+    console.error('Error stack:', error.stack);
     return new Response(
-      JSON.stringify({ error: 'Failed to process password reset request' }),
+      JSON.stringify({ error: error.message || 'Failed to process password reset request' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

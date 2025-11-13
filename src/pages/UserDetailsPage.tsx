@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, User, Key, DollarSign, Phone, Activity, Loader2, Mail } from 'lucide-react';
 import { format } from 'date-fns';
+import { NotificationModal } from '../components/NotificationModal';
+import { useNotification } from '../hooks/useNotification';
 
 interface UserData {
   id: string;
@@ -37,6 +39,7 @@ export function UserDetailsPage() {
   const [searchParams] = useSearchParams();
   const userId = searchParams.get('userId');
 
+  const { notification, showError, showSuccess, hideNotification } = useNotification();
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('profile');
@@ -110,7 +113,7 @@ export function UserDetailsPage() {
       setBillingData(billing);
     } catch (error) {
       console.error('Error loading user:', error);
-      alert('Failed to load user details');
+      showError('Failed to load user details');
       navigate('/admin/users');
     } finally {
       setLoading(false);
@@ -150,10 +153,10 @@ export function UserDetailsPage() {
       }
 
       await loadUser();
-      alert('Profile updated successfully');
+      showSuccess('Profile updated successfully');
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('Failed to update profile');
+      showError('Failed to update profile');
     } finally {
       setSaving(false);
     }
@@ -164,7 +167,7 @@ export function UserDetailsPage() {
 
     const primaryEmail = notificationEmails.find(e => e.is_primary)?.email || email;
     if (!primaryEmail) {
-      alert('No email address found for this user');
+      showError('No email address found for this user');
       return;
     }
 
@@ -186,10 +189,10 @@ export function UserDetailsPage() {
         throw new Error('Failed to send password reset email');
       }
 
-      alert(`Password reset link sent to ${primaryEmail}`);
+      showSuccess(`Password reset link sent to ${primaryEmail}`);
     } catch (error) {
       console.error('Error sending password reset:', error);
-      alert('Failed to send password reset link');
+      showError('Failed to send password reset link');
     } finally {
       setSendingPasswordReset(false);
     }
@@ -555,6 +558,14 @@ export function UserDetailsPage() {
           </div>
         )}
       </div>
+
+      <NotificationModal
+        isOpen={notification.isOpen}
+        onClose={hideNotification}
+        title={notification.title}
+        message={notification.message}
+        type={notification.type}
+      />
     </div>
   );
 }

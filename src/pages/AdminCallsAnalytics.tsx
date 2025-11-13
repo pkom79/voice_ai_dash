@@ -18,6 +18,8 @@ import {
   Calendar,
 } from 'lucide-react';
 import { format, subDays, startOfToday, endOfToday } from 'date-fns';
+import { NotificationModal } from '../components/NotificationModal';
+import { useNotification } from '../hooks/useNotification';
 import DateRangePicker from '../components/DateRangePicker';
 import { formatContactName } from '../utils/formatting';
 
@@ -63,6 +65,7 @@ interface PhoneNumber {
 }
 
 export function AdminCallsAnalytics() {
+  const { notification, showError, hideNotification } = useNotification();
   const [calls, setCalls] = useState<Call[]>([]);
   const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
@@ -315,7 +318,7 @@ export function AdminCallsAnalytics() {
       setShowModal(null);
     } catch (error) {
       console.error('Error saving notes:', error);
-      alert('Failed to save notes');
+      showError('Failed to save notes');
     }
   };
 
@@ -762,6 +765,14 @@ export function AdminCallsAnalytics() {
           </div>
         </div>
       )}
+
+      <NotificationModal
+        isOpen={notification.isOpen}
+        onClose={hideNotification}
+        title={notification.title}
+        message={notification.message}
+        type={notification.type}
+      />
     </div>
   );
 }

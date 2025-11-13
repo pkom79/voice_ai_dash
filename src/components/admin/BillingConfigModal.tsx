@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { adminService } from '../../services/admin';
 import { useAuth } from '../../contexts/AuthContext';
 import { DualPlanSelector } from './DualPlanSelector';
+import { NotificationModal } from '../NotificationModal';
+import { useNotification } from '../../hooks/useNotification';
 
 interface BillingConfigModalProps {
   userId: string;
@@ -42,6 +44,7 @@ export function BillingConfigModal({
   const [adjustReason, setAdjustReason] = useState('');
   const [adjustType, setAdjustType] = useState<'add' | 'deduct'>('add');
   const { profile } = useAuth();
+  const { notification, showError, showWarning, showSuccess, hideNotification } = useNotification();
 
   const formatBillingPlan = (plan: string) => {
     if (plan === 'pay_per_use') return 'Pay Per Use';
@@ -147,17 +150,17 @@ export function BillingConfigModal({
     const amount = parseFloat(adjustAmount);
 
     if (isNaN(amount) || amount <= 0) {
-      alert('Please enter a valid amount');
+      showWarning('Please enter a valid amount');
       return;
     }
 
     if (!adjustReason.trim()) {
-      alert('Please provide a reason for this adjustment');
+      showWarning('Please provide a reason for this adjustment');
       return;
     }
 
     if (!profile?.id) {
-      alert('Admin user not found');
+      showError('Admin user not found');
       return;
     }
 
@@ -224,10 +227,10 @@ export function BillingConfigModal({
       setShowWalletAdjust(false);
       setAdjustAmount('');
       setAdjustReason('');
-      alert(`Successfully ${adjustType === 'add' ? 'added' : 'removed'} $${amount.toFixed(2)}`);
+      showSuccess(`Successfully ${adjustType === 'add' ? 'added' : 'removed'} $${amount.toFixed(2)}`);
     } catch (err: any) {
       console.error('Error adjusting wallet:', err);
-      alert(err.message || 'Failed to adjust wallet');
+      showError(err.message || 'Failed to adjust wallet');
     } finally {
       setSaving(false);
     }
@@ -447,6 +450,14 @@ export function BillingConfigModal({
           </div>
         </div>
       )}
+
+      <NotificationModal
+        isOpen={notification.isOpen}
+        onClose={hideNotification}
+        title={notification.title}
+        message={notification.message}
+        type={notification.type}
+      />
     </div>
   );
 }
