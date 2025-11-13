@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import logo from '../assets/Voice AI Dash Logo 800x800.png';
 
 export function AcceptInvitation() {
@@ -103,11 +103,16 @@ export function AcceptInvitation() {
         throw new Error(result.error || 'Failed to accept invitation');
       }
 
-      navigate('/signin', {
-        state: {
-          message: 'Your password has been set successfully! Please sign in with your email and new password.',
-        },
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: invitation.email,
+        password: password,
       });
+
+      if (signInError) {
+        throw new Error('Password set successfully, but auto-login failed. Please sign in manually.');
+      }
+
+      navigate('/');
     } catch (err: any) {
       console.error('Error accepting invitation:', err);
       setError(err.message || 'Failed to accept invitation');
@@ -159,7 +164,6 @@ export function AcceptInvitation() {
         </div>
 
         <div className="text-center mb-6">
-          <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome!</h1>
           <p className="text-gray-600">
             Set up your password for{' '}

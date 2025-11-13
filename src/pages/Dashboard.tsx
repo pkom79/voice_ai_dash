@@ -20,7 +20,6 @@ export function Dashboard() {
   const [viewingUserName, setViewingUserName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [showBillingModal, setShowBillingModal] = useState(false);
-  const [billingChecked, setBillingChecked] = useState(false);
   const [stats, setStats] = useState({
     totalCalls: 0,
     inboundCalls: 0,
@@ -61,7 +60,7 @@ export function Dashboard() {
   }, [lastSyncTime]);
 
   const checkBillingStatus = async () => {
-    if (billingChecked || isAdminView || !effectiveUserId || profile?.role === 'admin') {
+    if (isAdminView || !effectiveUserId || profile?.role === 'admin') {
       return;
     }
 
@@ -74,18 +73,23 @@ export function Dashboard() {
 
       if (!billingAccount) {
         setShowBillingModal(true);
-      } else if (billingAccount.billing_plan === 'pay_per_use' && billingAccount.wallet_cents === 0 && !billingAccount.stripe_customer_id) {
-        setShowBillingModal(true);
-      } else if (billingAccount.billing_plan === 'unlimited' && !billingAccount.stripe_customer_id) {
-        setShowBillingModal(true);
-      } else if (billingAccount.billing_plan === 'complimentary') {
-        // Complimentary accounts don't need payment
+        return;
       }
 
-      setBillingChecked(true);
+      if (billingAccount.billing_plan === 'complimentary') {
+        return;
+      }
+
+      if (!billingAccount.stripe_customer_id) {
+        setShowBillingModal(true);
+        return;
+      }
+
+      if (billingAccount.billing_plan === 'pay_per_use' && billingAccount.wallet_cents === 0) {
+        setShowBillingModal(true);
+      }
     } catch (error) {
       console.error('Error checking billing status:', error);
-      setBillingChecked(true);
     }
   };
 
