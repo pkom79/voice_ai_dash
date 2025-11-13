@@ -25,16 +25,16 @@ export function ConfirmationModal({
 
   const colors = {
     danger: {
-      header: 'bg-red-600 dark:bg-red-700',
-      confirmButton: 'bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800',
+      header: 'bg-white dark:bg-slate-800',
+      confirmButton: 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800',
     },
     warning: {
-      header: 'bg-yellow-600 dark:bg-yellow-700',
-      confirmButton: 'bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800',
+      header: 'bg-white dark:bg-slate-800',
+      confirmButton: 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800',
     },
     info: {
-      header: 'bg-blue-600 dark:bg-blue-700',
-      confirmButton: 'bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800',
+      header: 'bg-white dark:bg-slate-800',
+      confirmButton: 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800',
     },
   };
 
@@ -43,11 +43,11 @@ export function ConfirmationModal({
   return (
     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
-        <div className={`${colorScheme.header} px-6 py-4 flex items-center justify-between`}>
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
+        <div className={`${colorScheme.header} px-6 py-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700`}>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           <button
             onClick={onCancel}
-            className="text-white/80 hover:text-white transition-colors"
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
             aria-label="Close"
           >
             <X className="h-5 w-5" />

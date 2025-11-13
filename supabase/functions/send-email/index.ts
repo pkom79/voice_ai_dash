@@ -40,22 +40,28 @@ Deno.serve(async (req: Request) => {
 
     if (templateId) {
       const templateIdFromEnv = Deno.env.get(`RESEND_TEMPLATE_${emailType.toUpperCase()}`);
+      console.log('Template lookup:', { emailType, lookupKey: `RESEND_TEMPLATE_${emailType.toUpperCase()}`, templateIdFromEnv });
 
       if (templateIdFromEnv) {
-        emailPayload.template = {
-          id: templateIdFromEnv,
-          variables: templateData
-        };
+        emailPayload.template_id = templateIdFromEnv;
+        if (templateData && Object.keys(templateData).length > 0) {
+          Object.assign(emailPayload, templateData);
+        }
+        console.log('Using Resend template:', { templateIdFromEnv, templateData });
       } else if (html) {
         emailPayload.html = html;
+        console.log('Template not found, using HTML fallback');
       } else {
         throw new Error('Template ID not configured and no HTML fallback provided');
       }
     } else if (html) {
       emailPayload.html = html;
+      console.log('No templateId provided, using HTML');
     } else {
       throw new Error('Either templateId or html must be provided');
     }
+
+    console.log('Sending to Resend API:', JSON.stringify(emailPayload, null, 2));
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -68,8 +74,11 @@ Deno.serve(async (req: Request) => {
 
     if (!response.ok) {
       const errorData = await response.text();
+      console.error('Resend API error:', errorData);
       throw new Error(`Resend API error: ${errorData}`);
     }
+
+    console.log('Email sent successfully via Resend');
 
     const result = await response.json();
 

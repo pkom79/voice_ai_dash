@@ -13,20 +13,20 @@ export function NotificationModal({ isOpen, onClose, title, message, type = 'inf
 
   const colors = {
     success: {
-      header: 'bg-green-600 dark:bg-green-700',
-      button: 'bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800',
+      header: 'bg-blue-600 dark:bg-blue-700',
+      button: 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800',
     },
     error: {
-      header: 'bg-red-600 dark:bg-red-700',
-      button: 'bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800',
+      header: 'bg-blue-600 dark:bg-blue-700',
+      button: 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800',
     },
     warning: {
-      header: 'bg-yellow-600 dark:bg-yellow-700',
-      button: 'bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800',
+      header: 'bg-blue-600 dark:bg-blue-700',
+      button: 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800',
     },
     info: {
       header: 'bg-blue-600 dark:bg-blue-700',
-      button: 'bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800',
+      button: 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800',
     },
   };
 
