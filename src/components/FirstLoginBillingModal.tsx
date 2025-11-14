@@ -19,6 +19,17 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
+  const handleClose = async () => {
+    // When user closes the modal, mark billing as completed so they don't see it again
+    if (profile?.id) {
+      await supabase
+        .from('billing_accounts')
+        .update({ first_login_billing_completed: true })
+        .eq('user_id', profile.id);
+    }
+    onClose();
+  };
+
   useEffect(() => {
     loadBillingInfo();
   }, [profile]);
@@ -78,9 +89,21 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
     setError('');
 
     try {
+      const payment = calculateTotalPayment();
+
+      // If no payment is required, mark billing as completed and close
+      if (payment.total === 0) {
+        await supabase
+          .from('billing_accounts')
+          .update({ first_login_billing_completed: true })
+          .eq('user_id', profile.id);
+
+        onClose();
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`;
-      const payment = calculateTotalPayment();
 
       const requestBody = {
         userId: profile.id,
@@ -135,6 +158,13 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
   }
 
   const payment = calculateTotalPayment();
+
+  // If no payment is required, don't show the modal
+  if (payment.total === 0) {
+    onClose();
+    return null;
+  }
+
   const hasInboundUnlimited = inboundPlan === 'inbound_unlimited';
   const hasInboundPPU = inboundPlan === 'inbound_pay_per_use';
   const hasOutboundPPU = outboundPlan === 'outbound_pay_per_use';
@@ -145,6 +175,12 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="relative bg-gradient-to-r from-blue-600 to-blue-700 p-8 text-white">
+          <button
+            onClick={handleClose}
+            className="absolute top-4 right-4 text-white hover:text-gray-200 transition-colors"
+          >
+            <X className="h-6 w-6" />
+          </button>
           <div className="text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-white bg-opacity-20 rounded-full mb-4">
               <CreditCard className="h-8 w-8" />

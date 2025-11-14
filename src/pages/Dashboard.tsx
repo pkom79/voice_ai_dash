@@ -67,34 +67,40 @@ export function Dashboard() {
     try {
       const { data: billingAccount } = await supabase
         .from('billing_accounts')
-        .select('stripe_customer_id, billing_plan, wallet_cents, stripe_subscription_status')
+        .select('stripe_customer_id, inbound_plan, outbound_plan, wallet_cents, first_login_billing_completed')
         .eq('user_id', effectiveUserId)
         .maybeSingle();
 
       if (!billingAccount) {
+        return;
+      }
+
+      // If first login billing has been completed, don't show the modal
+      if (billingAccount.first_login_billing_completed) {
+        return;
+      }
+
+      // Check if any payment is actually required
+      const walletBalance = billingAccount.wallet_cents || 0;
+      const hasInboundPPU = billingAccount.inbound_plan === 'inbound_pay_per_use';
+      const hasOutboundPPU = billingAccount.outbound_plan === 'outbound_pay_per_use';
+      const hasInboundUnlimited = billingAccount.inbound_plan === 'inbound_unlimited';
+
+      let paymentNeeded = false;
+
+      // Check if PPU wallet top-up is needed (minimum $50 = 5000 cents)
+      if ((hasInboundPPU || hasOutboundPPU) && walletBalance < 5000) {
+        paymentNeeded = true;
+      }
+
+      // Check if Unlimited subscription payment is needed
+      if (hasInboundUnlimited && !billingAccount.stripe_customer_id) {
+        paymentNeeded = true;
+      }
+
+      // Only show modal if payment is actually needed
+      if (paymentNeeded) {
         setShowBillingModal(true);
-        return;
-      }
-
-      if (billingAccount.billing_plan === 'complimentary') {
-        return;
-      }
-
-      if (!billingAccount.stripe_customer_id) {
-        setShowBillingModal(true);
-        return;
-      }
-
-      if (billingAccount.billing_plan === 'unlimited') {
-        if (billingAccount.stripe_subscription_status === 'active') {
-          return;
-        }
-      }
-
-      if (billingAccount.billing_plan === 'pay_per_use') {
-        if ((billingAccount.wallet_cents || 0) > 0) {
-          return;
-        }
       }
     } catch (error) {
       console.error('Error checking billing status:', error);
