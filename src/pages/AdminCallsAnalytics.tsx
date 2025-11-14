@@ -21,6 +21,7 @@ import { format, subDays, startOfToday, endOfToday } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
 import { useNotification } from '../hooks/useNotification';
 import DateRangePicker from '../components/DateRangePicker';
+import RecordingPlayer from '../components/RecordingPlayer';
 import { formatContactName } from '../utils/formatting';
 
 interface Call {
@@ -723,31 +724,15 @@ export function AdminCallsAnalytics() {
                   {selectedCall.transcript}
                 </pre>
               )}
-              {showModal === 'recording' && selectedCall.message_id && selectedCall.location_id && (
-                <div className="space-y-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-sm text-gray-600 mb-2">
-                      Contact: <span className="font-medium text-gray-900">{formatContactName(selectedCall.contact_name)}</span>
-                    </p>
-                    <p className="text-sm text-gray-600 mb-2">
-                      Duration: <span className="font-medium text-gray-900">{formatDuration(selectedCall.duration_seconds)}</span>
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Date: <span className="font-medium text-gray-900">{format(new Date(selectedCall.call_started_at), 'MMM d, yyyy h:mm a')}</span>
-                    </p>
-                  </div>
-                  <audio
-                    controls
-                    className="w-full"
-                    src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-call-recording?messageId=${selectedCall.message_id}&locationId=${selectedCall.location_id}&userId=${selectedCall.user_id}`}
-                    preload="metadata"
-                  >
-                    Your browser does not support the audio element.
-                  </audio>
-                  <p className="text-xs text-gray-500 text-center">
-                    Recording playback requires an active HighLevel connection with appropriate permissions.
-                  </p>
-                </div>
+              {showModal === 'recording' && selectedCall.message_id && selectedCall.location_id && selectedCall.user_id && (
+                <RecordingPlayer
+                  messageId={selectedCall.message_id}
+                  locationId={selectedCall.location_id}
+                  userId={selectedCall.user_id}
+                  contactName={formatContactName(selectedCall.contact_name)}
+                  duration={selectedCall.duration_seconds}
+                  callDate={selectedCall.call_started_at}
+                />
               )}
               {showModal === 'notes' && (
                 <div>
