@@ -195,48 +195,46 @@ Deno.serve(async (req: Request) => {
             }
           }
 
-          // Handle agent - create/update agent record if agentId exists
+          // Handle agent - verify and update agent record if agentId exists
           let agentDbId = null;
           if (call.agentId) {
             // Extract agent name from various possible fields in the API response
-            const agentName = call.agentName || call.agent_name || call.agent?.name || `Agent ${call.agentId.slice(0, 8)}`;
+            const agentName = call.agentName || call.agent_name || call.agent?.name || null;
 
             console.log(`Processing agent - ID: ${call.agentId}, Name: ${agentName}`);
 
-            // Check if agent exists
+            // Check if agent exists in database
             const { data: existingAgent } = await supabase
               .from('agents')
-              .select('id, name')
+              .select('id, name, is_active')
               .eq('highlevel_agent_id', call.agentId)
               .maybeSingle();
 
             if (existingAgent) {
               agentDbId = existingAgent.id;
 
-              // Update agent name if we have a real name and the existing name is a placeholder
-              if (agentName && !agentName.startsWith('Agent ') && existingAgent.name.startsWith('Agent ')) {
-                console.log(`Updating agent name from "${existingAgent.name}" to "${agentName}"`);
-                await supabase
-                  .from('agents')
-                  .update({ name: agentName })
-                  .eq('id', existingAgent.id);
-              }
-            } else {
-              // Create new agent with the proper name
-              const { data: newAgent } = await supabase
-                .from('agents')
-                .insert({
-                  highlevel_agent_id: call.agentId,
-                  name: agentName,
-                  is_active: true,
-                })
-                .select('id')
-                .single();
+              // Update agent details during sync
+              const updates: any = {
+                last_verified_at: new Date().toISOString(),
+                is_active: true, // Mark as active since we're seeing it in call data
+              };
 
-              if (newAgent) {
-                agentDbId = newAgent.id;
-                console.log(`Created new agent: ${agentName} (ID: ${agentDbId})`);
+              // Update agent name if HighLevel provides a valid name and it differs
+              if (agentName && agentName.trim() !== '' && agentName !== existingAgent.name) {
+                console.log(`Updating agent name from "${existingAgent.name}" to "${agentName}"`);
+                updates.name = agentName;
               }
+
+              // Apply updates
+              await supabase
+                .from('agents')
+                .update(updates)
+                .eq('id', existingAgent.id);
+            } else {
+              // Agent not in database - skip this call since agents must be explicitly assigned
+              console.log(`Skipping call ${call.id} - agent ${call.agentId} not found in database`);
+              skippedCount++;
+              continue;
             }
           }
 

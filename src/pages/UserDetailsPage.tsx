@@ -71,6 +71,8 @@ export function UserDetailsPage() {
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [showAgentManagementModal, setShowAgentManagementModal] = useState(false);
   const [allAvailableAgents, setAllAvailableAgents] = useState<any[]>([]);
+  const [fetchingAgents, setFetchingAgents] = useState(false);
+  const [selectedAgentsToAssign, setSelectedAgentsToAssign] = useState<Set<string>>(new Set());
   const [loadingAllAgents, setLoadingAllAgents] = useState(false);
   const [assigningAgents, setAssigningAgents] = useState(false);
   const [loadingBilling, setLoadingBilling] = useState(false);
@@ -209,9 +211,11 @@ export function UserDetailsPage() {
           agent_id,
           agents:agent_id (
             id,
+            highlevel_agent_id,
             name,
             description,
             is_active,
+            location_id,
             inbound_phone_number
           )
         `)
@@ -458,100 +462,88 @@ export function UserDetailsPage() {
   const loadAllAgents = async () => {
     if (!userId) return;
 
+    setFetchingAgents(true);
     setLoadingAllAgents(true);
     try {
-      // Get user's OAuth connection to find their location_id
-      const { data: oauthData, error: oauthError } = await supabase
-        .from('api_keys')
-        .select('location_id, access_token')
-        .eq('user_id', userId)
-        .eq('service', 'highlevel')
-        .eq('is_active', true)
-        .maybeSingle();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
 
-      if (oauthError || !oauthData?.location_id) {
-        console.error('No OAuth connection found for user');
+      // Call the fetch-available-agents edge function
+      const response = await fetch(
+        `${supabase.supabaseUrl}/functions/v1/fetch-available-agents`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch agents');
+      }
+
+      const data = await response.json();
+      const agents = data.agents || [];
+
+      if (agents.length === 0) {
+        showError('No agents with valid names found in HighLevel location');
         setAllAvailableAgents([]);
         return;
       }
 
-      // Fetch agents from HighLevel API for this specific location
-      const agentsResponse = await fetch(
-        `https://services.leadconnectorhq.com/voice-ai/agents?locationId=${oauthData.location_id}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${oauthData.access_token}`,
-            'Version': '2021-07-28',
-          },
-        }
-      );
+      // Now store these agents in the database if they don't exist
+      for (const agent of agents) {
+        // Check if agent exists
+        const { data: existing } = await supabase
+          .from('agents')
+          .select('id')
+          .eq('highlevel_agent_id', agent.id)
+          .maybeSingle();
 
-      if (!agentsResponse.ok) {
-        throw new Error('Failed to fetch agents from HighLevel');
-      }
-
-      const agentsData = await agentsResponse.json();
-      const agents = agentsData.agents || [];
-
-      // Get existing database agents
-      const { data: dbAgents } = await supabase
-        .from('agents')
-        .select('id, highlevel_agent_id, name, description, is_active')
-        .eq('is_active', true);
-
-      const agentMap = new Map(dbAgents?.map(a => [a.highlevel_agent_id, a]) || []);
-
-      // Sync any new agents from HighLevel to our database
-      const newAgents: any[] = [];
-      for (const hlAgent of agents) {
-        if (!agentMap.has(hlAgent.id)) {
-          // Agent doesn't exist in our database, create it
-          // Normalize agent name from different possible fields
-          const agentName = hlAgent.name || hlAgent.agentName || hlAgent.title || `Agent ${hlAgent.id || 'Unknown'}`;
-          const agentDescription = hlAgent.description || hlAgent.desc || hlAgent.purpose || null;
-
-          const { data: newAgent, error: insertError } = await supabase
+        if (!existing) {
+          // Create the agent
+          await supabase
             .from('agents')
             .insert({
-              highlevel_agent_id: hlAgent.id,
-              name: agentName,
-              description: agentDescription,
+              highlevel_agent_id: agent.id,
+              name: agent.name,
+              description: agent.description || null,
+              location_id: agent.location_id,
+              source_platform: 'highlevel',
               is_active: true,
-            })
-            .select('id, highlevel_agent_id, name, description, is_active')
-            .single();
-
-          if (!insertError && newAgent) {
-            agentMap.set(hlAgent.id, newAgent);
-            newAgents.push(newAgent);
-          }
+              last_verified_at: new Date().toISOString(),
+            });
         }
       }
 
-      // Build the available agents list with HL phone number data
-      const availableAgents = agents
-        .map((hlAgent: any) => {
-          const dbAgent = agentMap.get(hlAgent.id);
-          if (!dbAgent) return null;
-          return {
-            ...dbAgent,
-            inbound_phone_number: hlAgent.inboundPhoneNumber || hlAgent.inbound_phone_number,
-          };
-        })
-        .filter(Boolean);
+      // Reload agents from database with our IDs
+      const { data: dbAgents } = await supabase
+        .from('agents')
+        .select('id, highlevel_agent_id, name, description, location_id, is_active')
+        .in('highlevel_agent_id', agents.map((a: any) => a.id))
+        .eq('is_active', true);
 
-      setAllAvailableAgents(availableAgents);
+      setAllAvailableAgents(dbAgents || []);
+      showSuccess(`Fetched ${agents.length} agents from HighLevel`);
     } catch (error: any) {
       console.error('Error loading agents:', error);
       showError(error.message || 'Failed to load agents');
     } finally {
+      setFetchingAgents(false);
       setLoadingAllAgents(false);
     }
   };
 
   const handleOpenAgentManagement = async () => {
     setShowAgentManagementModal(true);
-    await loadAllAgents();
+    setSelectedAgentsToAssign(new Set());
+    // Don't auto-load agents, wait for admin to click Fetch Agents
   };
 
   const handleToggleAgentAssignment = async (agentId: string, isCurrentlyAssigned: boolean) => {
@@ -1526,6 +1518,9 @@ export function UserDetailsPage() {
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex-1">
                                 <h4 className="font-medium text-gray-900">{agent.name}</h4>
+                                {agent.highlevel_agent_id && (
+                                  <p className="text-xs text-gray-500 mt-0.5">ID: {agent.highlevel_agent_id}</p>
+                                )}
                                 {agent.description && (
                                   <p className="text-sm text-gray-600 mt-1">{agent.description}</p>
                                 )}
@@ -1533,7 +1528,7 @@ export function UserDetailsPage() {
                               <div className={`px-2 py-1 rounded text-xs font-medium ${
                                 agent.is_active
                                   ? 'bg-green-100 text-green-700'
-                                  : 'bg-gray-100 text-gray-600'
+                                  : 'bg-amber-100 text-amber-700'
                               }`}>
                                 {agent.is_active ? 'Active' : 'Inactive'}
                               </div>
@@ -1542,6 +1537,12 @@ export function UserDetailsPage() {
                               <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
                                 <Phone className="h-4 w-4" />
                                 {agent.inbound_phone_number}
+                              </div>
+                            )}
+                            {!agent.is_active && (
+                              <div className="flex items-center gap-2 text-xs text-amber-600 mt-2 bg-amber-50 rounded px-2 py-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Agent no longer exists in HighLevel
                               </div>
                             )}
                           </div>
@@ -2151,63 +2152,96 @@ export function UserDetailsPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
-              {loadingAllAgents ? (
+              {allAvailableAgents.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <p className="mb-4">Click "Fetch Agents" to load agents from HighLevel</p>
+                  <button
+                    onClick={loadAllAgents}
+                    disabled={fetchingAgents}
+                    className="inline-flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium"
+                  >
+                    {fetchingAgents ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Fetching...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4" />
+                        Fetch Agents
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : loadingAllAgents ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
                 </div>
-              ) : allAvailableAgents.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <p>No agents available in the system</p>
-                </div>
               ) : (
-                <div className="space-y-2">
-                  {allAvailableAgents.map((agent) => {
-                    const isAssigned = assignedAgents.some(a => a.id === agent.id);
-                    return (
-                      <div
-                        key={agent.id}
-                        className={`border rounded-lg p-4 transition-all ${
-                          isAssigned
-                            ? 'border-blue-300 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-medium text-gray-900 truncate">{agent.name}</h4>
-                              {isAssigned && (
-                                <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
-                                  Assigned
-                                </span>
+                <>
+                  <div className="mb-4 flex items-center justify-between">
+                    <p className="text-sm text-gray-600">{allAvailableAgents.length} agents available</p>
+                    <button
+                      onClick={loadAllAgents}
+                      disabled={fetchingAgents}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                    >
+                      {fetchingAgents ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Refreshing...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-3 w-3" />
+                          Refresh
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {allAvailableAgents.map((agent) => {
+                      const isAssigned = assignedAgents.some(a => a.id === agent.id);
+                      return (
+                        <div
+                          key={agent.id}
+                          className={`border rounded-lg p-4 transition-all ${
+                            isAssigned
+                              ? 'border-blue-300 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-medium text-gray-900 truncate">{agent.name}</h4>
+                                {isAssigned && (
+                                  <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
+                                    Assigned
+                                  </span>
+                                )}
+                              </div>
+                              {agent.description && (
+                                <p className="text-sm text-gray-600 line-clamp-2">{agent.description}</p>
                               )}
                             </div>
-                            {agent.description && (
-                              <p className="text-sm text-gray-600 line-clamp-2">{agent.description}</p>
-                            )}
-                            {agent.inbound_phone_number && (
-                              <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
-                                <Phone className="h-3 w-3" />
-                                {agent.inbound_phone_number}
-                              </div>
-                            )}
+                            <button
+                              onClick={() => handleToggleAgentAssignment(agent.id, isAssigned)}
+                              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${
+                                isAssigned
+                                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                              }`}
+                            >
+                              {isAssigned ? 'Remove' : 'Assign'}
+                            </button>
                           </div>
-                          <button
-                            onClick={() => handleToggleAgentAssignment(agent.id, isAssigned)}
-                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${
-                              isAssigned
-                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                : 'bg-blue-600 text-white hover:bg-blue-700'
-                            }`}
-                          >
-                            {isAssigned ? 'Remove' : 'Assign'}
-                          </button>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
 

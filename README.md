@@ -1,7 +1,7 @@
 # Voice AI Dash
 
-**Version:** 3.0.0
-**Last Updated:** November 13, 2025 (Dual-Plan Billing System)
+**Version:** 3.1.0
+**Last Updated:** November 14, 2025 (Admin-Controlled Agent Assignment System)
 
 A comprehensive Voice AI Dashboard for managing HighLevel voice agents, call logs, billing, and OAuth integrations.
 
@@ -621,11 +621,20 @@ try {
 - `highlevel_agent_id` text UNIQUE
 - `name` text
 - `description` text
+- `location_id` text (nullable)
+- `source_platform` text DEFAULT 'highlevel'
+- `is_active` boolean DEFAULT true
+- `last_verified_at` timestamptz (nullable)
 - `configuration` jsonb
-- `is_active` boolean
 - `created_at`, `updated_at` timestamptz
 
-**Purpose**: Store HighLevel agent information
+**Purpose**: Store agent information from HighLevel and future platforms
+
+**New Fields (v3.1.0)**:
+- `location_id` - Reference to HighLevel location (informational, not FK for flexibility)
+- `source_platform` - Integration source identifier (highlevel, future platforms)
+- `is_active` - Whether agent still exists and is accessible in source platform
+- `last_verified_at` - Last time agent was confirmed active via API verification
 
 #### 3. **phone_numbers**
 - `id` uuid PRIMARY KEY
@@ -983,14 +992,47 @@ return parseFloat((minutes * costPerMinute).toFixed(4));
 
 **Files**: `src/services/oauth.ts`, `src/pages/OAuthCallback.tsx`
 
-### ✅ Agent Management
-- **Fetch Agents** from HighLevel via API
-- **Assign Agents** to users (many-to-many)
-- **Unassign Agents** with confirmation
-- **Status Badges** showing connection and agent assignment
-- **Agent Modal** with assign/remove actions
+### ✅ Agent Management (v3.1.0 - Enhanced Admin-Controlled Assignment)
+- **Admin-Controlled Assignment** - Admins manually fetch and select agents for each user
+- **Fetch Available Agents** from HighLevel location via dedicated edge function
+- **Agent Selection UI** with detailed agent information display
+- **Persistent Storage** - Agents stored in database only after admin assignment
+- **Call Filtering** - Only sync calls from explicitly assigned agents
+- **Agent Verification** - Auto-update agent names and status during sync
+- **Inactive Agent Warnings** - Visual indicators for agents no longer in HighLevel
+- **Name + ID Display** - Agent IDs visible in admin sections for disambiguation
+- **Flexible Architecture** - Database structure supports future non-HighLevel integrations
 
-**Files**: `src/services/highlevel.ts`, `src/pages/AdminUsersPage.tsx`
+**Implementation Details**:
+- **Edge Function**: `fetch-available-agents` - Retrieves all agents from user's HighLevel location
+- **Agent Assignment Flow**:
+  1. Admin navigates to user's API tab in Admin Users page
+  2. Admin clicks "Manage Agents" button
+  3. Admin clicks "Fetch Agents" to load all available agents from HighLevel
+  4. Admin selects which agents to assign to the user
+  5. Selected agents are stored in database with full details
+- **Call Sync Filtering**: `sync-highlevel-calls` only processes calls from assigned agents
+- **Agent Updates**: During sync, agent names auto-update if changed in HighLevel
+- **Agent Verification**: `last_verified_at` timestamp tracks when agent was last confirmed active
+- **UI Display**:
+  - **Admin Sections**: Show agent name + ID (grey text below name)
+  - **Dropdowns (Call Logs, Analytics)**: Show agent name only
+  - **Inactive Agents**: Amber warning badge with "Agent no longer exists in HighLevel" message
+
+**Migration**: `20251114010000_enhance_agents_table_for_assignment.sql`
+
+**Key Features**:
+- No auto-creation of agents during call sync (prevents orphaned agents)
+- Validation ensures agents have valid names before storage
+- Prevents storing "Unnamed Agent" or generic placeholders
+- Agent source platform tracked for future multi-platform support
+- Location ID stored for reference but not enforced as FK (flexibility)
+
+**Files**:
+- `supabase/functions/fetch-available-agents/index.ts`
+- `supabase/functions/sync-highlevel-calls/index.ts`
+- `src/pages/UserDetailsPage.tsx` (Admin agent management UI)
+- `src/pages/AdminUsersPage.tsx`
 
 ### ✅ Phone Number Filtering (v1.5.7)
 - **Agent-Phone Number Relationship** - Phone numbers are linked to specific agents via direct assignment or number pools
