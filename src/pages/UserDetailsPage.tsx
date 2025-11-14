@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
 import { useNotification } from '../hooks/useNotification';
@@ -84,6 +84,14 @@ export function UserDetailsPage() {
   const [savingPlans, setSavingPlans] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [calls, setCalls] = useState<any[]>([]);
+  const [loadingCalls, setLoadingCalls] = useState(false);
+  const [syncingCalls, setSyncingCalls] = useState(false);
+  const [resettingCalls, setResettingCalls] = useState(false);
+  const [showResyncModal, setShowResyncModal] = useState(false);
+  const [resyncStartDate, setResyncStartDate] = useState('');
+  const [direction, setDirection] = useState<'inbound' | 'outbound'>('inbound');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (!userId) {
@@ -99,6 +107,9 @@ export function UserDetailsPage() {
     }
     if (activeTab === 'billing' && userId) {
       loadBillingData();
+    }
+    if (activeTab === 'call-analytics' && userId) {
+      loadCalls();
     }
   }, [activeTab, userId]);
 
@@ -528,6 +539,105 @@ export function UserDetailsPage() {
       console.error('Error loading transactions:', error);
     } finally {
       setLoadingTransactions(false);
+    }
+  };
+
+  const loadCalls = async () => {
+    if (!userId) return;
+
+    setLoadingCalls(true);
+    try {
+      const { data: userAgents } = await supabase
+        .from('user_agents')
+        .select('agent_id')
+        .eq('user_id', userId);
+
+      if (!userAgents || userAgents.length === 0) {
+        setCalls([]);
+        return;
+      }
+
+      const agentIds = userAgents.map(ua => ua.agent_id);
+
+      const { data, error } = await supabase
+        .from('calls')
+        .select('*')
+        .in('agent_id', agentIds)
+        .eq('is_test_call', false)
+        .order('call_started_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      setCalls(data || []);
+    } catch (error: any) {
+      console.error('Error loading calls:', error);
+    } finally {
+      setLoadingCalls(false);
+    }
+  };
+
+  const handleResetCalls = async () => {
+    if (!userId) return;
+
+    if (!confirm('Are you sure you want to delete all call data for this user? This action cannot be undone.')) {
+      return;
+    }
+
+    setResettingCalls(true);
+    try {
+      const { data: userAgents } = await supabase
+        .from('user_agents')
+        .select('agent_id')
+        .eq('user_id', userId);
+
+      if (!userAgents || userAgents.length === 0) {
+        showError('No agents found for this user');
+        return;
+      }
+
+      const agentIds = userAgents.map(ua => ua.agent_id);
+
+      const { error } = await supabase
+        .from('calls')
+        .delete()
+        .in('agent_id', agentIds);
+
+      if (error) throw error;
+
+      showSuccess('Call data has been reset successfully');
+      await loadCalls();
+    } catch (error: any) {
+      console.error('Error resetting calls:', error);
+      showError(error.message || 'Failed to reset call data');
+    } finally {
+      setResettingCalls(false);
+    }
+  };
+
+  const handleResyncCalls = async (startDate?: string) => {
+    if (!userId) return;
+
+    setSyncingCalls(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-highlevel-calls', {
+        body: {
+          user_id: userId,
+          start_date: startDate || undefined
+        }
+      });
+
+      if (error) throw error;
+
+      showSuccess('Call sync initiated successfully');
+      setShowResyncModal(false);
+      setResyncStartDate('');
+
+      setTimeout(() => loadCalls(), 2000);
+    } catch (error: any) {
+      console.error('Error syncing calls:', error);
+      showError(error.message || 'Failed to sync calls');
+    } finally {
+      setSyncingCalls(false);
     }
   };
 
@@ -1500,9 +1610,213 @@ export function UserDetailsPage() {
         )}
 
         {activeTab === 'call-analytics' && (
-          <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
-            <Phone className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p>Call Analytics tab content coming soon</p>
+          <div className="space-y-6">
+            {/* Control Buttons */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={handleResetCalls}
+                  disabled={resettingCalls}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  {resettingCalls ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Reset All Call Data
+                </button>
+                <button
+                  onClick={() => setShowResyncModal(true)}
+                  disabled={syncingCalls}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {syncingCalls ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Resync from HighLevel
+                </button>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex flex-wrap gap-4">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setDirection('inbound')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      direction === 'inbound'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Inbound
+                  </button>
+                  <button
+                    onClick={() => setDirection('outbound')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      direction === 'outbound'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Outbound
+                  </button>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search by contact, number..."
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Calls Table */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Call History</h3>
+              </div>
+              <div className="overflow-x-auto">
+                {loadingCalls ? (
+                  <div className="p-12 text-center">
+                    <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto" />
+                  </div>
+                ) : calls.filter(call =>
+                    call.direction === direction &&
+                    (searchQuery === '' ||
+                      call.contact_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      call.from_number?.includes(searchQuery) ||
+                      call.to_number?.includes(searchQuery))
+                  ).length === 0 ? (
+                  <div className="p-12 text-center text-gray-500">
+                    No {direction} calls found
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Date/Time
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Contact
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Number
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Duration
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Cost
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {calls
+                        .filter(call =>
+                          call.direction === direction &&
+                          (searchQuery === '' ||
+                            call.contact_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            call.from_number?.includes(searchQuery) ||
+                            call.to_number?.includes(searchQuery))
+                        )
+                        .map((call) => (
+                          <tr key={call.id}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {format(new Date(call.call_started_at), 'MMM d, yyyy h:mm a')}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {call.contact_name || 'Unknown'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {direction === 'inbound' ? call.from_number : call.to_number}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                call.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                call.status === 'missed' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {call.status || 'unknown'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
+                              ${call.cost.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Calls</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {calls.filter(c => c.direction === direction).length}
+                    </p>
+                  </div>
+                  <Phone className="h-8 w-8 text-blue-600" />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Duration</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {Math.floor(calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.duration_seconds, 0) / 60)}m
+                    </p>
+                  </div>
+                  <Clock className="h-8 w-8 text-green-600" />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Cost</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      ${calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.cost, 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-purple-600" />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Avg Duration</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {calls.filter(c => c.direction === direction).length > 0
+                        ? Math.floor(calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.duration_seconds, 0) / calls.filter(c => c.direction === direction).length / 60)
+                        : 0}m
+                    </p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-orange-600" />
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -2031,6 +2345,70 @@ export function UserDetailsPage() {
                   </>
                 ) : (
                   'Save Changes'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resync Modal */}
+      {showResyncModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-gray-900">Resync Calls from HighLevel</h3>
+              <button
+                onClick={() => {
+                  setShowResyncModal(false);
+                  setResyncStartDate('');
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                This will fetch call data from HighLevel for this user. You can optionally specify a start date to sync from.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Start Date (optional)
+                </label>
+                <input
+                  type="date"
+                  value={resyncStartDate}
+                  onChange={(e) => setResyncStartDate(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave blank to sync all available data
+                </p>
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowResyncModal(false);
+                  setResyncStartDate('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleResyncCalls(resyncStartDate || undefined)}
+                disabled={syncingCalls}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {syncingCalls ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                    Syncing...
+                  </>
+                ) : (
+                  'Start Resync'
                 )}
               </button>
             </div>
