@@ -531,7 +531,7 @@ export function UserDetailsPage() {
         .from('wallet_transactions')
         .insert({
           user_id: userId,
-          type: 'admin_add',
+          type: 'admin_credit',
           amount_cents: amountCents,
           balance_before_cents: balanceBeforeCents,
           balance_after_cents: newWalletCents,
@@ -593,7 +593,7 @@ export function UserDetailsPage() {
         .from('wallet_transactions')
         .insert({
           user_id: userId,
-          type: 'admin_remove',
+          type: 'admin_debit',
           amount_cents: -amountCents,
           balance_before_cents: balanceBeforeCents,
           balance_after_cents: newWalletCents,
@@ -1633,11 +1633,11 @@ export function UserDetailsPage() {
         </div>
       )}
 
-      {/* Change Plan Modal - Coming Soon */}
+      {/* Change Plan Modal */}
       {showChangePlanModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
               <h3 className="text-xl font-semibold text-gray-900">Change Plans</h3>
               <button
                 onClick={() => setShowChangePlanModal(false)}
@@ -1646,17 +1646,172 @@ export function UserDetailsPage() {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <div className="p-6 text-center text-gray-500">
-              <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p>Plan management interface coming soon</p>
-              <p className="text-sm mt-2">Contact admin to change plans manually</p>
+            <div className="p-6 space-y-6">
+              {/* Inbound Plan Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Inbound Plan
+                </label>
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
+                    <input
+                      type="radio"
+                      name="inbound-plan"
+                      checked={selectedInboundPlan === 'inbound_pay_per_use'}
+                      onChange={() => setSelectedInboundPlan('inbound_pay_per_use')}
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">Inbound Pay Per Use</div>
+                      <div className="text-sm text-gray-600">Charged per minute for inbound calls</div>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
+                    <input
+                      type="radio"
+                      name="inbound-plan"
+                      checked={selectedInboundPlan === 'inbound_unlimited'}
+                      onChange={() => setSelectedInboundPlan('inbound_unlimited')}
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">Inbound Unlimited</div>
+                      <div className="text-sm text-gray-600">$500/month subscription for unlimited inbound calls</div>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-red-300 transition-colors">
+                    <input
+                      type="radio"
+                      name="inbound-plan"
+                      checked={selectedInboundPlan === null}
+                      onChange={() => setSelectedInboundPlan(null)}
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">No Inbound Plan</div>
+                      <div className="text-sm text-gray-600">Disable inbound calling</div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Inbound Rate Input */}
+                {selectedInboundPlan === 'inbound_pay_per_use' && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Inbound Rate ($/minute)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={inboundRate}
+                      onChange={(e) => setInboundRate(e.target.value)}
+                      placeholder="5.00"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Outbound Plan Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Outbound Plan
+                </label>
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
+                    <input
+                      type="radio"
+                      name="outbound-plan"
+                      checked={selectedOutboundPlan === 'outbound_pay_per_use'}
+                      onChange={() => setSelectedOutboundPlan('outbound_pay_per_use')}
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">Outbound Pay Per Use</div>
+                      <div className="text-sm text-gray-600">Charged per minute for outbound calls</div>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-red-300 transition-colors">
+                    <input
+                      type="radio"
+                      name="outbound-plan"
+                      checked={selectedOutboundPlan === null}
+                      onChange={() => setSelectedOutboundPlan(null)}
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">No Outbound Plan</div>
+                      <div className="text-sm text-gray-600">Disable outbound calling</div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Outbound Rate Input */}
+                {selectedOutboundPlan === 'outbound_pay_per_use' && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Outbound Rate ($/minute)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={outboundRate}
+                      onChange={(e) => setOutboundRate(e.target.value)}
+                      placeholder="5.00"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Summary */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-2">Plan Summary</h4>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Inbound:</span>
+                    <span className="font-medium text-gray-900">
+                      {selectedInboundPlan === 'inbound_pay_per_use'
+                        ? `Pay Per Use ($${inboundRate}/min)`
+                        : selectedInboundPlan === 'inbound_unlimited'
+                          ? 'Unlimited ($500/month)'
+                          : 'None'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Outbound:</span>
+                    <span className="font-medium text-gray-900">
+                      {selectedOutboundPlan === 'outbound_pay_per_use'
+                        ? `Pay Per Use ($${outboundRate}/min)`
+                        : 'None'}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="p-6 border-t border-gray-200">
+            <div className="p-6 border-t border-gray-200 flex gap-3">
               <button
                 onClick={() => setShowChangePlanModal(false)}
-                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                disabled={savingPlans}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
-                Close
+                Cancel
+              </button>
+              <button
+                onClick={handleSavePlans}
+                disabled={savingPlans}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {savingPlans ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
               </button>
             </div>
           </div>
