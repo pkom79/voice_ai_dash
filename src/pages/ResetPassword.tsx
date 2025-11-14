@@ -12,13 +12,45 @@ export function ResetPassword() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        setError('Invalid or expired reset link. Please request a new password reset.');
+    const exchangeTokenForSession = async () => {
+      // Get token from URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      const type = urlParams.get('type');
+
+      if (!token) {
+        setError('Invalid reset link. Please request a new password reset.');
+        return;
+      }
+
+      // If it's a recovery type, exchange the token for a session
+      if (type === 'recovery') {
+        try {
+          const { data, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: token,
+            type: 'recovery',
+          });
+
+          if (verifyError) {
+            console.error('Token verification error:', verifyError);
+            setError('Invalid or expired reset link. Please request a new password reset.');
+            return;
+          }
+
+          if (!data.session) {
+            setError('Failed to establish session. Please request a new password reset.');
+            return;
+          }
+
+          console.log('Session established successfully');
+        } catch (err) {
+          console.error('Error exchanging token:', err);
+          setError('Invalid or expired reset link. Please request a new password reset.');
+        }
       }
     };
-    checkSession();
+
+    exchangeTokenForSession();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
