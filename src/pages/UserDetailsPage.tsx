@@ -483,7 +483,7 @@ export function UserDetailsPage() {
       const agentsData = await agentsResponse.json();
       const agents = agentsData.agents || [];
 
-      // Match with our database agents to get IDs
+      // Get existing database agents
       const { data: dbAgents } = await supabase
         .from('agents')
         .select('id, highlevel_agent_id, name, description, is_active')
@@ -491,7 +491,30 @@ export function UserDetailsPage() {
 
       const agentMap = new Map(dbAgents?.map(a => [a.highlevel_agent_id, a]) || []);
 
-      // Filter to only show agents that exist in our database AND came from this location
+      // Sync any new agents from HighLevel to our database
+      const newAgents: any[] = [];
+      for (const hlAgent of agents) {
+        if (!agentMap.has(hlAgent.id)) {
+          // Agent doesn't exist in our database, create it
+          const { data: newAgent, error: insertError } = await supabase
+            .from('agents')
+            .insert({
+              highlevel_agent_id: hlAgent.id,
+              name: hlAgent.name || 'Unnamed Agent',
+              description: hlAgent.description || null,
+              is_active: true,
+            })
+            .select('id, highlevel_agent_id, name, description, is_active')
+            .single();
+
+          if (!insertError && newAgent) {
+            agentMap.set(hlAgent.id, newAgent);
+            newAgents.push(newAgent);
+          }
+        }
+      }
+
+      // Build the available agents list with HL phone number data
       const availableAgents = agents
         .map((hlAgent: any) => {
           const dbAgent = agentMap.get(hlAgent.id);
