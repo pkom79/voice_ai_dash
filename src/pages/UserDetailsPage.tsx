@@ -70,6 +70,12 @@ export function UserDetailsPage() {
   const [allAvailableAgents, setAllAvailableAgents] = useState<any[]>([]);
   const [loadingAllAgents, setLoadingAllAgents] = useState(false);
   const [assigningAgents, setAssigningAgents] = useState(false);
+  const [loadingBilling, setLoadingBilling] = useState(false);
+  const [showAddBalanceModal, setShowAddBalanceModal] = useState(false);
+  const [showRemoveBalanceModal, setShowRemoveBalanceModal] = useState(false);
+  const [showChangePlanModal, setShowChangePlanModal] = useState(false);
+  const [balanceAmount, setBalanceAmount] = useState('');
+  const [processingBalance, setProcessingBalance] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -82,6 +88,9 @@ export function UserDetailsPage() {
   useEffect(() => {
     if (activeTab === 'api' && userId) {
       loadApiData();
+    }
+    if (activeTab === 'billing' && userId) {
+      loadBillingData();
     }
   }, [activeTab, userId]);
 
@@ -458,6 +467,103 @@ export function UserDetailsPage() {
     } catch (error: any) {
       console.error('Error toggling agent assignment:', error);
       showError(error.message || 'Failed to update agent assignment');
+    }
+  };
+
+  const loadBillingData = async () => {
+    if (!userId) return;
+
+    setLoadingBilling(true);
+    try {
+      const { data, error } = await supabase
+        .from('billing_accounts')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) throw error;
+      setBillingData(data);
+    } catch (error: any) {
+      console.error('Error loading billing data:', error);
+      showError(error.message || 'Failed to load billing data');
+    } finally {
+      setLoadingBilling(false);
+    }
+  };
+
+  const handleAddBalance = async () => {
+    if (!userId || !balanceAmount) return;
+
+    const amountCents = Math.round(parseFloat(balanceAmount) * 100);
+    if (isNaN(amountCents) || amountCents <= 0) {
+      showError('Please enter a valid amount');
+      return;
+    }
+
+    setProcessingBalance(true);
+    try {
+      const { data: currentBilling } = await supabase
+        .from('billing_accounts')
+        .select('wallet_cents')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const newWalletCents = (currentBilling?.wallet_cents || 0) + amountCents;
+
+      const { error } = await supabase
+        .from('billing_accounts')
+        .update({ wallet_cents: newWalletCents })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      showSuccess(`Added $${balanceAmount} to wallet`);
+      setBalanceAmount('');
+      setShowAddBalanceModal(false);
+      await loadBillingData();
+    } catch (error: any) {
+      console.error('Error adding balance:', error);
+      showError(error.message || 'Failed to add balance');
+    } finally {
+      setProcessingBalance(false);
+    }
+  };
+
+  const handleRemoveBalance = async () => {
+    if (!userId || !balanceAmount) return;
+
+    const amountCents = Math.round(parseFloat(balanceAmount) * 100);
+    if (isNaN(amountCents) || amountCents <= 0) {
+      showError('Please enter a valid amount');
+      return;
+    }
+
+    setProcessingBalance(true);
+    try {
+      const { data: currentBilling } = await supabase
+        .from('billing_accounts')
+        .select('wallet_cents')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const newWalletCents = Math.max(0, (currentBilling?.wallet_cents || 0) - amountCents);
+
+      const { error } = await supabase
+        .from('billing_accounts')
+        .update({ wallet_cents: newWalletCents })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      showSuccess(`Removed $${balanceAmount} from wallet`);
+      setBalanceAmount('');
+      setShowRemoveBalanceModal(false);
+      await loadBillingData();
+    } catch (error: any) {
+      console.error('Error removing balance:', error);
+      showError(error.message || 'Failed to remove balance');
+    } finally {
+      setProcessingBalance(false);
     }
   };
 
@@ -1008,9 +1114,174 @@ export function UserDetailsPage() {
         )}
 
         {activeTab === 'billing' && (
-          <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
-            <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p>Billing tab content coming soon</p>
+          <div className="space-y-6">
+            {loadingBilling ? (
+              <div className="bg-white rounded-lg shadow p-12 flex items-center justify-center">
+                <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+              </div>
+            ) : !billingData ? (
+              <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
+                <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p>No billing account found</p>
+              </div>
+            ) : (
+              <>
+                {/* Plans Section */}
+                <div className="bg-white rounded-lg shadow">
+                  <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Active Plans</h3>
+                    <button
+                      onClick={() => setShowChangePlanModal(true)}
+                      className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Change Plans
+                    </button>
+                  </div>
+                  <div className="p-6 grid md:grid-cols-2 gap-4">
+                    {/* Inbound Plan */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-gray-900">Inbound Plan</h4>
+                        {billingData.inbound_plan && (
+                          <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      {billingData.inbound_plan ? (
+                        <div className="space-y-2">
+                          <div className="text-sm">
+                            <span className="text-gray-600">Type: </span>
+                            <span className="font-medium text-gray-900">
+                              {billingData.inbound_plan === 'inbound_pay_per_use' ? 'Pay Per Use' : 'Unlimited'}
+                            </span>
+                          </div>
+                          {billingData.inbound_plan === 'inbound_pay_per_use' && (
+                            <div className="text-sm">
+                              <span className="text-gray-600">Rate: </span>
+                              <span className="font-medium text-gray-900">
+                                ${(billingData.inbound_rate_cents / 100).toFixed(2)}/min
+                              </span>
+                            </div>
+                          )}
+                          {billingData.inbound_plan === 'inbound_unlimited' && (
+                            <div className="text-sm">
+                              <span className="text-gray-600">Subscription: </span>
+                              <span className="font-medium text-gray-900">$500/month</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No inbound plan active</p>
+                      )}
+                    </div>
+
+                    {/* Outbound Plan */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-gray-900">Outbound Plan</h4>
+                        {billingData.outbound_plan && (
+                          <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      {billingData.outbound_plan ? (
+                        <div className="space-y-2">
+                          <div className="text-sm">
+                            <span className="text-gray-600">Type: </span>
+                            <span className="font-medium text-gray-900">Pay Per Use</span>
+                          </div>
+                          <div className="text-sm">
+                            <span className="text-gray-600">Rate: </span>
+                            <span className="font-medium text-gray-900">
+                              ${(billingData.outbound_rate_cents / 100).toFixed(2)}/min
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No outbound plan active</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Wallet Section - Only show if user has PPU plan */}
+                {(billingData.inbound_plan === 'inbound_pay_per_use' || billingData.outbound_plan === 'outbound_pay_per_use') && (
+                  <div className="bg-white rounded-lg shadow">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">Wallet Balance</h3>
+                    </div>
+                    <div className="p-6">
+                      <div className="text-center mb-6">
+                        <div className="text-4xl font-bold text-gray-900 mb-2">
+                          ${(billingData.wallet_cents / 100).toFixed(2)}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          Spent this month: ${(billingData.month_spent_cents / 100).toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setShowAddBalanceModal(true)}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          <DollarSign className="h-4 w-4" />
+                          Add Balance
+                        </button>
+                        <button
+                          onClick={() => setShowRemoveBalanceModal(true)}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                          <DollarSign className="h-4 w-4" />
+                          Remove Balance
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Account Balance Section */}
+                <div className="bg-white rounded-lg shadow">
+                  <div className="p-6 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Account Status</h3>
+                  </div>
+                  <div className="p-6 grid md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Account Balance
+                      </label>
+                      <div className="text-2xl font-bold text-gray-900">
+                        ${((billingData.wallet_cents - billingData.month_spent_cents) / 100).toFixed(2)}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Available balance after current month usage
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Status
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {billingData.wallet_cents < billingData.month_spent_cents ? (
+                          <span className="px-3 py-1 bg-red-100 text-red-700 text-sm font-medium rounded">
+                            Insufficient Balance
+                          </span>
+                        ) : billingData.grace_until && new Date(billingData.grace_until) > new Date() ? (
+                          <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm font-medium rounded">
+                            Grace Period
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1151,6 +1422,162 @@ export function UserDetailsPage() {
                 className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Balance Modal */}
+      {showAddBalanceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-gray-900">Add Balance</h3>
+              <button
+                onClick={() => {
+                  setShowAddBalanceModal(false);
+                  setBalanceAmount('');
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Amount to Add ($)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={balanceAmount}
+                onChange={(e) => setBalanceAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p className="text-sm text-gray-500 mt-2">
+                Enter the dollar amount to add to the user's wallet
+              </p>
+            </div>
+            <div className="p-6 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowAddBalanceModal(false);
+                  setBalanceAmount('');
+                }}
+                disabled={processingBalance}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddBalance}
+                disabled={processingBalance || !balanceAmount}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {processingBalance ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  'Add Balance'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Balance Modal */}
+      {showRemoveBalanceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-gray-900">Remove Balance</h3>
+              <button
+                onClick={() => {
+                  setShowRemoveBalanceModal(false);
+                  setBalanceAmount('');
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Amount to Remove ($)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={balanceAmount}
+                onChange={(e) => setBalanceAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p className="text-sm text-gray-500 mt-2">
+                Enter the dollar amount to remove from the user's wallet
+              </p>
+            </div>
+            <div className="p-6 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowRemoveBalanceModal(false);
+                  setBalanceAmount('');
+                }}
+                disabled={processingBalance}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemoveBalance}
+                disabled={processingBalance || !balanceAmount}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {processingBalance ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Removing...
+                  </>
+                ) : (
+                  'Remove Balance'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Plan Modal - Coming Soon */}
+      {showChangePlanModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-gray-900">Change Plans</h3>
+              <button
+                onClick={() => setShowChangePlanModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6 text-center text-gray-500">
+              <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p>Plan management interface coming soon</p>
+              <p className="text-sm mt-2">Contact admin to change plans manually</p>
+            </div>
+            <div className="p-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowChangePlanModal(false)}
+                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>
