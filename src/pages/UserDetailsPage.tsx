@@ -82,6 +82,8 @@ export function UserDetailsPage() {
   const [inboundRate, setInboundRate] = useState('');
   const [outboundRate, setOutboundRate] = useState('');
   const [savingPlans, setSavingPlans] = useState(false);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -498,11 +500,34 @@ export function UserDetailsPage() {
 
       if (error) throw error;
       setBillingData(data);
+
+      await loadTransactions();
     } catch (error: any) {
       console.error('Error loading billing data:', error);
       showError(error.message || 'Failed to load billing data');
     } finally {
       setLoadingBilling(false);
+    }
+  };
+
+  const loadTransactions = async () => {
+    if (!userId) return;
+
+    setLoadingTransactions(true);
+    try {
+      const { data, error } = await supabase
+        .from('wallet_transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setTransactions(data || []);
+    } catch (error: any) {
+      console.error('Error loading transactions:', error);
+    } finally {
+      setLoadingTransactions(false);
     }
   };
 
@@ -1389,6 +1414,76 @@ export function UserDetailsPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Transaction History */}
+                {(billingData.inbound_plan === 'inbound_pay_per_use' || billingData.outbound_plan === 'outbound_pay_per_use') && (
+                  <div className="bg-white rounded-lg shadow">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">Transaction History</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      {loadingTransactions ? (
+                        <div className="p-12 text-center">
+                          <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto" />
+                        </div>
+                      ) : transactions.length === 0 ? (
+                        <div className="p-12 text-center text-gray-500">
+                          No transactions yet
+                        </div>
+                      ) : (
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Date
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Type
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Reason
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Amount
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {transactions.map((transaction) => (
+                              <tr key={transaction.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {new Date(transaction.created_at).toLocaleDateString()} {new Date(transaction.created_at).toLocaleTimeString()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                                    {transaction.type.replace('_', ' ')}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-900">
+                                  {transaction.reason}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                  <span
+                                    className={`text-sm font-medium ${
+                                      transaction.type === 'top_up' || transaction.type === 'admin_credit' || transaction.type === 'refund'
+                                        ? 'text-green-600'
+                                        : 'text-red-600'
+                                    }`}
+                                  >
+                                    {transaction.type === 'top_up' || transaction.type === 'admin_credit' || transaction.type === 'refund'
+                                      ? '+'
+                                      : '-'}
+                                    ${(Math.abs(transaction.amount_cents) / 100).toFixed(2)}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1713,45 +1808,78 @@ export function UserDetailsPage() {
                   Inbound Plan
                 </label>
                 <div className="space-y-3">
-                  <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
-                    <input
-                      type="radio"
-                      name="inbound-plan"
-                      checked={selectedInboundPlan === 'inbound_pay_per_use'}
-                      onChange={() => setSelectedInboundPlan('inbound_pay_per_use')}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">Inbound Pay Per Use</div>
-                      <div className="text-sm text-gray-600">Charged per minute for inbound calls</div>
+                  <div
+                    onClick={() => setSelectedInboundPlan('inbound_pay_per_use')}
+                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      selectedInboundPlan === 'inbound_pay_per_use'
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">Inbound Pay Per Use</div>
+                        <div className="text-sm text-gray-600 mt-1">Charged per minute for inbound calls</div>
+                      </div>
+                      {selectedInboundPlan === 'inbound_pay_per_use' && (
+                        <div className="flex-shrink-0 ml-3">
+                          <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </label>
-                  <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
-                    <input
-                      type="radio"
-                      name="inbound-plan"
-                      checked={selectedInboundPlan === 'inbound_unlimited'}
-                      onChange={() => setSelectedInboundPlan('inbound_unlimited')}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">Inbound Unlimited</div>
-                      <div className="text-sm text-gray-600">$500/month subscription for unlimited inbound calls</div>
+                  </div>
+                  <div
+                    onClick={() => setSelectedInboundPlan('inbound_unlimited')}
+                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      selectedInboundPlan === 'inbound_unlimited'
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">Inbound Unlimited</div>
+                        <div className="text-sm text-gray-600 mt-1">$500/month subscription for unlimited inbound calls</div>
+                      </div>
+                      {selectedInboundPlan === 'inbound_unlimited' && (
+                        <div className="flex-shrink-0 ml-3">
+                          <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </label>
-                  <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-red-300 transition-colors">
-                    <input
-                      type="radio"
-                      name="inbound-plan"
-                      checked={selectedInboundPlan === null}
-                      onChange={() => setSelectedInboundPlan(null)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">No Inbound Plan</div>
-                      <div className="text-sm text-gray-600">Disable inbound calling</div>
+                  </div>
+                  <div
+                    onClick={() => setSelectedInboundPlan(null)}
+                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      selectedInboundPlan === null
+                        ? 'border-red-600 bg-red-50'
+                        : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">No Inbound Plan</div>
+                        <div className="text-sm text-gray-600 mt-1">Disable inbound calling</div>
+                      </div>
+                      {selectedInboundPlan === null && (
+                        <div className="flex-shrink-0 ml-3">
+                          <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </label>
+                  </div>
                 </div>
 
                 {/* Inbound Rate Input */}
@@ -1779,32 +1907,54 @@ export function UserDetailsPage() {
                   Outbound Plan
                 </label>
                 <div className="space-y-3">
-                  <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
-                    <input
-                      type="radio"
-                      name="outbound-plan"
-                      checked={selectedOutboundPlan === 'outbound_pay_per_use'}
-                      onChange={() => setSelectedOutboundPlan('outbound_pay_per_use')}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">Outbound Pay Per Use</div>
-                      <div className="text-sm text-gray-600">Charged per minute for outbound calls</div>
+                  <div
+                    onClick={() => setSelectedOutboundPlan('outbound_pay_per_use')}
+                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      selectedOutboundPlan === 'outbound_pay_per_use'
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">Outbound Pay Per Use</div>
+                        <div className="text-sm text-gray-600 mt-1">Charged per minute for outbound calls</div>
+                      </div>
+                      {selectedOutboundPlan === 'outbound_pay_per_use' && (
+                        <div className="flex-shrink-0 ml-3">
+                          <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </label>
-                  <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-red-300 transition-colors">
-                    <input
-                      type="radio"
-                      name="outbound-plan"
-                      checked={selectedOutboundPlan === null}
-                      onChange={() => setSelectedOutboundPlan(null)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">No Outbound Plan</div>
-                      <div className="text-sm text-gray-600">Disable outbound calling</div>
+                  </div>
+                  <div
+                    onClick={() => setSelectedOutboundPlan(null)}
+                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      selectedOutboundPlan === null
+                        ? 'border-red-600 bg-red-50'
+                        : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">No Outbound Plan</div>
+                        <div className="text-sm text-gray-600 mt-1">Disable outbound calling</div>
+                      </div>
+                      {selectedOutboundPlan === null && (
+                        <div className="flex-shrink-0 ml-3">
+                          <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </label>
+                  </div>
                 </div>
 
                 {/* Outbound Rate Input */}
