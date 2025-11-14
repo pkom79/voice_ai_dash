@@ -67,6 +67,10 @@ export function UserDetailsPage() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [unassigningAgent, setUnassigningAgent] = useState<string | null>(null);
+  const [showAgentManagementModal, setShowAgentManagementModal] = useState(false);
+  const [allAvailableAgents, setAllAvailableAgents] = useState<any[]>([]);
+  const [loadingAllAgents, setLoadingAllAgents] = useState(false);
+  const [assigningAgents, setAssigningAgents] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -429,6 +433,61 @@ export function UserDetailsPage() {
     } catch (error: any) {
       console.error('Error generating auth URL:', error);
       showError(error.message || 'Failed to initiate HighLevel connection');
+    }
+  };
+
+  const loadAllAgents = async () => {
+    setLoadingAllAgents(true);
+    try {
+      const { data: agents, error } = await supabase
+        .from('agents')
+        .select('id, name, description, is_active, inbound_phone_number')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setAllAvailableAgents(agents || []);
+    } catch (error: any) {
+      console.error('Error loading agents:', error);
+      showError(error.message || 'Failed to load agents');
+    } finally {
+      setLoadingAllAgents(false);
+    }
+  };
+
+  const handleOpenAgentManagement = async () => {
+    setShowAgentManagementModal(true);
+    await loadAllAgents();
+  };
+
+  const handleToggleAgentAssignment = async (agentId: string, isCurrentlyAssigned: boolean) => {
+    if (!userId) return;
+
+    try {
+      if (isCurrentlyAssigned) {
+        const { error } = await supabase
+          .from('user_agents')
+          .delete()
+          .eq('user_id', userId)
+          .eq('agent_id', agentId);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('user_agents')
+          .insert({
+            user_id: userId,
+            agent_id: agentId,
+          });
+
+        if (error) throw error;
+      }
+
+      await loadApiData();
+      await loadAllAgents();
+    } catch (error: any) {
+      console.error('Error toggling agent assignment:', error);
+      showError(error.message || 'Failed to update agent assignment');
     }
   };
 
@@ -889,6 +948,21 @@ export function UserDetailsPage() {
                       </div>
                       <p className="text-xs text-gray-500 mt-1">Last time data was synced from HighLevel</p>
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Token Expires
+                      </label>
+                      <div className="text-gray-900">
+                        {apiConnection.token_expires_at
+                          ? format(new Date(apiConnection.token_expires_at), 'MMM d, yyyy h:mm a')
+                          : 'Unknown'}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {apiConnection.token_expires_at && new Date(apiConnection.token_expires_at) < new Date()
+                          ? 'Token expired - will refresh on next use'
+                          : 'Automatically refreshes when needed'}
+                      </p>
+                    </div>
                     <div className="pt-4 border-t border-gray-200">
                       <button
                         onClick={() => setShowDisconnectModal(true)}
@@ -904,12 +978,19 @@ export function UserDetailsPage() {
                 {/* Right Column: Assigned Agents */}
                 <div className="bg-white rounded-lg shadow">
                   <div className="p-6 border-b border-gray-200">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-3">
                       <h3 className="text-lg font-semibold text-gray-900">Assigned Agents</h3>
                       <div className="text-sm text-gray-600">
                         {assignedAgents.length} {assignedAgents.length === 1 ? 'agent' : 'agents'}
                       </div>
                     </div>
+                    <button
+                      onClick={handleOpenAgentManagement}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                    >
+                      <Users className="h-4 w-4" />
+                      Manage Agents
+                    </button>
                   </div>
                   <div className="p-6">
                     {assignedAgents.length === 0 ? (
@@ -1035,6 +1116,93 @@ export function UserDetailsPage() {
                 ) : (
                   'Disconnect'
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Agent Management Modal */}
+      {showAgentManagementModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-gray-900">Manage Agent Assignments</h3>
+              <button
+                onClick={() => setShowAgentManagementModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingAllAgents ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+                </div>
+              ) : allAvailableAgents.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <p>No agents available in the system</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {allAvailableAgents.map((agent) => {
+                    const isAssigned = assignedAgents.some(a => a.id === agent.id);
+                    return (
+                      <div
+                        key={agent.id}
+                        className={`border rounded-lg p-4 transition-all ${
+                          isAssigned
+                            ? 'border-blue-300 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-medium text-gray-900 truncate">{agent.name}</h4>
+                              {isAssigned && (
+                                <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
+                                  Assigned
+                                </span>
+                              )}
+                            </div>
+                            {agent.description && (
+                              <p className="text-sm text-gray-600 line-clamp-2">{agent.description}</p>
+                            )}
+                            {agent.inbound_phone_number && (
+                              <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
+                                <Phone className="h-3 w-3" />
+                                {agent.inbound_phone_number}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleToggleAgentAssignment(agent.id, isAssigned)}
+                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${
+                              isAssigned
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                : 'bg-blue-600 text-white hover:bg-blue-700'
+                            }`}
+                          >
+                            {isAssigned ? 'Remove' : 'Assign'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowAgentManagementModal(false)}
+                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Done
               </button>
             </div>
           </div>
