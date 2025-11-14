@@ -125,7 +125,7 @@ Deno.serve(async (req: Request) => {
 
     // Fetch agents from HighLevel
     const agentsResponse = await fetch(
-      `https://services.leadconnectorhq.com/voice-ai-agents/?locationId=${apiKey.location_id}`,
+      `https://services.leadconnectorhq.com/voice-ai/agents?locationId=${apiKey.location_id}`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -136,9 +136,17 @@ Deno.serve(async (req: Request) => {
 
     if (!agentsResponse.ok) {
       const errorText = await agentsResponse.text();
-      console.error("HighLevel API error:", errorText);
+      console.error("HighLevel API error:", {
+        status: agentsResponse.status,
+        statusText: agentsResponse.statusText,
+        body: errorText,
+        url: `https://services.leadconnectorhq.com/voice-ai/agents?locationId=${apiKey.location_id}`
+      });
       return new Response(
-        JSON.stringify({ error: "Failed to fetch agents from HighLevel" }),
+        JSON.stringify({
+          error: "Failed to fetch agents from HighLevel",
+          details: `Status: ${agentsResponse.status}, ${errorText.substring(0, 200)}`
+        }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
