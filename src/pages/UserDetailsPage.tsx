@@ -66,7 +66,6 @@ export function UserDetailsPage() {
   const [loadingApiData, setLoadingApiData] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
-  const [unassigningAgent, setUnassigningAgent] = useState<string | null>(null);
   const [showAgentManagementModal, setShowAgentManagementModal] = useState(false);
   const [allAvailableAgents, setAllAvailableAgents] = useState<any[]>([]);
   const [loadingAllAgents, setLoadingAllAgents] = useState(false);
@@ -154,30 +153,28 @@ export function UserDetailsPage() {
 
       setApiConnection(apiKey);
 
-      // Load assigned agents (regardless of API connection status)
-      const { data: userAgents } = await supabase
+      // Load assigned agents (independent of API connection)
+      const { data: userAgents, error: agentsError } = await supabase
         .from('user_agents')
         .select(`
           agent_id,
-          agents (
+          agents:agent_id (
             id,
             name,
             description,
             is_active,
-            inbound_phone_number,
-            agent_phone_numbers (
-              phone_number_id,
-              phone_numbers (
-                number,
-                friendly_name
-              )
-            )
+            inbound_phone_number
           )
         `)
         .eq('user_id', userId);
 
-      const agents = userAgents?.map(ua => ua.agents).filter(Boolean) || [];
-      setAssignedAgents(agents);
+      if (agentsError) {
+        console.error('Error loading assigned agents:', agentsError);
+        setAssignedAgents([]);
+      } else {
+        const agents = userAgents?.map(ua => ua.agents).filter(Boolean) || [];
+        setAssignedAgents(agents);
+      }
     } catch (error) {
       console.error('Error loading API data:', error);
     } finally {
@@ -393,29 +390,6 @@ export function UserDetailsPage() {
     }
   };
 
-  const handleUnassignAgent = async (agentId: string) => {
-    if (!userId) return;
-
-    setUnassigningAgent(agentId);
-    try {
-      // Remove from user_agents junction table
-      const { error } = await supabase
-        .from('user_agents')
-        .delete()
-        .eq('user_id', userId)
-        .eq('agent_id', agentId);
-
-      if (error) throw error;
-
-      showSuccess('Agent unassigned successfully');
-      await loadApiData();
-    } catch (error: any) {
-      console.error('Error unassigning agent:', error);
-      showError(error.message || 'Failed to unassign agent');
-    } finally {
-      setUnassigningAgent(null);
-    }
-  };
 
   const handleConnectHighLevel = async () => {
     if (!userId || !currentUser) {
@@ -1022,28 +996,6 @@ export function UserDetailsPage() {
                                 {agent.inbound_phone_number}
                               </div>
                             )}
-                            {agent.agent_phone_numbers && agent.agent_phone_numbers.length > 0 && (
-                              <div className="mt-2 text-xs text-gray-500">
-                                {agent.agent_phone_numbers.length} phone {agent.agent_phone_numbers.length === 1 ? 'number' : 'numbers'} assigned
-                              </div>
-                            )}
-                            <button
-                              onClick={() => handleUnassignAgent(agent.id)}
-                              disabled={unassigningAgent === agent.id}
-                              className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {unassigningAgent === agent.id ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  Unassigning...
-                                </>
-                              ) : (
-                                <>
-                                  <Trash2 className="h-4 w-4" />
-                                  Unassign Agent
-                                </>
-                              )}
-                            </button>
                           </div>
                         ))}
                       </div>
