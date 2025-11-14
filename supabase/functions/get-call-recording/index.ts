@@ -109,8 +109,10 @@ Deno.serve(async (req: Request) => {
 
     const accessToken = tokens[0].access_token;
 
-    // Fetch the recording from HighLevel
+    // Fetch the recording from HighLevel Conversations API
     const recordingUrl = `https://services.leadconnectorhq.com/conversations/messages/${messageId}/locations/${locationId}/recording`;
+
+    console.log('Fetching recording from:', recordingUrl);
 
     const recordingResponse = await fetch(recordingUrl, {
       headers: {
@@ -119,17 +121,31 @@ Deno.serve(async (req: Request) => {
       },
     });
 
+    console.log('Recording response status:', recordingResponse.status);
+
     if (!recordingResponse.ok) {
       const errorText = await recordingResponse.text();
-      console.error('Recording fetch error:', recordingResponse.status, errorText);
+      console.error('Recording fetch error:', {
+        status: recordingResponse.status,
+        statusText: recordingResponse.statusText,
+        messageId,
+        locationId,
+        error: errorText
+      });
+
       return new Response(
         JSON.stringify({
           error: 'Recording not available',
-          details: `Status: ${recordingResponse.status}`,
-          message: 'The recording may still be processing or is not available for this call.'
+          details: `Status: ${recordingResponse.status} - ${recordingResponse.statusText}`,
+          message: 'The recording may still be processing, was not recorded, or is not available for this call.',
+          debug: {
+            messageId,
+            locationId,
+            status: recordingResponse.status
+          }
         }),
         {
-          status: recordingResponse.status,
+          status: recordingResponse.status >= 500 ? 503 : 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
