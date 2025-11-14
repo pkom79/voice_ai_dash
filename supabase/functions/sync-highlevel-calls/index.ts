@@ -139,9 +139,33 @@ Deno.serve(async (req: Request) => {
     const callsData = await callsResponse.json();
     console.log("Fetched calls:", callsData);
 
+    // Get user's assigned agents to filter calls
+    const { data: userAgents, error: userAgentsError } = await supabase
+      .from('user_agents')
+      .select('agent_id, agents(highlevel_agent_id)')
+      .eq('user_id', userId);
+
+    if (userAgentsError) {
+      console.error("Error fetching user agents:", userAgentsError);
+      return new Response(
+        JSON.stringify({ error: "Failed to fetch user agents", details: userAgentsError }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const assignedAgentHighLevelIds = new Set(
+      userAgents?.map(ua => (ua.agents as any)?.highlevel_agent_id).filter(Boolean) || []
+    );
+
+    console.log(`User has ${assignedAgentHighLevelIds.size} assigned agents:`, Array.from(assignedAgentHighLevelIds));
+
     // Process and save calls to database
     let savedCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
     const errors: any[] = [];
 
     if (callsData.callLogs && Array.isArray(callsData.callLogs)) {
@@ -153,6 +177,13 @@ Deno.serve(async (req: Request) => {
 
       for (const call of callsData.callLogs) {
         try {
+          // Skip calls from agents not assigned to this user
+          if (call.agentId && !assignedAgentHighLevelIds.has(call.agentId)) {
+            console.log(`Skipping call ${call.id} - agent ${call.agentId} not assigned to user ${userId}`);
+            skippedCount++;
+            continue;
+          }
+
           // Determine direction - map any possible API values to our schema
           let direction = 'inbound'; // default
           if (call.direction) {
@@ -301,7 +332,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log(`Sync complete: ${savedCount} calls saved, ${errorCount} errors`);
+    console.log(`Sync complete: ${savedCount} calls saved, ${skippedCount} skipped (unassigned agents), ${errorCount} errors`);
     if (errors.length > 0) {
       console.error('Errors encountered:', JSON.stringify(errors, null, 2));
     }
@@ -311,6 +342,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         savedCount,
+        skippedCount,
         errorCount,
         totalFetched: callsData.callLogs?.length || 0,
         errors: errors.length > 0 ? errors : undefined,
@@ -326,7 +358,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : undefined,
+        details: error,
       }),
       {
         status: 500,

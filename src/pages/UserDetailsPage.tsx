@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../contexts/AuthContext';
 import { oauthService } from '../services/oauth';
@@ -89,6 +90,7 @@ export function UserDetailsPage() {
   const [syncingCalls, setSyncingCalls] = useState(false);
   const [resettingCalls, setResettingCalls] = useState(false);
   const [showResyncModal, setShowResyncModal] = useState(false);
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
   const [resyncStartDate, setResyncStartDate] = useState('');
   const [direction, setDirection] = useState<'inbound' | 'outbound'>('inbound');
   const [searchQuery, setSearchQuery] = useState('');
@@ -579,10 +581,7 @@ export function UserDetailsPage() {
   const handleResetCalls = async () => {
     if (!userId) return;
 
-    if (!confirm('Are you sure you want to delete all call data for this user? This action cannot be undone.')) {
-      return;
-    }
-
+    setShowResetConfirmModal(false);
     setResettingCalls(true);
     try {
       const { data: userAgents } = await supabase
@@ -1615,7 +1614,7 @@ export function UserDetailsPage() {
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex flex-wrap gap-3">
                 <button
-                  onClick={handleResetCalls}
+                  onClick={() => setShowResetConfirmModal(true)}
                   disabled={resettingCalls}
                   className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
                 >
@@ -1677,6 +1676,56 @@ export function UserDetailsPage() {
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Calls</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {calls.filter(c => c.direction === direction).length}
+                    </p>
+                  </div>
+                  <Phone className="h-8 w-8 text-blue-600" />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Duration</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {Math.floor(calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.duration_seconds, 0) / 60)}m
+                    </p>
+                  </div>
+                  <Clock className="h-8 w-8 text-green-600" />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Cost</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      ${calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.cost, 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-purple-600" />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Avg Duration</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {calls.filter(c => c.direction === direction).length > 0
+                        ? Math.floor(calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.duration_seconds, 0) / calls.filter(c => c.direction === direction).length / 60)
+                        : 0}m
+                    </p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-orange-600" />
                 </div>
               </div>
             </div>
@@ -1749,12 +1798,14 @@ export function UserDetailsPage() {
                               {Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full uppercase ${
                                 call.status === 'completed' ? 'bg-green-100 text-green-800' :
                                 call.status === 'missed' ? 'bg-red-100 text-red-800' :
+                                call.status === 'no-answer' ? 'bg-yellow-100 text-yellow-800' :
+                                call.status === 'busy' ? 'bg-orange-100 text-orange-800' :
                                 'bg-gray-100 text-gray-800'
                               }`}>
-                                {call.status || 'unknown'}
+                                {call.status || 'N/A'}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
@@ -1765,56 +1816,6 @@ export function UserDetailsPage() {
                     </tbody>
                   </table>
                 )}
-              </div>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Calls</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {calls.filter(c => c.direction === direction).length}
-                    </p>
-                  </div>
-                  <Phone className="h-8 w-8 text-blue-600" />
-                </div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Duration</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {Math.floor(calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.duration_seconds, 0) / 60)}m
-                    </p>
-                  </div>
-                  <Clock className="h-8 w-8 text-green-600" />
-                </div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Cost</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      ${calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.cost, 0).toFixed(2)}
-                    </p>
-                  </div>
-                  <DollarSign className="h-8 w-8 text-purple-600" />
-                </div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Avg Duration</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {calls.filter(c => c.direction === direction).length > 0
-                        ? Math.floor(calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.duration_seconds, 0) / calls.filter(c => c.direction === direction).length / 60)
-                        : 0}m
-                    </p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-orange-600" />
-                </div>
               </div>
             </div>
           </div>
@@ -2351,6 +2352,18 @@ export function UserDetailsPage() {
           </div>
         </div>
       )}
+
+      {/* Reset Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showResetConfirmModal}
+        title="Reset All Call Data"
+        message="Are you sure you want to delete all call data for this user? This action cannot be undone."
+        confirmText="Delete All"
+        cancelText="Cancel"
+        onConfirm={handleResetCalls}
+        onCancel={() => setShowResetConfirmModal(false)}
+        type="danger"
+      />
 
       {/* Resync Modal */}
       {showResyncModal && (
