@@ -74,7 +74,22 @@ async function handleCheckoutCompleted(event: any): Promise<void> {
   const type = session.metadata?.type;
   const customerId = session.customer;
 
+  console.log('Checkout session completed:', {
+    sessionId: session.id,
+    userId,
+    type,
+    customerId,
+    amountTotal: session.amount_total,
+    metadata: session.metadata,
+  });
+
   if (!userId) {
+    console.error('No user_id in session metadata. Cannot process payment.', {
+      sessionId: session.id,
+      customerId,
+      customerEmail: session.customer_details?.email,
+      metadata: session.metadata,
+    });
     return;
   }
 

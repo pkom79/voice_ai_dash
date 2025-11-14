@@ -152,16 +152,26 @@ Deno.serve(async (req: Request) => {
     }
 
     const agentsData = await agentsResponse.json();
+    console.log('HighLevel API response:', JSON.stringify(agentsData).substring(0, 500));
+
     const agents: Agent[] = agentsData.voiceAiAgents || [];
+    console.log(`Found ${agents.length} agents in response`);
 
     // Filter out agents without names
     const validAgents = agents.filter(agent => agent.name && agent.name.trim() !== "");
+    console.log(`After filtering: ${validAgents.length} agents with valid names`);
 
     if (validAgents.length === 0) {
+      console.log('Returning empty agents array with message');
       return new Response(
         JSON.stringify({
           agents: [],
-          message: "No agents with valid names found in HighLevel location"
+          message: "No agents with valid names found in HighLevel location",
+          debug: {
+            totalAgents: agents.length,
+            locationId: apiKey.location_id,
+            rawResponse: JSON.stringify(agentsData).substring(0, 200)
+          }
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

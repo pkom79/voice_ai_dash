@@ -577,6 +577,26 @@ export function UserDetailsPage() {
     }
   };
 
+  const handleRemoveAgent = async (agentId: string) => {
+    if (!userId) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_agents')
+        .delete()
+        .eq('user_id', userId)
+        .eq('agent_id', agentId);
+
+      if (error) throw error;
+
+      showSuccess('Agent removed successfully');
+      await loadApiData();
+    } catch (error: any) {
+      console.error('Error removing agent:', error);
+      showError(error.message || 'Failed to remove agent');
+    }
+  };
+
   const loadBillingData = async () => {
     if (!userId) return;
 
@@ -1525,12 +1545,21 @@ export function UserDetailsPage() {
                                   <p className="text-sm text-gray-600 mt-1">{agent.description}</p>
                                 )}
                               </div>
-                              <div className={`px-2 py-1 rounded text-xs font-medium ${
-                                agent.is_active
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-amber-100 text-amber-700'
-                              }`}>
-                                {agent.is_active ? 'Active' : 'Inactive'}
+                              <div className="flex items-center gap-2">
+                                <div className={`px-2 py-1 rounded text-xs font-medium ${
+                                  agent.is_active
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {agent.is_active ? 'Active' : 'Inactive'}
+                                </div>
+                                <button
+                                  onClick={() => handleRemoveAgent(agent.id)}
+                                  className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                  title="Remove agent"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
                               </div>
                             </div>
                             {agent.inbound_phone_number && (
