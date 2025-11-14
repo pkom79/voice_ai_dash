@@ -75,6 +75,7 @@ export function UserDetailsPage() {
   const [showRemoveBalanceModal, setShowRemoveBalanceModal] = useState(false);
   const [showChangePlanModal, setShowChangePlanModal] = useState(false);
   const [balanceAmount, setBalanceAmount] = useState('');
+  const [balanceNote, setBalanceNote] = useState('');
   const [processingBalance, setProcessingBalance] = useState(false);
 
   useEffect(() => {
@@ -500,25 +501,49 @@ export function UserDetailsPage() {
       return;
     }
 
+    if (!balanceNote.trim()) {
+      showError('Please provide a note for this transaction');
+      return;
+    }
+
     setProcessingBalance(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const adminId = user?.id;
+
       const { data: currentBilling } = await supabase
         .from('billing_accounts')
         .select('wallet_cents')
         .eq('user_id', userId)
         .maybeSingle();
 
-      const newWalletCents = (currentBilling?.wallet_cents || 0) + amountCents;
+      const balanceBeforeCents = currentBilling?.wallet_cents || 0;
+      const newWalletCents = balanceBeforeCents + amountCents;
 
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('billing_accounts')
         .update({ wallet_cents: newWalletCents })
         .eq('user_id', userId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      const { error: transactionError } = await supabase
+        .from('wallet_transactions')
+        .insert({
+          user_id: userId,
+          type: 'admin_add',
+          amount_cents: amountCents,
+          balance_before_cents: balanceBeforeCents,
+          balance_after_cents: newWalletCents,
+          reason: balanceNote.trim(),
+          admin_id: adminId,
+        });
+
+      if (transactionError) throw transactionError;
 
       showSuccess(`Added $${balanceAmount} to wallet`);
       setBalanceAmount('');
+      setBalanceNote('');
       setShowAddBalanceModal(false);
       await loadBillingData();
     } catch (error: any) {
@@ -538,25 +563,49 @@ export function UserDetailsPage() {
       return;
     }
 
+    if (!balanceNote.trim()) {
+      showError('Please provide a note for this transaction');
+      return;
+    }
+
     setProcessingBalance(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const adminId = user?.id;
+
       const { data: currentBilling } = await supabase
         .from('billing_accounts')
         .select('wallet_cents')
         .eq('user_id', userId)
         .maybeSingle();
 
-      const newWalletCents = Math.max(0, (currentBilling?.wallet_cents || 0) - amountCents);
+      const balanceBeforeCents = currentBilling?.wallet_cents || 0;
+      const newWalletCents = Math.max(0, balanceBeforeCents - amountCents);
 
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('billing_accounts')
         .update({ wallet_cents: newWalletCents })
         .eq('user_id', userId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      const { error: transactionError } = await supabase
+        .from('wallet_transactions')
+        .insert({
+          user_id: userId,
+          type: 'admin_remove',
+          amount_cents: -amountCents,
+          balance_before_cents: balanceBeforeCents,
+          balance_after_cents: newWalletCents,
+          reason: balanceNote.trim(),
+          admin_id: adminId,
+        });
+
+      if (transactionError) throw transactionError;
 
       showSuccess(`Removed $${balanceAmount} from wallet`);
       setBalanceAmount('');
+      setBalanceNote('');
       setShowRemoveBalanceModal(false);
       await loadBillingData();
     } catch (error: any) {
@@ -1249,13 +1298,13 @@ export function UserDetailsPage() {
                   <div className="p-6 grid md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Account Balance
+                        Accrued Usage Cost
                       </label>
                       <div className="text-2xl font-bold text-gray-900">
-                        ${((billingData.wallet_cents - billingData.month_spent_cents) / 100).toFixed(2)}
+                        ${(billingData.month_spent_cents / 100).toFixed(2)}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        Available balance after current month usage
+                        Total usage charges for current month
                       </p>
                     </div>
                     <div>
@@ -1444,28 +1493,43 @@ export function UserDetailsPage() {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Amount to Add ($)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={balanceAmount}
-                onChange={(e) => setBalanceAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <p className="text-sm text-gray-500 mt-2">
-                Enter the dollar amount to add to the user's wallet
-              </p>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount to Add ($)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={balanceAmount}
+                  onChange={(e) => setBalanceAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Note (Required)
+                </label>
+                <textarea
+                  value={balanceNote}
+                  onChange={(e) => setBalanceNote(e.target.value)}
+                  placeholder="Enter reason for adding balance (visible to client)..."
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                />
+                <p className="text-sm text-gray-500 mt-2">
+                  This note will be visible to the client in their transaction history
+                </p>
+              </div>
             </div>
             <div className="p-6 border-t border-gray-200 flex gap-3">
               <button
                 onClick={() => {
                   setShowAddBalanceModal(false);
                   setBalanceAmount('');
+                  setBalanceNote('');
                 }}
                 disabled={processingBalance}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
@@ -1474,7 +1538,7 @@ export function UserDetailsPage() {
               </button>
               <button
                 onClick={handleAddBalance}
-                disabled={processingBalance || !balanceAmount}
+                disabled={processingBalance || !balanceAmount || !balanceNote.trim()}
                 className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {processingBalance ? (
@@ -1507,28 +1571,43 @@ export function UserDetailsPage() {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Amount to Remove ($)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={balanceAmount}
-                onChange={(e) => setBalanceAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <p className="text-sm text-gray-500 mt-2">
-                Enter the dollar amount to remove from the user's wallet
-              </p>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount to Remove ($)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={balanceAmount}
+                  onChange={(e) => setBalanceAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Note (Required)
+                </label>
+                <textarea
+                  value={balanceNote}
+                  onChange={(e) => setBalanceNote(e.target.value)}
+                  placeholder="Enter reason for removing balance (visible to client)..."
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                />
+                <p className="text-sm text-gray-500 mt-2">
+                  This note will be visible to the client in their transaction history
+                </p>
+              </div>
             </div>
             <div className="p-6 border-t border-gray-200 flex gap-3">
               <button
                 onClick={() => {
                   setShowRemoveBalanceModal(false);
                   setBalanceAmount('');
+                  setBalanceNote('');
                 }}
                 disabled={processingBalance}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
@@ -1537,7 +1616,7 @@ export function UserDetailsPage() {
               </button>
               <button
                 onClick={handleRemoveBalance}
-                disabled={processingBalance || !balanceAmount}
+                disabled={processingBalance || !balanceAmount || !balanceNote.trim()}
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {processingBalance ? (
