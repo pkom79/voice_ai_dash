@@ -154,34 +154,30 @@ export function UserDetailsPage() {
 
       setApiConnection(apiKey);
 
-      // If connected, load assigned agents
-      if (apiKey) {
-        const { data: userAgents } = await supabase
-          .from('user_agents')
-          .select(`
-            agent_id,
-            agents (
-              id,
-              name,
-              description,
-              is_active,
-              inbound_phone_number,
-              agent_phone_numbers (
-                phone_number_id,
-                phone_numbers (
-                  number,
-                  friendly_name
-                )
+      // Load assigned agents (regardless of API connection status)
+      const { data: userAgents } = await supabase
+        .from('user_agents')
+        .select(`
+          agent_id,
+          agents (
+            id,
+            name,
+            description,
+            is_active,
+            inbound_phone_number,
+            agent_phone_numbers (
+              phone_number_id,
+              phone_numbers (
+                number,
+                friendly_name
               )
             )
-          `)
-          .eq('user_id', userId);
+          )
+        `)
+        .eq('user_id', userId);
 
-        const agents = userAgents?.map(ua => ua.agents).filter(Boolean) || [];
-        setAssignedAgents(agents);
-      } else {
-        setAssignedAgents([]);
-      }
+      const agents = userAgents?.map(ua => ua.agents).filter(Boolean) || [];
+      setAssignedAgents(agents);
     } catch (error) {
       console.error('Error loading API data:', error);
     } finally {
