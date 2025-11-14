@@ -9,7 +9,8 @@ const corsHeaders = {
 
 interface Agent {
   id: string;
-  name: string;
+  agentName: string;
+  name?: string;
   description?: string;
 }
 
@@ -164,8 +165,11 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Found ${agents.length} agents in response from field check`);
 
-    // Filter out agents without names
-    const validAgents = agents.filter(agent => agent.name && agent.name.trim() !== "");
+    // Filter out agents without names (check both agentName and name fields)
+    const validAgents = agents.filter(agent => {
+      const name = agent.agentName || agent.name;
+      return name && name.trim() !== "";
+    });
     console.log(`After filtering: ${validAgents.length} agents with valid names`);
 
     if (validAgents.length === 0) {
@@ -191,7 +195,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         agents: validAgents.map(agent => ({
           id: agent.id,
-          name: agent.name,
+          name: agent.agentName || agent.name,
           description: agent.description || "",
           location_id: apiKey.location_id
         }))
