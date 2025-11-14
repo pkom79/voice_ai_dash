@@ -94,6 +94,7 @@ export function UserDetailsPage() {
   const [syncingCalls, setSyncingCalls] = useState(false);
   const [resettingCalls, setResettingCalls] = useState(false);
   const [recalculatingCosts, setRecalculatingCosts] = useState(false);
+  const [syncingBilling, setSyncingBilling] = useState(false);
   const [showResyncModal, setShowResyncModal] = useState(false);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
   const [resyncStartDate, setResyncStartDate] = useState('');
@@ -839,6 +840,29 @@ export function UserDetailsPage() {
       showError(error.message || 'Failed to recalculate costs');
     } finally {
       setRecalculatingCosts(false);
+    }
+  };
+
+  const handleSyncBillingBalance = async () => {
+    if (!userId) return;
+
+    setSyncingBilling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-billing-balance', {
+        body: { userId },
+      });
+
+      if (error) throw error;
+
+      showSuccess(
+        `Billing balance synced: $${data.totalCostDollars} from ${data.callsCount} calls`
+      );
+      await loadUser(); // Reload user to get updated billing info
+    } catch (error: any) {
+      console.error('Error syncing billing balance:', error);
+      showError(error.message || 'Failed to sync billing balance');
+    } finally {
+      setSyncingBilling(false);
     }
   };
 
@@ -1894,6 +1918,18 @@ export function UserDetailsPage() {
                     <Trash2 className="h-4 w-4" />
                   )}
                   Reset All Call Data
+                </button>
+                <button
+                  onClick={handleSyncBillingBalance}
+                  disabled={syncingBilling}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                >
+                  {syncingBilling ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <DollarSign className="h-4 w-4" />
+                  )}
+                  Sync Billing Balance
                 </button>
                 <button
                   onClick={handleRecalculateCosts}

@@ -1133,13 +1133,19 @@ return parseFloat((minutes * costPerMinute).toFixed(4));
    - Sets calls_reset_at timestamp to prevent re-syncing old data
    - Use case: Remove test calls for users on pay-per-use plans
 
-2. **Recalculate Costs**:
+2. **Sync Billing Balance**:
+   - Quickly recalculates month_spent_cents from existing call costs
+   - Does NOT recalculate individual call costs
+   - Simply sums up all existing costs and updates billing account
+   - Use case: Fix billing balance display when costs are correct but balance is wrong
+
+3. **Recalculate Costs**:
    - Recalculates cost for all existing calls based on current billing plan
    - Regenerates usage_logs entries
-   - Updates month_spent_cents with cost delta
-   - Use case: Fix incorrect costs after billing plan changes
+   - Updates month_spent_cents with new totals
+   - Use case: Fix incorrect costs after billing plan changes or rate adjustments
 
-3. **Resync from HighLevel**:
+4. **Resync from HighLevel**:
    - Fetches calls from HighLevel API
    - Respects calls_reset_at date filter
    - Updates existing calls (upsert logic)
@@ -1147,6 +1153,7 @@ return parseFloat((minutes * costPerMinute).toFixed(4));
 
 **Edge Functions**:
 - `reset-user-calls` - Handles call data deletion and reset
+- `sync-billing-balance` - Syncs month_spent_cents from existing call costs
 - `recalculate-call-costs` - Recalculates costs for existing calls
 - `sync-highlevel-calls` - Syncs calls with cost calculation
 
