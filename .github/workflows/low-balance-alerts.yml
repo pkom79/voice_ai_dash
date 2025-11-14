@@ -1,0 +1,95 @@
+name: Low Balance Alerts
+
+# Runs every 6 hours to check for low wallet balances on PPU accounts
+# Times in UTC: 01:00, 07:00, 13:00, 19:00 (covers all EST/EDT hours evenly)
+
+on:
+  schedule:
+    # Every 6 hours
+    - cron: '0 1,7,13,19 * * *'
+
+  # Allow manual trigger from GitHub Actions UI for testing
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Dry run mode (test without actually sending emails)'
+        required: false
+        default: 'false'
+
+jobs:
+  check-low-balance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Low Balance Alerts
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "Starting low balance alert check..."
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "EST Time: $(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S %Z")"
+
+          DRY_RUN="${{ github.event.inputs.dryRun || 'false' }}"
+
+          echo "Configuration:"
+          echo "  Dry run: $DRY_RUN"
+          echo ""
+
+          RESPONSE=$(curl -X POST "$SUPABASE_URL/functions/v1/check-low-balance-alerts" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -d "{\"dryRun\": $DRY_RUN, \"scheduledBy\": \"github_actions\"}" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            -s)
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS/d')
+
+          echo "Response from edge function:"
+          echo "$BODY" | jq '.' || echo "$BODY"
+          echo ""
+
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            USERS_CHECKED=$(echo "$BODY" | jq -r '.usersChecked // 0')
+            ALERTS_SENT=$(echo "$BODY" | jq -r '.alertsSent // 0')
+
+            echo "✅ Low balance alert check completed successfully"
+            echo "   Users checked: $USERS_CHECKED"
+            echo "   Alerts sent: $ALERTS_SENT"
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "ℹ️  This was a dry run - no emails were actually sent"
+            fi
+          else
+            echo "❌ Low balance alert check failed with HTTP status: $HTTP_STATUS"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+      - name: Create job summary
+        if: always()
+        run: |
+          echo "# 💰 Low Balance Alert Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time (UTC):** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time (EST):** $(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S %Z")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ **Status:** Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See logs above for detailed results." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Low balance alert check failed!"
+          echo "Please check the logs above for details."
