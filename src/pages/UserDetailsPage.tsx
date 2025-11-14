@@ -77,6 +77,11 @@ export function UserDetailsPage() {
   const [balanceAmount, setBalanceAmount] = useState('');
   const [balanceNote, setBalanceNote] = useState('');
   const [processingBalance, setProcessingBalance] = useState(false);
+  const [selectedInboundPlan, setSelectedInboundPlan] = useState<string | null>(null);
+  const [selectedOutboundPlan, setSelectedOutboundPlan] = useState<string | null>(null);
+  const [inboundRate, setInboundRate] = useState('');
+  const [outboundRate, setOutboundRate] = useState('');
+  const [savingPlans, setSavingPlans] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -94,6 +99,15 @@ export function UserDetailsPage() {
       loadBillingData();
     }
   }, [activeTab, userId]);
+
+  useEffect(() => {
+    if (showChangePlanModal && billingData) {
+      setSelectedInboundPlan(billingData.inbound_plan || null);
+      setSelectedOutboundPlan(billingData.outbound_plan || null);
+      setInboundRate((billingData.inbound_rate_cents / 100).toFixed(2));
+      setOutboundRate((billingData.outbound_rate_cents / 100).toFixed(2));
+    }
+  }, [showChangePlanModal, billingData]);
 
   const loadUser = async () => {
     if (!userId) return;
@@ -613,6 +627,52 @@ export function UserDetailsPage() {
       showError(error.message || 'Failed to remove balance');
     } finally {
       setProcessingBalance(false);
+    }
+  };
+
+  const handleSavePlans = async () => {
+    if (!userId) return;
+
+    const inboundRateCents = Math.round(parseFloat(inboundRate) * 100);
+    const outboundRateCents = Math.round(parseFloat(outboundRate) * 100);
+
+    if (selectedInboundPlan === 'inbound_pay_per_use' && (isNaN(inboundRateCents) || inboundRateCents <= 0)) {
+      showError('Please enter a valid inbound rate');
+      return;
+    }
+
+    if (selectedOutboundPlan === 'outbound_pay_per_use' && (isNaN(outboundRateCents) || outboundRateCents <= 0)) {
+      showError('Please enter a valid outbound rate');
+      return;
+    }
+
+    if (!selectedInboundPlan && !selectedOutboundPlan) {
+      showError('Please select at least one plan');
+      return;
+    }
+
+    setSavingPlans(true);
+    try {
+      const { error } = await supabase
+        .from('billing_accounts')
+        .update({
+          inbound_plan: selectedInboundPlan,
+          outbound_plan: selectedOutboundPlan,
+          inbound_rate_cents: selectedInboundPlan === 'inbound_pay_per_use' ? inboundRateCents : billingData?.inbound_rate_cents || 0,
+          outbound_rate_cents: selectedOutboundPlan === 'outbound_pay_per_use' ? outboundRateCents : billingData?.outbound_rate_cents || 0,
+        })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      showSuccess('Plans updated successfully');
+      setShowChangePlanModal(false);
+      await loadBillingData();
+    } catch (error: any) {
+      console.error('Error saving plans:', error);
+      showError(error.message || 'Failed to save plans');
+    } finally {
+      setSavingPlans(false);
     }
   };
 
@@ -1175,6 +1235,46 @@ export function UserDetailsPage() {
               </div>
             ) : (
               <>
+                {/* Account Status Section */}
+                <div className="bg-white rounded-lg shadow">
+                  <div className="p-6 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Account Status</h3>
+                  </div>
+                  <div className="p-6 grid md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Accrued Usage Cost
+                      </label>
+                      <div className="text-2xl font-bold text-gray-900">
+                        ${(billingData.month_spent_cents / 100).toFixed(2)}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Total usage charges for current month
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Status
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {billingData.wallet_cents < billingData.month_spent_cents ? (
+                          <span className="px-3 py-1 bg-red-100 text-red-700 text-sm font-medium rounded">
+                            Insufficient Balance
+                          </span>
+                        ) : billingData.grace_until && new Date(billingData.grace_until) > new Date() ? (
+                          <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm font-medium rounded">
+                            Grace Period
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Plans Section */}
                 <div className="bg-white rounded-lg shadow">
                   <div className="p-6 border-b border-gray-200 flex items-center justify-between">
@@ -1289,46 +1389,6 @@ export function UserDetailsPage() {
                     </div>
                   </div>
                 )}
-
-                {/* Account Balance Section */}
-                <div className="bg-white rounded-lg shadow">
-                  <div className="p-6 border-b border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900">Account Status</h3>
-                  </div>
-                  <div className="p-6 grid md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Accrued Usage Cost
-                      </label>
-                      <div className="text-2xl font-bold text-gray-900">
-                        ${(billingData.month_spent_cents / 100).toFixed(2)}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Total usage charges for current month
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Status
-                      </label>
-                      <div className="flex items-center gap-2">
-                        {billingData.wallet_cents < billingData.month_spent_cents ? (
-                          <span className="px-3 py-1 bg-red-100 text-red-700 text-sm font-medium rounded">
-                            Insufficient Balance
-                          </span>
-                        ) : billingData.grace_until && new Date(billingData.grace_until) > new Date() ? (
-                          <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm font-medium rounded">
-                            Grace Period
-                          </span>
-                        ) : (
-                          <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded">
-                            Active
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </>
             )}
           </div>
