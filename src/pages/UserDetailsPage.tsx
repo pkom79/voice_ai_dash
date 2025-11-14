@@ -1455,8 +1455,18 @@ export function UserDetailsPage() {
                                   {new Date(transaction.created_at).toLocaleDateString()} {new Date(transaction.created_at).toLocaleTimeString()}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
-                                    {transaction.type.replace('_', ' ')}
+                                  <span
+                                    className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                      transaction.type === 'top_up' || transaction.type === 'admin_credit'
+                                        ? 'bg-green-100 text-green-800'
+                                        : transaction.type === 'deduction' || transaction.type === 'admin_debit'
+                                        ? 'bg-red-100 text-red-800'
+                                        : transaction.type === 'refund'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : 'bg-gray-100 text-gray-800'
+                                    }`}
+                                  >
+                                    {transaction.type?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN'}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-900">
