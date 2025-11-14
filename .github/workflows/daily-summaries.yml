@@ -1,0 +1,109 @@
+name: Daily Activity Summaries
+
+# Runs daily at 11:00 AM UTC (6:00 AM EST / 7:00 AM EDT)
+# Sends daily activity summaries to users
+
+on:
+  schedule:
+    # Daily at 11:00 AM UTC (6:00 AM EST)
+    - cron: '0 11 * * *'
+
+  # Allow manual trigger from GitHub Actions UI for testing
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Dry run mode (test without actually sending emails)'
+        required: false
+        default: 'false'
+      testEmail:
+        description: 'Test email address (if provided, only send to this address)'
+        required: false
+        default: ''
+
+jobs:
+  send-daily-summaries:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Send Daily Activity Summaries
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "Starting daily activity summary generation..."
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "EST Time: $(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S %Z")"
+
+          DRY_RUN="${{ github.event.inputs.dryRun || 'false' }}"
+          TEST_EMAIL="${{ github.event.inputs.testEmail || '' }}"
+
+          echo "Configuration:"
+          echo "  Dry run: $DRY_RUN"
+          echo "  Test email: $TEST_EMAIL"
+          echo ""
+
+          REQUEST_BODY="{\"dryRun\": $DRY_RUN, \"scheduledBy\": \"github_actions\""
+          if [ -n "$TEST_EMAIL" ]; then
+            REQUEST_BODY="$REQUEST_BODY, \"testEmail\": \"$TEST_EMAIL\""
+          fi
+          REQUEST_BODY="$REQUEST_BODY}"
+
+          RESPONSE=$(curl -X POST "$SUPABASE_URL/functions/v1/send-daily-summaries" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -d "$REQUEST_BODY" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            -s)
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS/d')
+
+          echo "Response from edge function:"
+          echo "$BODY" | jq '.' || echo "$BODY"
+          echo ""
+
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            USERS_PROCESSED=$(echo "$BODY" | jq -r '.usersProcessed // 0')
+            SUMMARIES_SENT=$(echo "$BODY" | jq -r '.summariesSent // 0')
+            SKIPPED=$(echo "$BODY" | jq -r '.skipped // 0')
+
+            echo "✅ Daily activity summary generation completed successfully"
+            echo "   Users processed: $USERS_PROCESSED"
+            echo "   Summaries sent: $SUMMARIES_SENT"
+            echo "   Skipped: $SKIPPED"
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "ℹ️  This was a dry run - no emails were actually sent"
+            fi
+          else
+            echo "❌ Daily activity summary generation failed with HTTP status: $HTTP_STATUS"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+      - name: Create job summary
+        if: always()
+        run: |
+          echo "# 📊 Daily Activity Summary Generation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time (UTC):** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time (EST):** $(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S %Z")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ **Status:** Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See logs above for detailed results." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Daily activity summary generation failed!"
+          echo "Please check the logs above for details."
