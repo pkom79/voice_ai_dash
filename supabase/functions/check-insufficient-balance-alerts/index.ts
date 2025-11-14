@@ -19,8 +19,6 @@ interface User {
   id: string;
   first_name: string;
   last_name: string;
-  email: string;
-  notification_preferences: any;
 }
 
 function formatCurrency(cents: number): string {
@@ -69,14 +67,19 @@ Deno.serve(async (req: Request) => {
 
       const { data: user, error: userError } = await supabase
         .from('users')
-        .select('id, first_name, last_name, email, notification_preferences')
+        .select('id, first_name, last_name')
         .eq('id', account.user_id)
-        .single<User>();
+        .maybeSingle<User>();
 
       if (userError || !user) continue;
 
-      const prefs = user.notification_preferences || {};
-      if (prefs.insufficient_balance_alerts !== true) {
+      const { data: notificationEmails, error: emailsError } = await supabase
+        .from('user_notification_emails')
+        .select('email, insufficient_balance_enabled')
+        .eq('user_id', user.id)
+        .eq('insufficient_balance_enabled', true);
+
+      if (emailsError || !notificationEmails || notificationEmails.length === 0) {
         continue;
       }
 
@@ -180,37 +183,39 @@ Deno.serve(async (req: Request) => {
 </body>
 </html>`;
 
-      const emailPayload = {
-        to: user.email,
-        subject: 'Insufficient Balance - Action Required',
-        userId: user.id,
-        emailType: 'insufficient_balance_alert',
-        html: html,
-      };
-
-      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(emailPayload),
-      });
-
-      if (emailResponse.ok) {
-        await supabase.rpc('update_last_alert_timestamp', {
-          p_user_id: user.id,
-          p_alert_type: 'insufficient_balance',
-        });
-
-        alertsSent.push({
+      for (const notificationEmail of notificationEmails) {
+        const emailPayload = {
+          to: notificationEmail.email,
+          subject: 'Insufficient Balance - Action Required',
           userId: user.id,
-          email: user.email,
-          walletBalance: formatCurrency(account.wallet_cents),
-          monthSpent: formatCurrency(account.month_spent_cents),
-          shortfall: formatCurrency(account.month_spent_cents - account.wallet_cents),
+          emailType: 'insufficient_balance_alert',
+          html: html,
+        };
+
+        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(emailPayload),
         });
+
+        if (emailResponse.ok) {
+          alertsSent.push({
+            userId: user.id,
+            email: notificationEmail.email,
+            walletBalance: formatCurrency(account.wallet_cents),
+            monthSpent: formatCurrency(account.month_spent_cents),
+            shortfall: formatCurrency(account.month_spent_cents - account.wallet_cents),
+          });
+        }
       }
+
+      await supabase.rpc('update_last_alert_timestamp', {
+        p_user_id: user.id,
+        p_alert_type: 'insufficient_balance',
+      });
     }
 
     return new Response(

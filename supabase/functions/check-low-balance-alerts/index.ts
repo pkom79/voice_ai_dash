@@ -19,8 +19,6 @@ interface User {
   id: string;
   first_name: string;
   last_name: string;
-  email: string;
-  notification_preferences: any;
 }
 
 function formatCurrency(cents: number): string {
@@ -68,9 +66,9 @@ Deno.serve(async (req: Request) => {
 
       const { data: user, error: userError } = await supabase
         .from('users')
-        .select('id, first_name, last_name, email')
+        .select('id, first_name, last_name')
         .eq('id', account.user_id)
-        .single<User>();
+        .maybeSingle<User>();
 
       if (userError || !user) continue;
 

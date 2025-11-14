@@ -11,8 +11,7 @@ interface User {
   id: string;
   first_name: string;
   last_name: string;
-  email: string;
-  notification_preferences: any;
+  is_active: boolean;
 }
 
 interface CallStats {
@@ -66,7 +65,8 @@ Deno.serve(async (req: Request) => {
 
     const { data: users, error: usersError } = await supabase
       .from('users')
-      .select('id, first_name, last_name, email, notification_preferences')
+      .select('id, first_name, last_name, is_active')
+      .eq('is_active', true)
       .returns<User[]>();
 
     if (usersError) throw usersError;
@@ -74,8 +74,13 @@ Deno.serve(async (req: Request) => {
     const summariesSent = [];
 
     for (const user of users || []) {
-      const prefs = user.notification_preferences || {};
-      if (prefs.weekly_summaries !== true) {
+      const { data: notificationEmails, error: emailsError } = await supabase
+        .from('user_notification_emails')
+        .select('email, weekly_summary_enabled')
+        .eq('user_id', user.id)
+        .eq('weekly_summary_enabled', true);
+
+      if (emailsError || !notificationEmails || notificationEmails.length === 0) {
         continue;
       }
 
@@ -205,36 +210,38 @@ Deno.serve(async (req: Request) => {
 </body>
 </html>`;
 
-      const emailPayload = {
-        to: user.email,
-        subject: 'Your Weekly Call Summary',
-        userId: user.id,
-        emailType: 'weekly_summary',
-        html: html,
-      };
-
-      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(emailPayload),
-      });
-
-      if (emailResponse.ok) {
-        await supabase.rpc('update_last_alert_timestamp', {
-          p_user_id: user.id,
-          p_alert_type: 'weekly_summary',
-        });
-
-        summariesSent.push({
+      for (const notificationEmail of notificationEmails) {
+        const emailPayload = {
+          to: notificationEmail.email,
+          subject: 'Your Weekly Call Summary',
           userId: user.id,
-          email: user.email,
-          totalCalls: stats.total_calls,
-          totalCost: formatCurrency(stats.total_cost_cents),
+          emailType: 'weekly_summary',
+          html: html,
+        };
+
+        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(emailPayload),
         });
+
+        if (emailResponse.ok) {
+          summariesSent.push({
+            userId: user.id,
+            email: notificationEmail.email,
+            totalCalls: stats.total_calls,
+            totalCost: formatCurrency(stats.total_cost_cents),
+          });
+        }
       }
+
+      await supabase.rpc('update_last_alert_timestamp', {
+        p_user_id: user.id,
+        p_alert_type: 'weekly_summary',
+      });
     }
 
     return new Response(

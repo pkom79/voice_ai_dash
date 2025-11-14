@@ -19,8 +19,6 @@ interface User {
   id: string;
   first_name: string;
   last_name: string;
-  email: string;
-  notification_preferences: any;
 }
 
 function formatDate(dateString: string): string {
@@ -78,14 +76,19 @@ Deno.serve(async (req: Request) => {
 
       const { data: user, error: userError } = await supabase
         .from('users')
-        .select('id, first_name, last_name, email, notification_preferences')
+        .select('id, first_name, last_name')
         .eq('id', account.user_id)
-        .single<User>();
+        .maybeSingle<User>();
 
       if (userError || !user) continue;
 
-      const prefs = user.notification_preferences || {};
-      if (prefs.service_interruption_alerts !== true) {
+      const { data: notificationEmails, error: emailsError } = await supabase
+        .from('user_notification_emails')
+        .select('email, service_interruption_enabled')
+        .eq('user_id', user.id)
+        .eq('service_interruption_enabled', true);
+
+      if (emailsError || !notificationEmails || notificationEmails.length === 0) {
         continue;
       }
 
@@ -174,36 +177,38 @@ Deno.serve(async (req: Request) => {
 </body>
 </html>`;
 
-      const emailPayload = {
-        to: user.email,
-        subject: 'URGENT: Service Suspension Notice - Action Required',
-        userId: user.id,
-        emailType: 'service_interruption_warning',
-        html: html,
-      };
-
-      const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(emailPayload),
-      });
-
-      if (emailResponse.ok) {
-        await supabase.rpc('update_last_alert_timestamp', {
-          p_user_id: user.id,
-          p_alert_type: 'service_interruption',
-        });
-
-        warningsSent.push({
+      for (const notificationEmail of notificationEmails) {
+        const emailPayload = {
+          to: notificationEmail.email,
+          subject: 'URGENT: Service Suspension Notice - Action Required',
           userId: user.id,
-          email: user.email,
-          graceUntil: formatDate(account.grace_until),
-          suspensionDate: formatDate(suspensionDate.toISOString()),
+          emailType: 'service_interruption_warning',
+          html: html,
+        };
+
+        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(emailPayload),
         });
+
+        if (emailResponse.ok) {
+          warningsSent.push({
+            userId: user.id,
+            email: notificationEmail.email,
+            graceUntil: formatDate(account.grace_until),
+            suspensionDate: formatDate(suspensionDate.toISOString()),
+          });
+        }
       }
+
+      await supabase.rpc('update_last_alert_timestamp', {
+        p_user_id: user.id,
+        p_alert_type: 'service_interruption',
+      });
     }
 
     return new Response(
