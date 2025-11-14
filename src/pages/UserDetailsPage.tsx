@@ -492,7 +492,23 @@ export function UserDetailsPage() {
       const agents = data.agents || [];
 
       if (agents.length === 0) {
-        showError('No agents with valid names found in HighLevel location');
+        // Log the full debug information to console for inspection
+        console.log('HighLevel API Debug Info:', data.debug);
+        console.log('Full Response:', data);
+
+        let errorMsg = 'No Voice AI agents found in this HighLevel location.';
+
+        // Add response structure info if available
+        if (data.debug?.responseKeys) {
+          errorMsg += `\n\nAPI Response Keys: ${data.debug.responseKeys.join(', ')}`;
+          console.log('Response Keys:', data.debug.responseKeys);
+        }
+        if (data.debug?.fullResponse) {
+          console.log('Full HighLevel Response:', data.debug.fullResponse);
+          errorMsg += `\n\nCheck browser console for full API response details.`;
+        }
+
+        showError(errorMsg);
         setAllAvailableAgents([]);
         return;
       }
