@@ -93,6 +93,7 @@ export function UserDetailsPage() {
   const [loadingCalls, setLoadingCalls] = useState(false);
   const [syncingCalls, setSyncingCalls] = useState(false);
   const [resettingCalls, setResettingCalls] = useState(false);
+  const [recalculatingCosts, setRecalculatingCosts] = useState(false);
   const [showResyncModal, setShowResyncModal] = useState(false);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
   const [resyncStartDate, setResyncStartDate] = useState('');
@@ -798,32 +799,46 @@ export function UserDetailsPage() {
     setShowResetConfirmModal(false);
     setResettingCalls(true);
     try {
-      const { data: userAgents } = await supabase
-        .from('user_agents')
-        .select('agent_id')
-        .eq('user_id', userId);
-
-      if (!userAgents || userAgents.length === 0) {
-        showError('No agents found for this user');
-        return;
-      }
-
-      const agentIds = userAgents.map(ua => ua.agent_id);
-
-      const { error } = await supabase
-        .from('calls')
-        .delete()
-        .in('agent_id', agentIds);
+      const { data, error } = await supabase.functions.invoke('reset-user-calls', {
+        body: { userId },
+      });
 
       if (error) throw error;
 
-      showSuccess('Call data has been reset successfully');
+      showSuccess(
+        `Successfully deleted ${data.deletedCallsCount} calls. Future syncs will only fetch calls after ${new Date(data.resetTimestamp).toLocaleDateString()}.`
+      );
       await loadCalls();
+      await loadUser(); // Reload user to get updated billing info
     } catch (error: any) {
       console.error('Error resetting calls:', error);
       showError(error.message || 'Failed to reset call data');
     } finally {
       setResettingCalls(false);
+    }
+  };
+
+  const handleRecalculateCosts = async () => {
+    if (!userId) return;
+
+    setRecalculatingCosts(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('recalculate-call-costs', {
+        body: { userId },
+      });
+
+      if (error) throw error;
+
+      showSuccess(
+        `Successfully recalculated costs for ${data.updatedCount} calls. Cost adjustment: $${data.costDelta}`
+      );
+      await loadCalls();
+      await loadUser(); // Reload user to get updated billing info
+    } catch (error: any) {
+      console.error('Error recalculating costs:', error);
+      showError(error.message || 'Failed to recalculate costs');
+    } finally {
+      setRecalculatingCosts(false);
     }
   };
 
@@ -1881,6 +1896,18 @@ export function UserDetailsPage() {
                   Reset All Call Data
                 </button>
                 <button
+                  onClick={handleRecalculateCosts}
+                  disabled={recalculatingCosts}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                >
+                  {recalculatingCosts ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <DollarSign className="h-4 w-4" />
+                  )}
+                  Recalculate Costs
+                </button>
+                <button
                   onClick={() => setShowResyncModal(true)}
                   disabled={syncingCalls}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
@@ -2038,9 +2065,12 @@ export function UserDetailsPage() {
               <div className="bg-white rounded-lg shadow p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Total Cost</p>
+                    <p className="text-sm text-gray-600">Total Cost (Paid Only)</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      ${getFilteredCalls().reduce((sum, c) => sum + c.cost, 0).toFixed(2)}
+                      ${getFilteredCalls()
+                        .filter(c => c.display_cost !== 'INCLUDED')
+                        .reduce((sum, c) => sum + c.cost, 0)
+                        .toFixed(2)}
                     </p>
                   </div>
                   <DollarSign className="h-8 w-8 text-purple-600" />
@@ -2130,8 +2160,14 @@ export function UserDetailsPage() {
                                 {call.status || 'N/A'}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
-                              ${call.cost.toFixed(2)}
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                              {call.display_cost === 'INCLUDED' ? (
+                                <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
+                                  INCLUDED
+                                </span>
+                              ) : (
+                                <span className="text-gray-900">${call.cost.toFixed(2)}</span>
+                              )}
                             </td>
                           </tr>
                         ))}

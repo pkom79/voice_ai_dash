@@ -1,7 +1,7 @@
 # Voice AI Dash
 
-**Version:** 3.1.0
-**Last Updated:** November 14, 2025 (Admin-Controlled Agent Assignment System)
+**Version:** 3.2.0
+**Last Updated:** November 14, 2025 (Billing Cost Calculation & Reset System)
 
 A comprehensive Voice AI Dashboard for managing HighLevel voice agents, call logs, billing, and OAuth integrations.
 
@@ -671,9 +671,13 @@ try {
 - `auto_replenish_enabled` boolean
 - `auto_replenish_threshold` decimal(10,2)
 - `auto_replenish_amount` decimal(10,2)
+- `calls_reset_at` timestamptz (v3.2.0) - Timestamp of last call data reset
 - `created_at`, `updated_at` timestamptz
 
 **Purpose**: Manage user billing and wallet balance
+
+**New Fields (v3.2.0)**:
+- `calls_reset_at` - Records when admin last reset call data for this user. Sync operations will only fetch calls after this date to prevent re-syncing deleted test calls.
 
 #### 7. **transactions**
 - `id` uuid PRIMARY KEY
@@ -701,7 +705,8 @@ try {
 - `to_number` text
 - `status` text
 - `duration_seconds` integer
-- `cost` decimal(10,4)
+- `cost` decimal(10,4) - Calculated cost based on duration and billing plan
+- `display_cost` text (v3.2.0) - Display value (e.g., "INCLUDED" for unlimited plans)
 - `action_triggered` text
 - `sentiment` text
 - `summary` text
@@ -1067,16 +1072,29 @@ return parseFloat((minutes * costPerMinute).toFixed(4));
 - `src/pages/CallsPage.tsx` (phone number state and filtering)
 - `src/contexts/SyncContext.tsx` (phone number sync integration)
 
-### ✅ Call Syncing
+### ✅ Call Syncing & Cost Calculation (v3.2.0 - Enhanced Billing)
 - **Manual Sync** initiated by admin
 - **Date Range Filtering** (optional)
 - **Automatic Deduplication** via highlevel_call_id
 - **Agent Auto-Creation** if referenced in call
 - **Phone Number Tracking** with auto-creation
-- **Cost Calculation** based on duration
+- **Intelligent Cost Calculation** based on user's billing plan and rates
+- **Unlimited Plan Support** - Inbound calls show "INCLUDED" badge instead of cost
+- **Usage Tracking** - Creates usage_logs entries for paid calls
+- **Billing Integration** - Automatically updates month_spent_cents
+- **Reset Protection** - Respects calls_reset_at to prevent re-syncing deleted test calls
 - **Test Call Filtering** for analytics
 
-**Files**: `src/services/highlevel.ts` (syncCalls method)
+**Cost Calculation Logic**:
+- **Inbound + Unlimited Plan**: cost = $0.00, display = "INCLUDED"
+- **Inbound + Pay Per Use**: cost = (duration_seconds / 60) * (inbound_rate_cents / 100)
+- **Outbound + Pay Per Use**: cost = (duration_seconds / 60) * (outbound_rate_cents / 100)
+- **No Billing Account**: cost = $0.00
+
+**Files**:
+- `supabase/functions/sync-highlevel-calls/index.ts` (cost calculation)
+- `src/pages/CallsPage.tsx` (INCLUDED badge display)
+- `src/pages/UserDetailsPage.tsx` (cost filtering and display)
 
 ### ✅ Dashboard Statistics
 - **Total Calls** count
@@ -1097,14 +1115,46 @@ return parseFloat((minutes * costPerMinute).toFixed(4));
 
 **Files**: Database triggers, `src/pages/BillingPage.tsx`
 
-### ✅ Admin User Management
+### ✅ Admin User Management (v3.2.0 - Enhanced Tools)
 - **User List** with search
 - **Connection Status** indicators
 - **OAuth Management** per user
 - **Agent Assignment** interface
 - **User Details** panel
+- **Reset Call Data** - Delete all calls and usage logs, set reset timestamp
+- **Recalculate Costs** - Recalculate costs for all existing calls based on current billing plan
+- **Resync from HighLevel** - Re-fetch calls from HighLevel with optional date range
 
-**Files**: `src/pages/AdminUsersPage.tsx`
+**Admin Tools**:
+1. **Reset All Call Data**:
+   - Permanently deletes all calls for the user
+   - Deletes associated usage_logs entries
+   - Recalculates month_spent_cents from remaining usage
+   - Sets calls_reset_at timestamp to prevent re-syncing old data
+   - Use case: Remove test calls for users on pay-per-use plans
+
+2. **Recalculate Costs**:
+   - Recalculates cost for all existing calls based on current billing plan
+   - Regenerates usage_logs entries
+   - Updates month_spent_cents with cost delta
+   - Use case: Fix incorrect costs after billing plan changes
+
+3. **Resync from HighLevel**:
+   - Fetches calls from HighLevel API
+   - Respects calls_reset_at date filter
+   - Updates existing calls (upsert logic)
+   - Calculates costs during sync
+
+**Edge Functions**:
+- `reset-user-calls` - Handles call data deletion and reset
+- `recalculate-call-costs` - Recalculates costs for existing calls
+- `sync-highlevel-calls` - Syncs calls with cost calculation
+
+**Files**:
+- `src/pages/AdminUsersPage.tsx`
+- `src/pages/UserDetailsPage.tsx` (admin tools UI)
+- `supabase/functions/reset-user-calls/index.ts`
+- `supabase/functions/recalculate-call-costs/index.ts`
 
 ### ✅ Dark Mode Toggle
 - **Theme Persistence** in localStorage

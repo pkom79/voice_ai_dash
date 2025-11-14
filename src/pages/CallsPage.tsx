@@ -337,7 +337,7 @@ export function CallsPage() {
       formatDuration(call.duration_seconds),
       call.status || 'N/A',
       call.action_triggered || 'None',
-      `$${call.cost.toFixed(2)}`,
+      call.display_cost === 'INCLUDED' ? 'INCLUDED' : `$${call.cost.toFixed(2)}`,
     ]);
 
     const csv = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
@@ -601,8 +601,16 @@ export function CallsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                       {formatDuration(call.duration_seconds)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-gray-100">
-                      ${call.cost.toFixed(2)}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {call.display_cost === 'INCLUDED' ? (
+                        <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
+                          INCLUDED
+                        </span>
+                      ) : (
+                        <span className="font-mono text-gray-900 dark:text-gray-100">
+                          ${call.cost.toFixed(2)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">

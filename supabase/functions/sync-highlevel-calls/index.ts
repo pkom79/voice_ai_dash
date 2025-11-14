@@ -13,6 +13,38 @@ interface SyncCallsRequest {
   endDate?: string;
 }
 
+// Calculate cost based on duration, direction, and billing plan
+function calculateCallCost(
+  durationSeconds: number,
+  direction: string,
+  billingAccount: any
+): { cost: number; displayCost: string | null } {
+  // No billing account means no cost
+  if (!billingAccount) {
+    return { cost: 0, displayCost: null };
+  }
+
+  // Unlimited inbound plan - inbound calls are included
+  if (direction === 'inbound' && billingAccount.inbound_plan === 'unlimited') {
+    return { cost: 0, displayCost: 'INCLUDED' };
+  }
+
+  // Calculate cost based on direction and rate
+  const durationMinutes = durationSeconds / 60;
+  let rateCents = 0;
+
+  if (direction === 'inbound' && billingAccount.inbound_rate_cents) {
+    rateCents = billingAccount.inbound_rate_cents;
+  } else if (direction === 'outbound' && billingAccount.outbound_rate_cents) {
+    rateCents = billingAccount.outbound_rate_cents;
+  }
+
+  // Cost = (duration in minutes) * (rate in cents) / 100 (convert to dollars)
+  const cost = (durationMinutes * rateCents) / 100;
+
+  return { cost: parseFloat(cost.toFixed(2)), displayCost: null };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -67,6 +99,19 @@ Deno.serve(async (req: Request) => {
 
     let accessToken = oauthData.access_token;
 
+    // Get user's billing account information for cost calculation
+    const { data: billingAccount, error: billingError } = await supabase
+      .from("billing_accounts")
+      .select("inbound_rate_cents, outbound_rate_cents, inbound_plan, calls_reset_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (billingError) {
+      console.error("Billing account error:", billingError);
+    }
+
+    console.log("User billing account:", billingAccount);
+
     // Check if token is expired
     if (new Date(oauthData.token_expires_at) <= new Date()) {
       console.log("Token expired, refreshing...");
@@ -105,7 +150,19 @@ Deno.serve(async (req: Request) => {
     if (oauthData.location_id) {
       params.append("locationId", oauthData.location_id);
     }
-    if (startDate) params.append("startDate", startDate);
+
+    // Apply startDate filter based on calls_reset_at or provided startDate
+    let effectiveStartDate = startDate;
+    if (billingAccount?.calls_reset_at) {
+      const resetDate = new Date(billingAccount.calls_reset_at).toISOString();
+      // Use the most recent date between reset date and provided startDate
+      if (!startDate || new Date(resetDate) > new Date(startDate)) {
+        effectiveStartDate = resetDate;
+        console.log(`Using calls_reset_at as startDate filter: ${resetDate}`);
+      }
+    }
+
+    if (effectiveStartDate) params.append("startDate", effectiveStartDate);
     if (endDate) params.append("endDate", endDate);
 
     // Fetch Voice AI call logs from HighLevel (requires voice-ai-dashboard.readonly scope)
@@ -167,6 +224,7 @@ Deno.serve(async (req: Request) => {
     let errorCount = 0;
     let skippedCount = 0;
     const errors: any[] = [];
+    let totalCostAdded = 0; // Track total cost for billing update
 
     if (callsData.callLogs && Array.isArray(callsData.callLogs)) {
       console.log(`Processing ${callsData.callLogs.length} calls...`);
@@ -275,6 +333,12 @@ Deno.serve(async (req: Request) => {
             console.log(`Call ${call.id} missing messageId - recording may not be available`);
           }
 
+          // Calculate cost based on duration, direction, and billing plan
+          const durationSeconds = call.duration || call.durationInSeconds || 0;
+          const { cost, displayCost } = calculateCallCost(durationSeconds, direction, billingAccount);
+
+          console.log(`Call ${call.id}: duration=${durationSeconds}s, direction=${direction}, cost=$${cost}, display=${displayCost}`);
+
           // Map HighLevel call data to our schema
           const callRecord = {
             highlevel_call_id: call.id,
@@ -285,8 +349,9 @@ Deno.serve(async (req: Request) => {
             from_number: call.fromNumber || call.from || '',
             to_number: call.toNumber || call.to || '',
             status: call.status,
-            duration_seconds: call.duration || call.durationInSeconds,
-            cost: call.cost,
+            duration_seconds: durationSeconds,
+            cost: cost,
+            display_cost: displayCost,
             action_triggered: call.actionTriggered,
             sentiment: call.sentiment,
             summary: call.summary,
@@ -307,12 +372,14 @@ Deno.serve(async (req: Request) => {
           console.log(`Attempting to upsert call ${call.id}:`, JSON.stringify(callRecord, null, 2));
 
           // Upsert call (insert or update if exists)
-          const { error: upsertError } = await supabase
+          const { data: upsertedCall, error: upsertError } = await supabase
             .from('calls')
             .upsert(callRecord, {
               onConflict: 'highlevel_call_id',
               ignoreDuplicates: false,
-            });
+            })
+            .select('id')
+            .single();
 
           if (upsertError) {
             console.error('Error upserting call:', call.id, upsertError);
@@ -321,6 +388,33 @@ Deno.serve(async (req: Request) => {
           } else {
             console.log(`Successfully saved call ${call.id}`);
             savedCount++;
+
+            // Create usage log entry for paid calls (not INCLUDED)
+            if (cost > 0 && displayCost !== 'INCLUDED' && upsertedCall) {
+              const costCents = Math.round(cost * 100);
+              const { error: usageLogError } = await supabase
+                .from('usage_logs')
+                .upsert(
+                  {
+                    user_id: userId,
+                    call_id: upsertedCall.id,
+                    cost_cents: costCents,
+                    usage_type: direction,
+                    created_at: call.createdAt || new Date().toISOString(),
+                  },
+                  {
+                    onConflict: 'call_id',
+                    ignoreDuplicates: false,
+                  }
+                );
+
+              if (usageLogError) {
+                console.error(`Error creating usage log for call ${call.id}:`, usageLogError);
+              } else {
+                totalCostAdded += costCents;
+                console.log(`Created usage log entry: $${cost} (${costCents} cents)`);
+              }
+            }
           }
         } catch (callError) {
           console.error('Error processing call:', call.id, callError);
@@ -333,6 +427,23 @@ Deno.serve(async (req: Request) => {
     console.log(`Sync complete: ${savedCount} calls saved, ${skippedCount} skipped (unassigned agents), ${errorCount} errors`);
     if (errors.length > 0) {
       console.error('Errors encountered:', JSON.stringify(errors, null, 2));
+    }
+
+    // Update billing account's month_spent_cents with total cost from this sync
+    if (totalCostAdded > 0 && billingAccount) {
+      console.log(`Updating billing account: adding ${totalCostAdded} cents to month_spent_cents`);
+      const { error: billingUpdateError } = await supabase
+        .from('billing_accounts')
+        .update({
+          month_spent_cents: (billingAccount.month_spent_cents || 0) + totalCostAdded,
+        })
+        .eq('user_id', userId);
+
+      if (billingUpdateError) {
+        console.error('Error updating billing account:', billingUpdateError);
+      } else {
+        console.log(`Successfully updated month_spent_cents`);
+      }
     }
 
     // Return the sync results to the client
