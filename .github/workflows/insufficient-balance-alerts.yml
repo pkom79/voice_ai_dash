@@ -1,0 +1,106 @@
+name: Insufficient Balance Alerts
+
+# Runs daily at 6:00 AM UTC (1:00 AM EST / 2:00 AM EDT)
+# Checks if wallet balance is insufficient to cover monthly charges (triggers on 1st of month)
+
+on:
+  schedule:
+    # Daily at 6:00 AM UTC (1:00 AM EST)
+    - cron: '0 6 * * *'
+
+  # Allow manual trigger from GitHub Actions UI for testing
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Dry run mode (test without actually sending emails)'
+        required: false
+        default: 'false'
+      forceCheck:
+        description: 'Force check even if not 1st of month'
+        required: false
+        default: 'false'
+
+jobs:
+  check-insufficient-balance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Insufficient Balance Alerts
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "Starting insufficient balance alert check..."
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "EST Time: $(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S %Z")"
+
+          DRY_RUN="${{ github.event.inputs.dryRun || 'false' }}"
+          FORCE_CHECK="${{ github.event.inputs.forceCheck || 'false' }}"
+
+          echo "Configuration:"
+          echo "  Dry run: $DRY_RUN"
+          echo "  Force check: $FORCE_CHECK"
+          echo ""
+
+          RESPONSE=$(curl -X POST "$SUPABASE_URL/functions/v1/check-insufficient-balance-alerts" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -d "{\"dryRun\": $DRY_RUN, \"forceCheck\": $FORCE_CHECK, \"scheduledBy\": \"github_actions\"}" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            -s)
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS/d')
+
+          echo "Response from edge function:"
+          echo "$BODY" | jq '.' || echo "$BODY"
+          echo ""
+
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            USERS_CHECKED=$(echo "$BODY" | jq -r '.usersChecked // 0')
+            ALERTS_SENT=$(echo "$BODY" | jq -r '.alertsSent // 0')
+            SKIPPED=$(echo "$BODY" | jq -r '.skipped // false')
+
+            echo "✅ Insufficient balance alert check completed successfully"
+            echo "   Users checked: $USERS_CHECKED"
+            echo "   Alerts sent: $ALERTS_SENT"
+
+            if [ "$SKIPPED" = "true" ]; then
+              echo "ℹ️  Check skipped - not the 1st of the month"
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "ℹ️  This was a dry run - no emails were actually sent"
+            fi
+          else
+            echo "❌ Insufficient balance alert check failed with HTTP status: $HTTP_STATUS"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+      - name: Create job summary
+        if: always()
+        run: |
+          echo "# ⚠️ Insufficient Balance Alert Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time (UTC):** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time (EST):** $(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S %Z")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ **Status:** Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See logs above for detailed results." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Insufficient balance alert check failed!"
+          echo "Please check the logs above for details."
