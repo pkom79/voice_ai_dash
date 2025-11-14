@@ -260,6 +260,27 @@ class AdminService {
     }
   }
 
+  async deleteUser(userId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      await supabase.rpc('log_admin_action', {
+        p_action: 'delete_user',
+        p_target_user_id: userId,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      return false;
+    }
+  }
+
   async bulkAssignAgents(
     userIds: string[],
     agentIds: string[]

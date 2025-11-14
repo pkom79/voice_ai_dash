@@ -113,7 +113,7 @@ export function AdminCallsAnalytics() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [callsResult, usersResult, agentsResult, phoneNumbersResult, userAgentsResult, agentPhonesResult] = await Promise.all([
+      const [callsResult, usersResult, userAgentsResult, agentPhonesResult, phoneNumbersResult] = await Promise.all([
         supabase
           .from('calls')
           .select(`
@@ -123,16 +123,27 @@ export function AdminCallsAnalytics() {
           .eq('is_test_call', false)
           .order('call_started_at', { ascending: false }),
         supabase.from('users').select('id, first_name, last_name').eq('role', 'client'),
-        supabase.from('agents').select('id, name').eq('is_active', true),
-        supabase.from('phone_numbers').select('id, phone_number').eq('is_active', true),
         supabase.from('user_agents').select('user_id, agent_id'),
         supabase.from('agent_phone_numbers').select('agent_id, phone_number_id'),
+        supabase.from('phone_numbers').select('id, phone_number').eq('is_active', true),
       ]);
 
       if (callsResult.data) setCalls(callsResult.data);
       if (usersResult.data) setUsers(usersResult.data);
-      if (agentsResult.data) setAllAgents(agentsResult.data);
       if (phoneNumbersResult.data) setAllPhoneNumbers(phoneNumbersResult.data);
+
+      // Get only agents that are assigned to at least one user
+      if (userAgentsResult.data) {
+        const assignedAgentIds = [...new Set(userAgentsResult.data.map(ua => ua.agent_id))];
+
+        const { data: agentsData } = await supabase
+          .from('agents')
+          .select('id, name')
+          .in('id', assignedAgentIds)
+          .eq('is_active', true);
+
+        if (agentsData) setAllAgents(agentsData);
+      }
 
       if (userAgentsResult.data) {
         const map: Record<string, string[]> = {};

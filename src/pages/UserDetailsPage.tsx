@@ -1698,7 +1698,12 @@ export function UserDetailsPage() {
                   <div>
                     <p className="text-sm text-gray-600">Total Duration</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {Math.floor(calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.duration_seconds, 0) / 60)}m
+                      {(() => {
+                        const totalSecs = calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.duration_seconds, 0);
+                        const mins = Math.floor(totalSecs / 60);
+                        const secs = totalSecs % 60;
+                        return `${mins}m ${secs}s`;
+                      })()}
                     </p>
                   </div>
                   <Clock className="h-8 w-8 text-green-600" />
@@ -1720,9 +1725,14 @@ export function UserDetailsPage() {
                   <div>
                     <p className="text-sm text-gray-600">Avg Duration</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {calls.filter(c => c.direction === direction).length > 0
-                        ? Math.floor(calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.duration_seconds, 0) / calls.filter(c => c.direction === direction).length / 60)
-                        : 0}m
+                      {(() => {
+                        const filtered = calls.filter(c => c.direction === direction);
+                        if (filtered.length === 0) return '0m 0s';
+                        const avgSecs = Math.floor(filtered.reduce((sum, c) => sum + c.duration_seconds, 0) / filtered.length);
+                        const mins = Math.floor(avgSecs / 60);
+                        const secs = avgSecs % 60;
+                        return `${mins}m ${secs}s`;
+                      })()}
                     </p>
                   </div>
                   <TrendingUp className="h-8 w-8 text-orange-600" />
