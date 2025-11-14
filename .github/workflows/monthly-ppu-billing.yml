@@ -1,0 +1,112 @@
+name: Monthly PPU Billing Processing
+
+# Runs on the 1st of every month at 5:00 AM UTC (Midnight EST / 1:00 AM EDT)
+# EST is UTC-5, so 5:00 AM UTC = Midnight EST
+# During EDT (daylight saving), this is 1:00 AM EDT
+
+on:
+  schedule:
+    # Monthly on the 1st at 5:00 AM UTC (Midnight EST)
+    - cron: '0 5 1 * *'
+
+  # Allow manual trigger from GitHub Actions UI for testing
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Dry run mode (test without actually processing payments)'
+        required: false
+        default: 'false'
+      testMode:
+        description: 'Test mode (process only specific test users if implemented)'
+        required: false
+        default: 'false'
+
+jobs:
+  process-monthly-billing:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Process Monthly PPU Billing
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "Starting monthly PPU billing processing..."
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "EST Time: $(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S %Z")"
+
+          DRY_RUN="${{ github.event.inputs.dryRun || 'false' }}"
+          TEST_MODE="${{ github.event.inputs.testMode || 'false' }}"
+
+          echo "Configuration:"
+          echo "  Dry run: $DRY_RUN"
+          echo "  Test mode: $TEST_MODE"
+          echo ""
+
+          RESPONSE=$(curl -X POST "$SUPABASE_URL/functions/v1/process-monthly-ppu-billing" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -d "{\"dryRun\": $DRY_RUN, \"testMode\": $TEST_MODE, \"scheduledBy\": \"github_actions\"}" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            -s)
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS/d')
+
+          echo "Response from edge function:"
+          echo "$BODY" | jq '.' || echo "$BODY"
+          echo ""
+
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            USERS_PROCESSED=$(echo "$BODY" | jq -r '.usersProcessed // 0')
+            INVOICES_CREATED=$(echo "$BODY" | jq -r '.invoicesCreated // 0')
+            TOTAL_CHARGED=$(echo "$BODY" | jq -r '.totalChargedCents // 0')
+            FAILURES=$(echo "$BODY" | jq -r '.failures // 0')
+
+            echo "✅ Monthly PPU billing processing completed successfully"
+            echo "   Users processed: $USERS_PROCESSED"
+            echo "   Invoices created: $INVOICES_CREATED"
+            echo "   Total charged: \$$(echo "scale=2; $TOTAL_CHARGED / 100" | bc)"
+            echo "   Failures: $FAILURES"
+
+            if [ "$FAILURES" -gt 0 ]; then
+              echo "⚠️  Warning: $FAILURES billing operation(s) failed"
+              echo "   Admin notification has been sent via email"
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "ℹ️  This was a dry run - no payments were actually processed"
+            fi
+          else
+            echo "❌ Monthly PPU billing processing failed with HTTP status: $HTTP_STATUS"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+      - name: Create job summary
+        if: always()
+        run: |
+          echo "# 💳 Monthly PPU Billing Processing" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time (UTC):** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time (EST):** $(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S %Z")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ **Status:** Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See logs above for detailed billing results." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Monthly PPU billing processing failed!"
+          echo "Please check the logs above for details."
+          echo "You may need to manually process billing or investigate the issue."
