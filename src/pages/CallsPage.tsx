@@ -182,9 +182,9 @@ export function CallsPage() {
         if (error) throw error;
 
         // Transform the joined data to match the expected format
-        // Filter out any null agents and agents with generic names
+        // Filter out any null agents
         agents = (data || [])
-          .filter((item: any) => item.agents && !item.agents.name.startsWith('Agent '))
+          .filter((item: any) => item.agents)
           .map((item: any) => ({
             id: item.agents.id,
             name: item.agents.name

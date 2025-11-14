@@ -230,7 +230,7 @@ export function Dashboard() {
         if (error) throw error;
 
         agents = (data || [])
-          .filter((item: any) => item.agents && !item.agents.name.startsWith('Agent '))
+          .filter((item: any) => item.agents)
           .map((item: any) => ({
             id: item.agents.id,
             name: item.agents.name
