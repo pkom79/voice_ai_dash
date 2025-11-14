@@ -139,7 +139,7 @@ Deno.serve(async (req: Request) => {
 
     let updatedCount = 0;
     let errorCount = 0;
-    let totalCostDelta = 0; // Track change in total cost (in cents)
+    let totalNewCostCents = 0; // Track total cost after recalculation (in cents)
     const errors: any[] = [];
 
     // Delete existing usage_logs for these calls to regenerate them
@@ -186,10 +186,11 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Calculate cost delta
-        const oldCostCents = Math.round((call.cost || 0) * 100);
+        // Add to total cost (exclude INCLUDED calls)
         const newCostCents = Math.round(cost * 100);
-        totalCostDelta += (newCostCents - oldCostCents);
+        if (displayCost !== 'INCLUDED') {
+          totalNewCostCents += newCostCents;
+        }
 
         // Create new usage log entry if there's a cost
         if (cost > 0 && displayCost !== 'INCLUDED') {
@@ -219,21 +220,19 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Update billing account's month_spent_cents
-    if (totalCostDelta !== 0) {
-      console.log(`Updating billing account: adjusting by ${totalCostDelta} cents`);
-      const { error: billingUpdateError } = await supabase
-        .from("billing_accounts")
-        .update({
-          month_spent_cents: (billingAccount.month_spent_cents || 0) + totalCostDelta,
-        })
-        .eq("user_id", userId);
+    // Update billing account's month_spent_cents with the absolute total
+    console.log(`Updating billing account: setting month_spent_cents to ${totalNewCostCents} cents`);
+    const { error: billingUpdateError } = await supabase
+      .from("billing_accounts")
+      .update({
+        month_spent_cents: totalNewCostCents,
+      })
+      .eq("user_id", userId);
 
-      if (billingUpdateError) {
-        console.error("Error updating billing account:", billingUpdateError);
-      } else {
-        console.log("Successfully updated month_spent_cents");
-      }
+    if (billingUpdateError) {
+      console.error("Error updating billing account:", billingUpdateError);
+    } else {
+      console.log("Successfully updated month_spent_cents");
     }
 
     console.log(
@@ -246,7 +245,8 @@ Deno.serve(async (req: Request) => {
         updatedCount,
         errorCount,
         totalCalls: calls?.length || 0,
-        costDelta: (totalCostDelta / 100).toFixed(2),
+        totalCostDollars: (totalNewCostCents / 100).toFixed(2),
+        totalCostCents: totalNewCostCents,
         errors: errors.length > 0 ? errors : undefined,
       }),
       {

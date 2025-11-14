@@ -831,7 +831,7 @@ export function UserDetailsPage() {
       if (error) throw error;
 
       showSuccess(
-        `Successfully recalculated costs for ${data.updatedCount} calls. Cost adjustment: $${data.costDelta}`
+        `Successfully recalculated costs for ${data.updatedCount} calls. Total usage cost: $${data.totalCostDollars}`
       );
       await loadCalls();
       await loadUser(); // Reload user to get updated billing info
@@ -1911,6 +1911,7 @@ export function UserDetailsPage() {
                   onClick={() => setShowResetConfirmModal(true)}
                   disabled={resettingCalls}
                   className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                  title="Permanently deletes all calls, usage logs, and resets billing. Sets a timestamp to prevent re-syncing old data. Use this to remove test calls or start fresh."
                 >
                   {resettingCalls ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1923,6 +1924,7 @@ export function UserDetailsPage() {
                   onClick={handleSyncBillingBalance}
                   disabled={syncingBilling}
                   className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                  title="Adds up all existing call costs and updates the billing balance total. Use this when call costs look correct but the billing balance is wrong. Fast and simple - doesn't recalculate individual call costs."
                 >
                   {syncingBilling ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1935,6 +1937,7 @@ export function UserDetailsPage() {
                   onClick={handleRecalculateCosts}
                   disabled={recalculatingCosts}
                   className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                  title="Recalculates the cost of every call from scratch using current billing rates. Regenerates usage logs and updates billing balance. Use this after changing billing plans, rates, or when individual call costs are wrong. Takes longer than Sync Balance."
                 >
                   {recalculatingCosts ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1947,6 +1950,7 @@ export function UserDetailsPage() {
                   onClick={() => setShowResyncModal(true)}
                   disabled={syncingCalls}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  title="Fetches calls from HighLevel API and updates your database. Calculates costs for new calls automatically. You can specify a date range to sync specific calls. Use this to pull in the latest calls or re-sync historical data."
                 >
                   {syncingCalls ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
