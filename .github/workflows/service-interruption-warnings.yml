@@ -1,0 +1,95 @@
+name: Service Interruption Warnings
+
+# Runs daily at 7:00 AM UTC (2:00 AM EST / 3:00 AM EDT)
+# Checks for accounts at risk of service interruption due to payment issues
+
+on:
+  schedule:
+    # Daily at 7:00 AM UTC (2:00 AM EST)
+    - cron: '0 7 * * *'
+
+  # Allow manual trigger from GitHub Actions UI for testing
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Dry run mode (test without actually sending emails)'
+        required: false
+        default: 'false'
+
+jobs:
+  check-service-interruption:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Service Interruption Warnings
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "Starting service interruption warning check..."
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "EST Time: $(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S %Z")"
+
+          DRY_RUN="${{ github.event.inputs.dryRun || 'false' }}"
+
+          echo "Configuration:"
+          echo "  Dry run: $DRY_RUN"
+          echo ""
+
+          RESPONSE=$(curl -X POST "$SUPABASE_URL/functions/v1/check-service-interruption-warnings" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -d "{\"dryRun\": $DRY_RUN, \"scheduledBy\": \"github_actions\"}" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            -s)
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS/d')
+
+          echo "Response from edge function:"
+          echo "$BODY" | jq '.' || echo "$BODY"
+          echo ""
+
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            USERS_CHECKED=$(echo "$BODY" | jq -r '.usersChecked // 0')
+            WARNINGS_SENT=$(echo "$BODY" | jq -r '.warningsSent // 0')
+
+            echo "✅ Service interruption warning check completed successfully"
+            echo "   Users checked: $USERS_CHECKED"
+            echo "   Warnings sent: $WARNINGS_SENT"
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "ℹ️  This was a dry run - no emails were actually sent"
+            fi
+          else
+            echo "❌ Service interruption warning check failed with HTTP status: $HTTP_STATUS"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+      - name: Create job summary
+        if: always()
+        run: |
+          echo "# 🚨 Service Interruption Warning Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time (UTC):** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time (EST):** $(TZ=America/New_York date +"%Y-%m-%d %H:%M:%S %Z")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ **Status:** Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See logs above for detailed results." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Service interruption warning check failed!"
+          echo "Please check the logs above for details."
