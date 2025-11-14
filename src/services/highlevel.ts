@@ -272,10 +272,11 @@ class HighLevelService {
         .select('location_id')
         .eq('user_id', userId)
         .eq('service', 'highlevel')
+        .eq('is_active', true)
         .maybeSingle();
 
       if (!connection?.location_id) {
-        throw new Error('No location ID found for user');
+        throw new Error('No active location ID found for user');
       }
 
       console.log('Fetching agents for location:', connection.location_id);
@@ -543,10 +544,11 @@ class HighLevelService {
         .select('location_id')
         .eq('user_id', userId)
         .eq('service', 'highlevel')
+        .eq('is_active', true)
         .maybeSingle();
 
       if (!connection?.location_id) {
-        console.log('No location ID found for user, skipping phone sync');
+        console.log('No active location ID found for user, skipping phone sync');
         return { success: true, count: 0 };
       }
 

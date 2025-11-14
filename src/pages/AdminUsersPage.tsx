@@ -43,6 +43,7 @@ interface User {
 
 interface UserWithStatus extends User {
   hasConnection?: boolean;
+  hasExpiredToken?: boolean;
   hasAgents?: boolean;
   agentCount?: number;
   hasPhoneNumbers?: boolean;
@@ -133,6 +134,7 @@ export function AdminUsersPage() {
       const statusPromises = users.map(async (user) => {
         try {
           const connection = await oauthService.getUserConnection(user.id);
+          const connectionWithExpired = await oauthService.getConnectionWithExpiredCheck(user.id);
           const agents = await highLevelService.getUserAgents(user.id);
 
           const { count: phoneCount } = await supabase
@@ -155,9 +157,13 @@ export function AdminUsersPage() {
             }
           }
 
+          const hasActiveConnection = !!connection && !connection.isExpired;
+          const hasExpiredToken = !!connectionWithExpired && !connectionWithExpired.is_active && connectionWithExpired.isExpired;
+
           return {
             ...user,
-            hasConnection: !!connection,
+            hasConnection: hasActiveConnection,
+            hasExpiredToken,
             hasAgents: agents.length > 0,
             agentCount: agents.length,
             hasPhoneNumbers: (phoneCount || 0) > 0,
@@ -172,6 +178,7 @@ export function AdminUsersPage() {
           return {
             ...user,
             hasConnection: false,
+            hasExpiredToken: false,
             hasAgents: false,
             agentCount: 0,
             hasPhoneNumbers: false,
@@ -183,7 +190,7 @@ export function AdminUsersPage() {
       setUsersWithStatus(usersWithStatusData);
     } catch (error) {
       console.error('Error loading user statuses:', error);
-      setUsersWithStatus(users.map(user => ({ ...user, hasConnection: false, hasAgents: false, hasPhoneNumbers: false })));
+      setUsersWithStatus(users.map(user => ({ ...user, hasConnection: false, hasExpiredToken: false, hasAgents: false, hasPhoneNumbers: false })));
     }
   };
 
@@ -485,6 +492,11 @@ export function AdminUsersPage() {
                         {user.hasConnection && (
                           <span className="px-2 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700 rounded uppercase">
                             HL CONNECTED
+                          </span>
+                        )}
+                        {user.hasExpiredToken && (
+                          <span className="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-700 rounded uppercase">
+                            TOKEN EXPIRED
                           </span>
                         )}
                         {user.hasAgents && (

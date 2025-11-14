@@ -64,6 +64,7 @@ export function UserDetailsPage() {
   const [addingEmail, setAddingEmail] = useState(false);
   const [sendingTestEmail, setSendingTestEmail] = useState<string | null>(null);
   const [apiConnection, setApiConnection] = useState<any>(null);
+  const [expiredConnection, setExpiredConnection] = useState<any>(null);
   const [assignedAgents, setAssignedAgents] = useState<any[]>([]);
   const [loadingApiData, setLoadingApiData] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -189,16 +190,17 @@ export function UserDetailsPage() {
 
     setLoadingApiData(true);
     try {
-      // Load HighLevel API connection
-      const { data: apiKey } = await supabase
-        .from('api_keys')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('service', 'highlevel')
-        .eq('is_active', true)
-        .maybeSingle();
+      // Load active HighLevel API connection
+      const activeConnection = await oauthService.getUserConnection(userId);
+      setApiConnection(activeConnection);
 
-      setApiConnection(apiKey);
+      // Check for expired connection
+      const connectionWithExpired = await oauthService.getConnectionWithExpiredCheck(userId);
+      if (connectionWithExpired && !connectionWithExpired.is_active && connectionWithExpired.isExpired) {
+        setExpiredConnection(connectionWithExpired);
+      } else {
+        setExpiredConnection(null);
+      }
 
       // Load assigned agents (independent of API connection)
       const { data: userAgents, error: agentsError } = await supabase
@@ -1371,6 +1373,29 @@ export function UserDetailsPage() {
               <div className="bg-white rounded-lg shadow p-12 text-center">
                 <Loader2 className="h-8 w-8 text-blue-600 mx-auto mb-4 animate-spin" />
                 <p className="text-gray-600">Loading API connections...</p>
+              </div>
+            ) : !apiConnection && expiredConnection ? (
+              <div className="bg-white rounded-lg shadow p-12">
+                <div className="max-w-md mx-auto text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full mb-4">
+                    <AlertTriangle className="h-8 w-8 text-amber-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Token Expired</h3>
+                  <p className="text-gray-600 mb-2">The HighLevel connection token has expired</p>
+                  <p className="text-sm text-gray-500 mb-6">
+                    Expired on: {format(new Date(expiredConnection.token_expires_at), 'MMM d, yyyy h:mm a')}
+                  </p>
+                  <button
+                    onClick={handleConnectHighLevel}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    <RefreshCw className="h-5 w-5" />
+                    Reconnect HighLevel
+                  </button>
+                  <p className="text-xs text-gray-500 mt-4">
+                    Click to reconnect and restore access to HighLevel data
+                  </p>
+                </div>
               </div>
             ) : !apiConnection ? (
               <div className="bg-white rounded-lg shadow p-12">

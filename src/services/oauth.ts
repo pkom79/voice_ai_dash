@@ -227,6 +227,9 @@ class OAuthService {
       if (!response.ok) {
         const errorData = await response.text();
         console.error('Token refresh failed:', errorData);
+
+        // Mark connection as inactive on permanent refresh failure
+        await this.markConnectionExpired(userId);
         return false;
       }
 
@@ -327,6 +330,7 @@ class OAuthService {
       .select('id, location_id, location_name, company_id, token_expires_at, is_active, created_at, last_used_at')
       .eq('user_id', userId)
       .eq('service', 'highlevel')
+      .eq('is_active', true)
       .maybeSingle();
 
     if (error) {
@@ -334,8 +338,17 @@ class OAuthService {
       return null;
     }
 
+    if (!data) {
+      return null;
+    }
+
+    // Check if token is expired
+    const now = new Date();
+    const expiresAt = new Date(data.token_expires_at);
+    const isExpired = expiresAt < now;
+
     // If we have a location_id but no location_name, try to fetch it
-    if (data && data.location_id && !data.location_name) {
+    if (data.location_id && !data.location_name && !isExpired) {
       console.log('Location name missing, attempting to fetch...');
       const token = await this.getValidAccessToken(userId);
       if (token) {
@@ -346,12 +359,54 @@ class OAuthService {
           .select('id, location_id, location_name, company_id, token_expires_at, is_active, created_at, last_used_at')
           .eq('user_id', userId)
           .eq('service', 'highlevel')
+          .eq('is_active', true)
           .maybeSingle();
-        return updatedData;
+        return updatedData ? { ...updatedData, isExpired: false } : null;
       }
     }
 
-    return data;
+    return { ...data, isExpired };
+  }
+
+  async getConnectionWithExpiredCheck(userId: string): Promise<any> {
+    const { data, error } = await supabase
+      .from('api_keys')
+      .select('id, location_id, location_name, company_id, token_expires_at, is_active, created_at, last_used_at')
+      .eq('user_id', userId)
+      .eq('service', 'highlevel')
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(data.token_expires_at);
+    const isExpired = expiresAt < now;
+
+    return { ...data, isExpired };
+  }
+
+  private async markConnectionExpired(userId: string): Promise<void> {
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('api_keys')
+        .update({
+          is_active: false,
+          expired_at: now
+        })
+        .eq('user_id', userId)
+        .eq('service', 'highlevel');
+
+      if (error) {
+        console.error('Failed to mark connection as expired:', error);
+      } else {
+        console.log('Connection marked as expired for user:', userId);
+      }
+    } catch (error) {
+      console.error('Error marking connection as expired:', error);
+    }
   }
 
   private async fetchAndStoreLocationName(userId: string, locationId: string, accessToken: string): Promise<void> {

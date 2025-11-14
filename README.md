@@ -70,15 +70,22 @@ A comprehensive Voice AI Dashboard for managing HighLevel voice agents, call log
 
 #### HL Connected Badge
 ```tsx
-<span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-  HL Connected
+<span className="px-2 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700 rounded uppercase">
+  HL CONNECTED
+</span>
+```
+
+#### Token Expired Badge
+```tsx
+<span className="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-700 rounded uppercase">
+  TOKEN EXPIRED
 </span>
 ```
 
 #### Agent Badge
 ```tsx
-<span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
-  Agent
+<span className="px-2 py-0.5 text-xs font-bold bg-indigo-100 text-indigo-700 rounded uppercase">
+  AGENT
 </span>
 ```
 
@@ -393,15 +400,95 @@ This policy is **non-negotiable** and must be enforced in:
 - `access_token` - Current access token
 - `refresh_token` - Used to obtain new access tokens
 - `token_expires_at` - Timestamp for expiration
+- `expired_at` - Timestamp when connection was marked as expired (nullable)
 - `location_id` - HighLevel location ID
 - `company_id` - HighLevel company ID
 - `location_name` - Friendly location name (fetched separately)
+- `is_active` - Boolean flag indicating if connection is active
 
-**Token Refresh Logic** (`oauth.ts:167-223`):
+**Token Refresh Logic** (`oauth.ts:197-253`):
 - Automatically refreshes when token expires or within 5 minutes of expiration
 - Preserves refresh_token if not returned in refresh response
 - Preserves location_id if not in refresh response
 - Called automatically by `getValidAccessToken()` method
+- On permanent refresh failure, marks connection as inactive and sets `expired_at`
+
+### Connection States
+
+The system tracks three distinct connection states:
+
+#### 1. Active Connection
+- `is_active = true`
+- Token not expired (`token_expires_at > now()`)
+- Badge: **HL CONNECTED** (emerald green)
+- User can sync calls and access HighLevel data
+
+#### 2. Expired Token
+- `is_active = false`
+- Token expired and refresh failed
+- `expired_at` timestamp recorded
+- Badge: **TOKEN EXPIRED** (amber/orange)
+- User needs to reconnect via OAuth flow
+- Admin receives email notification
+
+#### 3. No Connection
+- No record in `api_keys` table
+- No badge displayed
+- User has never connected or connection was deleted
+
+### Connection Status Detection
+
+**Methods**:
+- `getUserConnection(userId)` - Returns active connections only (filters by `is_active = true`)
+- `getConnectionWithExpiredCheck(userId)` - Returns any connection with `isExpired` flag
+
+**Usage**:
+```typescript
+// Check for active connection
+const connection = await oauthService.getUserConnection(userId);
+if (connection && !connection.isExpired) {
+  // User has valid active connection
+}
+
+// Check for expired connection
+const expiredConn = await oauthService.getConnectionWithExpiredCheck(userId);
+if (expiredConn && !expiredConn.is_active && expiredConn.isExpired) {
+  // Show "Token Expired" UI
+}
+```
+
+**Important**: All queries to `api_keys` MUST filter by `is_active = true` unless explicitly checking for expired connections.
+
+### Token Expiration Handling
+
+#### Automatic Expiration Detection
+When `refreshAccessToken()` fails permanently:
+1. Connection is marked `is_active = false`
+2. `expired_at` timestamp is set
+3. Connection record preserved for audit trail
+4. User appears in admin expiration reports
+
+#### Admin Notifications
+**Edge Function**: `check-expired-tokens`
+- Runs daily via cron/scheduled task
+- Finds all connections with expired tokens
+- Sends consolidated email to admins
+- Records notification in `admin_notifications` table
+- Prevents duplicate notifications (24-hour window)
+
+**Email Content**:
+- List of users with expired tokens
+- Business name and location
+- Expiration date
+- Direct action: "Reconnect users in admin panel"
+
+#### Reconnection Process
+1. Admin navigates to user detail page
+2. Sees "Token Expired" status in API tab
+3. Clicks "Reconnect HighLevel" button
+4. OAuth flow initiates
+5. New tokens replace expired connection
+6. Connection marked `is_active = true` again
 
 ### Redirect URI Handling
 
