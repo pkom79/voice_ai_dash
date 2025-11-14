@@ -26,10 +26,18 @@ export function Dashboard() {
     outboundCalls: 0,
     totalDuration: 0,
     avgDuration: 0,
-    actionsTriggered: 0,
+    totalCost: 0,
   });
   const [direction, setDirection] = useState<'all' | 'inbound' | 'outbound'>('inbound');
-  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
+  // Default to Month to Date
+  const getMonthStart = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  };
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: getMonthStart(),
+    end: new Date()
+  });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string>('all');
   const [availableAgents, setAvailableAgents] = useState<Array<{ id: string; name: string }>>([]);
@@ -181,7 +189,10 @@ export function Dashboard() {
         const inbound = filteredCalls.filter((c) => c.direction === 'inbound');
         const outbound = filteredCalls.filter((c) => c.direction === 'outbound');
         const totalDuration = filteredCalls.reduce((sum, c) => sum + (c.duration_seconds || 0), 0);
-        const actionsTriggered = filteredCalls.filter((c) => c.action_triggered).length;
+        // Calculate total cost (exclude INCLUDED calls)
+        const totalCost = filteredCalls
+          .filter((c) => c.display_cost !== 'INCLUDED')
+          .reduce((sum, c) => sum + (c.cost || 0), 0);
 
         setStats({
           totalCalls: filteredCalls.length,
@@ -189,7 +200,7 @@ export function Dashboard() {
           outboundCalls: outbound.length,
           totalDuration,
           avgDuration: filteredCalls.length > 0 ? Math.round(totalDuration / filteredCalls.length) : 0,
-          actionsTriggered,
+          totalCost,
         });
       }
     } catch (error) {
@@ -320,9 +331,9 @@ export function Dashboard() {
       color: 'bg-blue-500',
     },
     {
-      name: 'Actions Triggered',
-      value: stats.actionsTriggered,
-      icon: CheckCircle,
+      name: 'Total Cost',
+      value: `$${stats.totalCost.toFixed(2)}`,
+      icon: DollarSign,
       color: 'bg-green-500',
     },
     {
@@ -467,7 +478,7 @@ export function Dashboard() {
         {statCards.map((stat) => (
           <div key={stat.name} className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-6">
             <div className="flex items-center mb-4">
-              <div className={`${stat.color} p-3 rounded-lg`}>
+              <div className={`${stat.color} p-3 rounded-lg hidden sm:block`}>
                 <stat.icon className="h-6 w-6 text-white" />
               </div>
             </div>
@@ -476,41 +487,6 @@ export function Dashboard() {
           </div>
         ))}
       </div>
-
-      {/* Call Distribution */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Call Distribution</h2>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Inbound</span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">{stats.inboundCalls}</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full"
-                  style={{
-                    width: `${stats.totalCalls > 0 ? (stats.inboundCalls / stats.totalCalls) * 100 : 0}%`,
-                  }}
-                />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Outbound</span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">{stats.outboundCalls}</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-green-600 h-2 rounded-full"
-                  style={{
-                    width: `${stats.totalCalls > 0 ? (stats.outboundCalls / stats.totalCalls) * 100 : 0}%`,
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
 
       {/* Date Range Picker Modal */}
       {showDatePicker && (

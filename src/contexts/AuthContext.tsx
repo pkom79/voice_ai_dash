@@ -97,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           last_sync_at: new Date().toISOString(),
           last_sync_status: 'success',
           last_sync_message: 'Auto-sync on login completed',
+          sync_type: 'auto',
           records_synced: 0,
         },
         { onConflict: 'service,user_id' }

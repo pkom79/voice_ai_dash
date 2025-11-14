@@ -8,7 +8,8 @@ interface SyncContextType {
   isSyncing: boolean;
   lastSyncTime: Date | null;
   lastSyncMessage: string | null;
-  syncData: () => Promise<void>;
+  lastSyncType: 'auto' | 'manual' | null;
+  syncData: (isAuto?: boolean) => Promise<void>;
   getLastSyncDisplay: () => string;
 }
 
@@ -19,6 +20,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [lastSyncMessage, setLastSyncMessage] = useState<string | null>(null);
+  const [lastSyncType, setLastSyncType] = useState<'auto' | 'manual' | null>(null);
 
   useEffect(() => {
     if (profile?.id) {
@@ -42,13 +44,14 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (data?.last_sync_at) {
         setLastSyncTime(new Date(data.last_sync_at));
         setLastSyncMessage(data.last_sync_message);
+        setLastSyncType(data.sync_type || 'manual');
       }
     } catch (error) {
       console.error('Error loading sync status:', error);
     }
   };
 
-  const syncData = async () => {
+  const syncData = async (isAuto: boolean = false) => {
     if (!profile?.id || isSyncing) return;
 
     setIsSyncing(true);
@@ -76,8 +79,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       console.log('Phone number sync result:', phoneNumberResult);
 
       const now = new Date();
+      const syncType = isAuto ? 'auto' : 'manual';
       setLastSyncTime(now);
       setLastSyncMessage('Sync completed successfully');
+      setLastSyncType(syncType);
 
       // Upsert sync status record (auto-detects unique constraint)
       await supabase
@@ -88,6 +93,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           last_sync_at: now.toISOString(),
           last_sync_status: 'success',
           last_sync_message: 'Sync completed successfully',
+          sync_type: syncType,
           records_synced: 0,
         });
 
@@ -99,6 +105,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setLastSyncMessage('Sync failed. Please try again.');
 
       if (profile?.id) {
+        const syncType = isAuto ? 'auto' : 'manual';
+        setLastSyncType(syncType);
         // Upsert sync status record with error info (auto-detects unique constraint)
         await supabase
           .from('sync_status')
@@ -108,6 +116,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
             last_sync_at: new Date().toISOString(),
             last_sync_status: 'failure',
             last_sync_message: error instanceof Error ? error.message : 'Sync failed',
+            sync_type: syncType,
             records_synced: 0,
           });
       }
@@ -128,7 +137,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (!lastSyncTime) return 'Never synced';
 
     try {
-      return `Synced ${formatDistanceToNow(lastSyncTime, { addSuffix: true })}`;
+      const timeAgo = formatDistanceToNow(lastSyncTime, { addSuffix: true });
+      const syncTypeLabel = lastSyncType === 'auto' ? '(Auto)' : '(Manual)';
+      return `Synced ${timeAgo} ${syncTypeLabel}`;
     } catch {
       return 'Never synced';
     }
@@ -140,6 +151,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         isSyncing,
         lastSyncTime,
         lastSyncMessage,
+        lastSyncType,
         syncData,
         getLastSyncDisplay,
       }}
