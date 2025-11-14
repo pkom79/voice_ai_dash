@@ -424,7 +424,17 @@ export function UserDetailsPage() {
 
     setDisconnecting(true);
     try {
-      // Deactivate the API key
+      // Step 1: Unassign all agents for this user
+      const { error: unassignError } = await supabase
+        .from('user_agents')
+        .delete()
+        .eq('user_id', userId);
+
+      if (unassignError) {
+        console.error('Error unassigning agents:', unassignError);
+      }
+
+      // Step 2: Deactivate the API key
       const { error } = await supabase
         .from('api_keys')
         .update({ is_active: false })
