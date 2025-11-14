@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfToday, endOfToday } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import DateRangePicker from '../components/DateRangePicker';
 import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../contexts/AuthContext';
 import { oauthService } from '../services/oauth';
@@ -94,6 +95,13 @@ export function UserDetailsPage() {
   const [resyncStartDate, setResyncStartDate] = useState('');
   const [direction, setDirection] = useState<'inbound' | 'outbound'>('inbound');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
+  const [selectedPhoneNumberId, setSelectedPhoneNumberId] = useState<string>('all');
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<any[]>([]);
+  const [agentPhoneMap, setAgentPhoneMap] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     if (!userId) {
@@ -496,12 +504,16 @@ export function UserDetailsPage() {
       for (const hlAgent of agents) {
         if (!agentMap.has(hlAgent.id)) {
           // Agent doesn't exist in our database, create it
+          // Normalize agent name from different possible fields
+          const agentName = hlAgent.name || hlAgent.agentName || hlAgent.title || `Agent ${hlAgent.id || 'Unknown'}`;
+          const agentDescription = hlAgent.description || hlAgent.desc || hlAgent.purpose || null;
+
           const { data: newAgent, error: insertError } = await supabase
             .from('agents')
             .insert({
               highlevel_agent_id: hlAgent.id,
-              name: hlAgent.name || 'Unnamed Agent',
-              description: hlAgent.description || null,
+              name: agentName,
+              description: agentDescription,
               is_active: true,
             })
             .select('id, highlevel_agent_id, name, description, is_active')
@@ -622,15 +634,53 @@ export function UserDetailsPage() {
     try {
       const { data: userAgents } = await supabase
         .from('user_agents')
-        .select('agent_id')
+        .select('agent_id, agents:agent_id(id, name)')
         .eq('user_id', userId);
 
       if (!userAgents || userAgents.length === 0) {
         setCalls([]);
+        setAssignedAgents([]);
+        setAvailablePhoneNumbers([]);
         return;
       }
 
       const agentIds = userAgents.map(ua => ua.agent_id);
+      const agents = userAgents.map(ua => ua.agents).filter(Boolean);
+      setAssignedAgents(agents as any);
+
+      // Load agent-phone mapping
+      const { data: agentPhones } = await supabase
+        .from('agent_phone_numbers')
+        .select('agent_id, phone_number_id')
+        .in('agent_id', agentIds);
+
+      const phoneMap: Record<string, string[]> = {};
+      const allPhoneIds = new Set<string>();
+
+      if (agentPhones) {
+        agentPhones.forEach((ap) => {
+          if (!phoneMap[ap.agent_id]) {
+            phoneMap[ap.agent_id] = [];
+          }
+          phoneMap[ap.agent_id].push(ap.phone_number_id);
+          allPhoneIds.add(ap.phone_number_id);
+        });
+      }
+
+      setAgentPhoneMap(phoneMap);
+
+      // Load phone numbers
+      if (allPhoneIds.size > 0) {
+        const { data: phoneNumbers } = await supabase
+          .from('phone_numbers')
+          .select('id, phone_number')
+          .in('id', Array.from(allPhoneIds))
+          .eq('is_active', true);
+
+        setAvailablePhoneNumbers(phoneNumbers || []);
+      } else {
+        setAvailablePhoneNumbers([]);
+      }
 
       const { data, error } = await supabase
         .from('calls')
@@ -647,6 +697,59 @@ export function UserDetailsPage() {
     } finally {
       setLoadingCalls(false);
     }
+  };
+
+  const getAvailableAgents = () => {
+    if (selectedAgentId === 'all') {
+      return assignedAgents;
+    }
+    return assignedAgents;
+  };
+
+  const getAvailablePhoneNumbers = () => {
+    if (selectedAgentId === 'all') {
+      return availablePhoneNumbers;
+    }
+    const phoneIds = agentPhoneMap[selectedAgentId] || [];
+    return availablePhoneNumbers.filter(p => phoneIds.includes(p.id));
+  };
+
+  const getFilteredCalls = () => {
+    let filtered = calls.filter(c => c.direction === direction);
+
+    // Agent filter
+    if (selectedAgentId !== 'all') {
+      filtered = filtered.filter(c => c.agent_id === selectedAgentId);
+    }
+
+    // Phone number filter
+    if (selectedPhoneNumberId !== 'all') {
+      filtered = filtered.filter(c => c.phone_number_id === selectedPhoneNumberId);
+    }
+
+    // Date range filter
+    if (startDate) {
+      const startTime = startDate.getTime();
+      filtered = filtered.filter(c => new Date(c.call_started_at).getTime() >= startTime);
+    }
+
+    if (endDate) {
+      const endTime = endDate.getTime();
+      filtered = filtered.filter(c => new Date(c.call_started_at).getTime() <= endTime);
+    }
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(call =>
+        (call.contact_name?.toLowerCase() || '').includes(query) ||
+        call.from_number.includes(query) ||
+        call.to_number.includes(query) ||
+        (call.action_triggered?.toLowerCase() || '').includes(query)
+      );
+    }
+
+    return filtered;
   };
 
   const handleResetCalls = async () => {
@@ -1712,8 +1815,9 @@ export function UserDetailsPage() {
             </div>
 
             {/* Filters */}
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex flex-wrap gap-4">
+            <div className="bg-white rounded-lg shadow p-4 space-y-4">
+              {/* First Row: Direction Tabs & Date Picker */}
+              <div className="flex flex-wrap items-center gap-4">
                 <div className="flex gap-2">
                   <button
                     onClick={() => setDirection('inbound')}
@@ -1736,20 +1840,92 @@ export function UserDetailsPage() {
                     Outbound
                   </button>
                 </div>
-                <div className="flex-1 min-w-[200px]">
+
+                <div className="relative">
+                  <button
+                    onClick={() => setShowDatePicker(!showDatePicker)}
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <Calendar className="h-4 w-4 text-gray-600" />
+                    <span className="text-sm">
+                      {startDate && endDate
+                        ? `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`
+                        : 'Select Date Range'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Second Row: Agent | Phone Numbers | Search */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Agent Selector */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Agent</label>
+                  <select
+                    value={selectedAgentId}
+                    onChange={(e) => {
+                      setSelectedAgentId(e.target.value);
+                      setSelectedPhoneNumberId('all');
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">All Agents</option>
+                    {getAvailableAgents().map((agent: any) => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Phone Numbers Selector */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Phone Numbers</label>
+                  <select
+                    value={selectedPhoneNumberId}
+                    onChange={(e) => setSelectedPhoneNumberId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">All Phone Numbers</option>
+                    {getAvailablePhoneNumbers().map((phone: any) => (
+                      <option key={phone.id} value={phone.id}>
+                        {phone.phone_number}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Search */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search by contact, number..."
+                      placeholder="Contact, phone, action..."
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* Date Range Picker Modal */}
+            {showDatePicker && (
+              <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+                  <DateRangePicker
+                    startDate={startDate}
+                    endDate={endDate}
+                    onStartDateChange={setStartDate}
+                    onEndDateChange={setEndDate}
+                    onClose={() => setShowDatePicker(false)}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1758,7 +1934,7 @@ export function UserDetailsPage() {
                   <div>
                     <p className="text-sm text-gray-600">Total Calls</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {calls.filter(c => c.direction === direction).length}
+                      {getFilteredCalls().length}
                     </p>
                   </div>
                   <Phone className="h-8 w-8 text-blue-600" />
@@ -1770,7 +1946,7 @@ export function UserDetailsPage() {
                     <p className="text-sm text-gray-600">Total Duration</p>
                     <p className="text-2xl font-bold text-gray-900">
                       {(() => {
-                        const totalSecs = calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.duration_seconds, 0);
+                        const totalSecs = getFilteredCalls().reduce((sum, c) => sum + c.duration_seconds, 0);
                         const mins = Math.floor(totalSecs / 60);
                         const secs = totalSecs % 60;
                         return `${mins}m ${secs}s`;
@@ -1785,7 +1961,7 @@ export function UserDetailsPage() {
                   <div>
                     <p className="text-sm text-gray-600">Total Cost</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      ${calls.filter(c => c.direction === direction).reduce((sum, c) => sum + c.cost, 0).toFixed(2)}
+                      ${getFilteredCalls().reduce((sum, c) => sum + c.cost, 0).toFixed(2)}
                     </p>
                   </div>
                   <DollarSign className="h-8 w-8 text-purple-600" />
@@ -1797,7 +1973,7 @@ export function UserDetailsPage() {
                     <p className="text-sm text-gray-600">Avg Duration</p>
                     <p className="text-2xl font-bold text-gray-900">
                       {(() => {
-                        const filtered = calls.filter(c => c.direction === direction);
+                        const filtered = getFilteredCalls();
                         if (filtered.length === 0) return '0m 0s';
                         const avgSecs = Math.floor(filtered.reduce((sum, c) => sum + c.duration_seconds, 0) / filtered.length);
                         const mins = Math.floor(avgSecs / 60);
@@ -1821,13 +1997,7 @@ export function UserDetailsPage() {
                   <div className="p-12 text-center">
                     <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto" />
                   </div>
-                ) : calls.filter(call =>
-                    call.direction === direction &&
-                    (searchQuery === '' ||
-                      call.contact_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      call.from_number?.includes(searchQuery) ||
-                      call.to_number?.includes(searchQuery))
-                  ).length === 0 ? (
+                ) : getFilteredCalls().length === 0 ? (
                   <div className="p-12 text-center text-gray-500">
                     No {direction} calls found
                   </div>
@@ -1856,15 +2026,7 @@ export function UserDetailsPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {calls
-                        .filter(call =>
-                          call.direction === direction &&
-                          (searchQuery === '' ||
-                            call.contact_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            call.from_number?.includes(searchQuery) ||
-                            call.to_number?.includes(searchQuery))
-                        )
-                        .map((call) => (
+                      {getFilteredCalls().map((call) => (
                           <tr key={call.id}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {format(new Date(call.call_started_at), 'MMM d, yyyy h:mm a')}
