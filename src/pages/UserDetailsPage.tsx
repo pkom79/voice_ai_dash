@@ -446,16 +446,64 @@ export function UserDetailsPage() {
   };
 
   const loadAllAgents = async () => {
+    if (!userId) return;
+
     setLoadingAllAgents(true);
     try {
-      const { data: agents, error } = await supabase
-        .from('agents')
-        .select('id, name, description, is_active, inbound_phone_number')
+      // Get user's OAuth connection to find their location_id
+      const { data: oauthData, error: oauthError } = await supabase
+        .from('api_keys')
+        .select('location_id, access_token')
+        .eq('user_id', userId)
+        .eq('service', 'highlevel')
         .eq('is_active', true)
-        .order('name');
+        .maybeSingle();
 
-      if (error) throw error;
-      setAllAvailableAgents(agents || []);
+      if (oauthError || !oauthData?.location_id) {
+        console.error('No OAuth connection found for user');
+        setAllAvailableAgents([]);
+        return;
+      }
+
+      // Fetch agents from HighLevel API for this specific location
+      const agentsResponse = await fetch(
+        `https://services.leadconnectorhq.com/voice-ai/agents?locationId=${oauthData.location_id}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${oauthData.access_token}`,
+            'Version': '2021-07-28',
+          },
+        }
+      );
+
+      if (!agentsResponse.ok) {
+        throw new Error('Failed to fetch agents from HighLevel');
+      }
+
+      const agentsData = await agentsResponse.json();
+      const agents = agentsData.agents || [];
+
+      // Match with our database agents to get IDs
+      const { data: dbAgents } = await supabase
+        .from('agents')
+        .select('id, highlevel_agent_id, name, description, is_active')
+        .eq('is_active', true);
+
+      const agentMap = new Map(dbAgents?.map(a => [a.highlevel_agent_id, a]) || []);
+
+      // Filter to only show agents that exist in our database AND came from this location
+      const availableAgents = agents
+        .map((hlAgent: any) => {
+          const dbAgent = agentMap.get(hlAgent.id);
+          if (!dbAgent) return null;
+          return {
+            ...dbAgent,
+            inbound_phone_number: hlAgent.inboundPhoneNumber || hlAgent.inbound_phone_number,
+          };
+        })
+        .filter(Boolean);
+
+      setAllAvailableAgents(availableAgents);
     } catch (error: any) {
       console.error('Error loading agents:', error);
       showError(error.message || 'Failed to load agents');
