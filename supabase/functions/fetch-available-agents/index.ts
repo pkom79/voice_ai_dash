@@ -152,10 +152,17 @@ Deno.serve(async (req: Request) => {
     }
 
     const agentsData = await agentsResponse.json();
-    console.log('HighLevel API response:', JSON.stringify(agentsData).substring(0, 500));
+    console.log('HighLevel API full response:', JSON.stringify(agentsData));
+    console.log('Response keys:', Object.keys(agentsData));
 
-    const agents: Agent[] = agentsData.voiceAiAgents || [];
-    console.log(`Found ${agents.length} agents in response`);
+    // Try multiple possible field names
+    const agents: Agent[] =
+      agentsData.voiceAiAgents ||
+      agentsData.agents ||
+      agentsData.data ||
+      (Array.isArray(agentsData) ? agentsData : []);
+
+    console.log(`Found ${agents.length} agents in response from field check`);
 
     // Filter out agents without names
     const validAgents = agents.filter(agent => agent.name && agent.name.trim() !== "");
@@ -170,7 +177,9 @@ Deno.serve(async (req: Request) => {
           debug: {
             totalAgents: agents.length,
             locationId: apiKey.location_id,
-            rawResponse: JSON.stringify(agentsData).substring(0, 200)
+            rawResponse: JSON.stringify(agentsData).substring(0, 500),
+            responseKeys: Object.keys(agentsData),
+            fullResponse: agentsData
           }
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
