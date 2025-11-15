@@ -114,7 +114,7 @@ export function AdminCallsAnalytics() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [callsResult, usersResult, userAgentsResult, agentPhonesResult, phoneNumbersResult] = await Promise.all([
+      const [callsResult, usersResult, userAgentsResult, agentPhonesResult] = await Promise.all([
         supabase
           .from('calls')
           .select(`
@@ -126,12 +126,10 @@ export function AdminCallsAnalytics() {
         supabase.from('users').select('id, first_name, last_name').eq('role', 'client'),
         supabase.from('user_agents').select('user_id, agent_id'),
         supabase.from('agent_phone_numbers').select('agent_id, phone_number_id'),
-        supabase.from('phone_numbers').select('id, phone_number').eq('is_active', true),
       ]);
 
       if (callsResult.data) setCalls(callsResult.data);
       if (usersResult.data) setUsers(usersResult.data);
-      if (phoneNumbersResult.data) setAllPhoneNumbers(phoneNumbersResult.data);
 
       // Get only agents that are assigned to at least one user
       if (userAgentsResult.data) {
@@ -162,6 +160,30 @@ export function AdminCallsAnalytics() {
           map[ap.agent_id].push(ap.phone_number_id);
         });
         setAgentPhoneMap(map);
+      }
+
+      // Get only phone numbers that are assigned to agents who are assigned to users
+      if (userAgentsResult.data && agentPhonesResult.data) {
+        const assignedAgentIds = [...new Set(userAgentsResult.data.map(ua => ua.agent_id))];
+        const assignedPhoneIds = agentPhonesResult.data
+          .filter(ap => assignedAgentIds.includes(ap.agent_id))
+          .map(ap => ap.phone_number_id);
+
+        const uniquePhoneIds = [...new Set(assignedPhoneIds)];
+
+        if (uniquePhoneIds.length > 0) {
+          const { data: phoneNumbersData } = await supabase
+            .from('phone_numbers')
+            .select('id, phone_number')
+            .in('id', uniquePhoneIds)
+            .eq('is_active', true);
+
+          if (phoneNumbersData) setAllPhoneNumbers(phoneNumbersData);
+        } else {
+          setAllPhoneNumbers([]);
+        }
+      } else {
+        setAllPhoneNumbers([]);
       }
     } catch (error) {
       console.error('Error loading data:', error);
