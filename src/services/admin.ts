@@ -453,6 +453,9 @@ class AdminService {
     lastSync: string | null;
   }> {
     try {
+      // Calculate 30 minutes ago for active session check
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
       const [usersResult, connectionsResult, syncsResult] = await Promise.all([
         supabase.from('users').select('id, is_active', { count: 'exact', head: true }),
         supabase.from('api_keys').select('id, is_active', { count: 'exact', head: true }),
@@ -464,15 +467,29 @@ class AdminService {
           .maybeSingle(),
       ]);
 
-      const { data: activeUsersData } = await supabase
-        .from('users')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_active', true);
+      // Active users: count distinct users with recent session activity (last 30 minutes)
+      const { data: activeSessionsData, error: sessionsError } = await supabase
+        .from('active_sessions')
+        .select('user_id')
+        .gte('last_activity_at', thirtyMinutesAgo);
 
-      const { data: activeConnectionsData } = await supabase
+      const activeUsers = activeSessionsData
+        ? new Set(activeSessionsData.map(s => s.user_id)).size
+        : 0;
+
+      // Active connections: count OAuth connections for client users only (not admins)
+      // with valid tokens (not expired) and is_active = true
+      const { data: activeConnectionsData, error: connectionsError } = await supabase
         .from('api_keys')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_active', true);
+        .select(`
+          id,
+          user_id,
+          users!inner(role)
+        `)
+        .eq('is_active', true)
+        .not('user_id', 'is', null)
+        .gt('token_expires_at', new Date().toISOString())
+        .eq('users.role', 'client');
 
       const { data: failedSyncsData } = await supabase
         .from('sync_status')
@@ -481,7 +498,7 @@ class AdminService {
 
       return {
         totalUsers: usersResult.count || 0,
-        activeUsers: activeUsersData?.length || 0,
+        activeUsers,
         totalConnections: connectionsResult.count || 0,
         activeConnections: activeConnectionsData?.length || 0,
         failedSyncs: failedSyncsData?.length || 0,
@@ -497,6 +514,76 @@ class AdminService {
         failedSyncs: 0,
         lastSync: null,
       };
+    }
+  }
+
+  async getOAuthConnections(statusFilter: 'all' | 'active' | 'expired' | 'errors' = 'all') {
+    try {
+      let query = supabase
+        .from('api_keys')
+        .select(`
+          id,
+          location_name,
+          location_id,
+          token_expires_at,
+          is_active,
+          created_at,
+          updated_at,
+          last_used_at,
+          user_id,
+          users!inner(
+            id,
+            first_name,
+            last_name,
+            business_name,
+            role
+          )
+        `)
+        .not('user_id', 'is', null)
+        .eq('users.role', 'client')
+        .order('created_at', { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Calculate status for each connection
+      const connectionsWithStatus = (data || []).map(conn => {
+        const now = new Date();
+        const expiresAt = conn.token_expires_at ? new Date(conn.token_expires_at) : null;
+        const isExpired = expiresAt ? expiresAt < now : false;
+        const isExpiringSoon = expiresAt ? expiresAt < new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) && !isExpired : false;
+
+        let status: 'healthy' | 'expiring_soon' | 'expired' | 'inactive' = 'healthy';
+        if (!conn.is_active) {
+          status = 'inactive';
+        } else if (isExpired) {
+          status = 'expired';
+        } else if (isExpiringSoon) {
+          status = 'expiring_soon';
+        }
+
+        return {
+          ...conn,
+          status,
+          isExpired,
+          isExpiringSoon,
+        };
+      });
+
+      // Apply status filter
+      if (statusFilter === 'active') {
+        return connectionsWithStatus.filter(c => c.is_active && !c.isExpired);
+      } else if (statusFilter === 'expired') {
+        return connectionsWithStatus.filter(c => c.isExpired);
+      } else if (statusFilter === 'errors') {
+        return connectionsWithStatus.filter(c => !c.is_active || c.isExpired);
+      }
+
+      return connectionsWithStatus;
+    } catch (error) {
+      console.error('Error fetching OAuth connections:', error);
+      return [];
     }
   }
 

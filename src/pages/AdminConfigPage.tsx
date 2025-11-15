@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { highLevelService } from '../services/highlevel';
 import { adminService } from '../services/admin';
-import { Activity, Shield, RefreshCw, Server, AlertCircle, CheckCircle, Users } from 'lucide-react';
+import { Activity, Shield, RefreshCw, Server, AlertCircle, CheckCircle, Users, Clock, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface SyncStatus {
@@ -27,6 +27,8 @@ export function AdminConfigPage() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [oauthConnections, setOAuthConnections] = useState<any[]>([]);
+  const [connectionFilter, setConnectionFilter] = useState<'all' | 'active' | 'expired' | 'errors'>('all');
   const [loading, setLoading] = useState(true);
   const [auditFilters, setAuditFilters] = useState<{
     action?: string;
@@ -36,7 +38,7 @@ export function AdminConfigPage() {
 
   useEffect(() => {
     loadData();
-  }, [activeTab]);
+  }, [activeTab, connectionFilter]);
 
   const loadData = async () => {
     setLoading(true);
@@ -45,8 +47,8 @@ export function AdminConfigPage() {
         const health = await adminService.getSystemHealth();
         setSystemHealth(health);
       } else if (activeTab === 'sync') {
-        const status = await highLevelService.getSyncStatus();
-        setSyncStatus(status);
+        const connections = await adminService.getOAuthConnections(connectionFilter);
+        setOAuthConnections(connections);
       } else if (activeTab === 'audit') {
         const logs = await adminService.getAuditLogs({
           action: auditFilters.action,
@@ -189,65 +191,131 @@ export function AdminConfigPage() {
 
           {activeTab === 'sync' && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Sync Status</h2>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                  <p className="text-sm text-blue-900">
-                    <strong>Note:</strong> OAuth connections are now managed per-user in the Users page.
-                    Each user can have their own HighLevel OAuth connection with location-level access.
-                  </p>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">OAuth Connections</h2>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={connectionFilter}
+                    onChange={(e) => setConnectionFilter(e.target.value as any)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="all">All Connections</option>
+                    <option value="active">Active Only</option>
+                    <option value="expired">Expired Only</option>
+                    <option value="errors">Error Status</option>
+                  </select>
+                  <button
+                    onClick={() => loadData()}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </button>
                 </div>
-                {syncStatus ? (
-                  <div className="border border-gray-200 rounded-lg p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 mb-1">Service</p>
-                        <p className="text-lg font-semibold text-gray-900 capitalize">
-                          {syncStatus.service}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 mb-1">Status</p>
-                        <span
-                          className={`inline-flex px-3 py-1 text-sm font-medium rounded-full ${
-                            syncStatus.last_sync_status === 'success'
-                              ? 'bg-green-100 text-green-800'
-                              : syncStatus.last_sync_status === 'failure'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}
-                        >
-                          {syncStatus.last_sync_status || 'Never synced'}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 mb-1">Last Sync</p>
-                        <p className="text-gray-900">
-                          {syncStatus.last_sync_at
-                            ? format(new Date(syncStatus.last_sync_at), 'MMM d, yyyy h:mm a')
-                            : 'Never'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 mb-1">Records Synced</p>
-                        <p className="text-lg font-semibold text-gray-900">
-                          {syncStatus.records_synced}
-                        </p>
-                      </div>
-                    </div>
-                    {syncStatus.last_sync_message && (
-                      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                        <p className="text-sm text-gray-700">{syncStatus.last_sync_message}</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-12 bg-gray-50 rounded-lg">
-                    <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">No sync data available</p>
-                  </div>
-                )}
               </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-900">
+                  Monitor all client OAuth connections to HighLevel. Each connection is managed per-user with location-level access.
+                </p>
+              </div>
+
+              {loading ? (
+                <div className="text-center py-12 bg-gray-50 rounded-lg">
+                  <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4 animate-spin" />
+                  <p className="text-gray-600">Loading connections...</p>
+                </div>
+              ) : oauthConnections.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-lg">
+                  <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No OAuth connections found</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          User / Business
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Location
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Connected
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Token Expires
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Last Refresh
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {oauthConnections.map((conn: any) => (
+                        <tr key={conn.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {conn.users.first_name} {conn.users.last_name}
+                              </div>
+                              {conn.users.business_name && (
+                                <div className="text-sm text-gray-500">{conn.users.business_name}</div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {conn.location_name || conn.location_id || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {conn.status === 'healthy' && (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
+                                <CheckCircle className="h-3 w-3" />
+                                HEALTHY
+                              </span>
+                            )}
+                            {conn.status === 'expiring_soon' && (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-bold bg-yellow-100 text-yellow-700 rounded uppercase">
+                                <Clock className="h-3 w-3" />
+                                EXPIRING SOON
+                              </span>
+                            )}
+                            {conn.status === 'expired' && (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded uppercase">
+                                <AlertCircle className="h-3 w-3" />
+                                EXPIRED
+                              </span>
+                            )}
+                            {conn.status === 'inactive' && (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-bold bg-gray-100 text-gray-700 rounded uppercase">
+                                <XCircle className="h-3 w-3" />
+                                INACTIVE
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {format(new Date(conn.created_at), 'MMM d, yyyy')}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {conn.token_expires_at
+                              ? format(new Date(conn.token_expires_at), 'MMM d, yyyy h:mm a')
+                              : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {conn.updated_at
+                              ? format(new Date(conn.updated_at), 'MMM d, yyyy h:mm a')
+                              : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
@@ -339,14 +407,14 @@ export function AdminConfigPage() {
                               : 'System'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                            <span className="px-2 py-0.5 text-xs font-bold rounded bg-blue-100 text-blue-700 uppercase">
                               {log.action.replace(/_/g, ' ')}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {log.target
                               ? `${log.target.first_name} ${log.target.last_name}`
-                              : '-'}
+                              : 'SYSTEM'}
                           </td>
                         </tr>
                       ))

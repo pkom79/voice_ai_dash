@@ -113,6 +113,7 @@ export function AdminUsersPage() {
       const { data, error } = await supabase
         .from('users')
         .select('*')
+        .neq('role', 'admin')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
