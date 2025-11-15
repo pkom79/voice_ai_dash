@@ -6,6 +6,7 @@ import { format, startOfToday, endOfToday } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import DateRangePicker from '../components/DateRangePicker';
+import { ActivityTab } from '../components/ActivityTab';
 import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../contexts/AuthContext';
 import { oauthService } from '../services/oauth';
@@ -2219,11 +2220,8 @@ export function UserDetailsPage() {
           </div>
         )}
 
-        {activeTab === 'activity' && (
-          <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
-            <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p>Activity tab content coming soon</p>
-          </div>
+        {activeTab === 'activity' && userId && (
+          <ActivityTab userId={userId} />
         )}
       </div>
 

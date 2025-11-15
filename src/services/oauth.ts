@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { activityLogger } from './activityLogger';
 
 interface OAuthConfig {
   clientId: string;
@@ -160,9 +161,61 @@ class OAuthService {
         await this.fetchAndStoreLocationName(userId, tokens.locationId, tokens.access_token);
       }
 
+      // Log successful connection
+      await activityLogger.logConnectionEvent({
+        userId,
+        eventType: 'connected',
+        locationId: tokens.locationId,
+        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+        metadata: {
+          scope: tokens.scope,
+          tokenType: tokens.token_type,
+        },
+      });
+
+      await activityLogger.logActivity({
+        userId,
+        eventType: 'connection_event',
+        eventCategory: 'oauth_connect',
+        eventName: 'HighLevel Connected',
+        description: 'Successfully connected to HighLevel via OAuth',
+        severity: 'info',
+        metadata: {
+          locationId: tokens.locationId,
+          companyId: tokens.companyId,
+        },
+      });
+
       return true;
     } catch (error) {
       console.error('Error exchanging code for tokens:', error);
+
+      // Log connection error
+      await activityLogger.logIntegrationError({
+        userId,
+        errorType: 'oauth_connection_failed',
+        errorSource: 'highlevel_oauth',
+        errorMessage: error instanceof Error ? error.message : 'Failed to exchange code for tokens',
+        errorCode: 'TOKEN_EXCHANGE_FAILED',
+        requestData: {
+          redirectUri: this.config.redirectUri,
+        },
+        responseData: {},
+        stackTrace: error instanceof Error ? error.stack : undefined,
+      });
+
+      await activityLogger.logActivity({
+        userId,
+        eventType: 'integration_error',
+        eventCategory: 'oauth_connect',
+        eventName: 'Connection Failed',
+        description: 'Failed to connect to HighLevel via OAuth',
+        severity: 'error',
+        metadata: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      });
+
       throw error;
     }
   }
@@ -248,9 +301,42 @@ class OAuthService {
 
       await this.saveTokens(userId, tokens);
 
+      // Log successful token refresh
+      await activityLogger.logConnectionEvent({
+        userId,
+        eventType: 'token_refreshed',
+        locationId: tokenData.location_id,
+        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+        metadata: {
+          previousExpiry: tokenData.token_expires_at,
+        },
+      });
+
       return true;
     } catch (error) {
       console.error('Error refreshing access token:', error);
+
+      // Log refresh failure
+      await activityLogger.logConnectionEvent({
+        userId,
+        eventType: 'refresh_failed',
+        errorMessage: error instanceof Error ? error.message : 'Token refresh failed',
+        metadata: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      });
+
+      await activityLogger.logIntegrationError({
+        userId,
+        errorType: 'token_refresh_failed',
+        errorSource: 'highlevel_oauth',
+        errorMessage: error instanceof Error ? error.message : 'Failed to refresh access token',
+        errorCode: 'TOKEN_REFRESH_FAILED',
+        requestData: {},
+        responseData: {},
+        stackTrace: error instanceof Error ? error.stack : undefined,
+      });
+
       return false;
     }
   }
@@ -310,6 +396,14 @@ class OAuthService {
 
   async disconnectUser(userId: string): Promise<boolean> {
     try {
+      // Get connection info before deleting
+      const { data: connectionData } = await supabase
+        .from('api_keys')
+        .select('location_id, location_name')
+        .eq('user_id', userId)
+        .eq('service', 'highlevel')
+        .maybeSingle();
+
       const { error } = await supabase
         .from('api_keys')
         .delete()
@@ -317,6 +411,31 @@ class OAuthService {
         .eq('service', 'highlevel');
 
       if (error) throw error;
+
+      // Log disconnection
+      await activityLogger.logConnectionEvent({
+        userId,
+        eventType: 'disconnected',
+        locationId: connectionData?.location_id,
+        locationName: connectionData?.location_name,
+        metadata: {
+          disconnectedAt: new Date().toISOString(),
+        },
+      });
+
+      await activityLogger.logActivity({
+        userId,
+        eventType: 'connection_event',
+        eventCategory: 'oauth_disconnect',
+        eventName: 'HighLevel Disconnected',
+        description: 'HighLevel connection was disconnected',
+        severity: 'warning',
+        metadata: {
+          locationId: connectionData?.location_id,
+          locationName: connectionData?.location_name,
+        },
+      });
+
       return true;
     } catch (error) {
       console.error('Error disconnecting user:', error);
@@ -403,6 +522,27 @@ class OAuthService {
         console.error('Failed to mark connection as expired:', error);
       } else {
         console.log('Connection marked as expired for user:', userId);
+
+        // Log token expiration
+        await activityLogger.logConnectionEvent({
+          userId,
+          eventType: 'token_expired',
+          metadata: {
+            expiredAt: now,
+          },
+        });
+
+        await activityLogger.logActivity({
+          userId,
+          eventType: 'connection_event',
+          eventCategory: 'token_expired',
+          eventName: 'Token Expired',
+          description: 'HighLevel OAuth token has expired and could not be refreshed',
+          severity: 'warning',
+          metadata: {
+            expiredAt: now,
+          },
+        });
       }
     } catch (error) {
       console.error('Error marking connection as expired:', error);

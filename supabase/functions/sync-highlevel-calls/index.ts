@@ -429,6 +429,40 @@ Deno.serve(async (req: Request) => {
       console.error('Errors encountered:', JSON.stringify(errors, null, 2));
     }
 
+    // Log sync activity
+    await supabase.rpc('log_user_activity', {
+      p_user_id: userId,
+      p_event_type: 'system_event',
+      p_event_category: 'sync',
+      p_event_name: 'Call Sync Completed',
+      p_description: `Synced ${savedCount} calls from HighLevel (${skippedCount} skipped, ${errorCount} errors)`,
+      p_metadata: {
+        savedCount,
+        skippedCount,
+        errorCount,
+        totalFetched: callsData.callLogs?.length || 0,
+        startDate: effectiveStartDate,
+        endDate,
+        totalCostAdded: totalCostAdded / 100,
+      },
+      p_severity: errorCount > 0 ? 'warning' : 'info',
+    });
+
+    // Log sync errors if any
+    if (errorCount > 0 && errors.length > 0) {
+      for (const error of errors.slice(0, 5)) { // Log first 5 errors
+        await supabase.rpc('log_integration_error', {
+          p_user_id: userId,
+          p_error_type: 'call_sync_error',
+          p_error_source: 'highlevel_api',
+          p_error_message: error.error || 'Unknown sync error',
+          p_error_code: 'CALL_SYNC_ERROR',
+          p_request_data: { callId: error.callId },
+          p_response_data: error.details || {},
+        });
+      }
+    }
+
     // Update billing account's month_spent_cents with total cost from this sync
     if (totalCostAdded > 0 && billingAccount) {
       console.log(`Updating billing account: adding ${totalCostAdded} cents to month_spent_cents`);
@@ -464,6 +498,31 @@ Deno.serve(async (req: Request) => {
     );
   } catch (error) {
     console.error("Error in sync-highlevel-calls:", error);
+
+    // Try to log the error if we have userId from the request
+    try {
+      const body = await req.clone().json();
+      if (body?.userId) {
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+        );
+
+        await supabase.rpc('log_integration_error', {
+          p_user_id: body.userId,
+          p_error_type: 'call_sync_failed',
+          p_error_source: 'sync_function',
+          p_error_message: error instanceof Error ? error.message : 'Unknown error during sync',
+          p_error_code: 'SYNC_FAILED',
+          p_request_data: {},
+          p_response_data: {},
+          p_stack_trace: error instanceof Error ? error.stack : undefined,
+        });
+      }
+    } catch (logError) {
+      console.error("Failed to log error:", logError);
+    }
+
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : "Unknown error",

@@ -1,9 +1,9 @@
 # Voice AI Dash
 
-**Version:** 3.2.0
-**Last Updated:** November 14, 2025 (Billing Cost Calculation & Reset System)
+**Version:** 3.3.0
+**Last Updated:** November 15, 2025 (User Activity Tracking System)
 
-A comprehensive Voice AI Dashboard for managing HighLevel voice agents, call logs, billing, and OAuth integrations.
+A comprehensive Voice AI Dashboard for managing HighLevel voice agents, call logs, billing, OAuth integrations, and user activity tracking.
 
 ---
 
@@ -600,7 +600,7 @@ try {
 
 ## Database Schema
 
-### Core Tables (11 total)
+### Core Tables (15 total)
 
 #### 1. **users** (extends auth.users)
 - `id` uuid PRIMARY KEY → auth.users(id)
@@ -776,10 +776,57 @@ try {
 
 **Purpose**: Audit trail for admin actions
 
+#### 13. **user_activity_logs** (v3.3.0)
+- `id` uuid PRIMARY KEY
+- `user_id` uuid → users(id)
+- `event_type` text ('user_action' | 'connection_event' | 'integration_error' | 'system_event' | 'admin_action')
+- `event_category` text (e.g., 'login', 'oauth_connect', 'sync', 'billing')
+- `event_name` text
+- `description` text
+- `metadata` jsonb
+- `ip_address` text
+- `user_agent` text
+- `severity` text ('info' | 'warning' | 'error' | 'critical')
+- `created_at` timestamptz
+- `created_by` uuid → users(id)
+
+**Purpose**: Comprehensive activity tracking for all user and system events
+
+#### 14. **user_connection_events** (v3.3.0)
+- `id` uuid PRIMARY KEY
+- `user_id` uuid → users(id)
+- `event_type` text ('connected' | 'disconnected' | 'token_refreshed' | 'token_expired' | 'refresh_failed' | 'connection_attempted')
+- `location_id` text
+- `location_name` text
+- `token_expires_at` timestamptz
+- `error_message` text
+- `metadata` jsonb
+- `created_at` timestamptz
+- `created_by` uuid → users(id)
+
+**Purpose**: Track OAuth connection lifecycle events
+
+#### 15. **user_integration_errors** (v3.3.0)
+- `id` uuid PRIMARY KEY
+- `user_id` uuid → users(id)
+- `error_type` text
+- `error_source` text
+- `error_message` text
+- `error_code` text
+- `request_data` jsonb
+- `response_data` jsonb
+- `stack_trace` text
+- `retry_count` integer
+- `resolved` boolean
+- `resolved_at` timestamptz
+- `created_at` timestamptz
+
+**Purpose**: Detailed integration error logging with full request/response data for debugging
+
 ### Foreign Key Relationships
 
-- **Cascade Deletes**: user_agents, user_phone_numbers, billing_accounts, transactions, calls
-- **Set NULL**: agents, phone_numbers in calls table, audit_logs references
+- **Cascade Deletes**: user_agents, user_phone_numbers, billing_accounts, transactions, calls, user_activity_logs, user_connection_events, user_integration_errors
+- **Set NULL**: agents, phone_numbers in calls table, audit_logs references, created_by in activity tables
 
 ### Database Triggers
 
@@ -1007,6 +1054,28 @@ return parseFloat((minutes * costPerMinute).toFixed(4));
 - **Inactive Agent Warnings** - Visual indicators for agents no longer in HighLevel
 - **Name + ID Display** - Agent IDs visible in admin sections for disambiguation
 - **Flexible Architecture** - Database structure supports future non-HighLevel integrations
+
+### ✅ User Activity Tracking (v3.3.0 - NEW)
+- **Comprehensive Activity Logging** - Track all user actions, connection events, and system operations
+- **Activity Tab** - Admin-only view in User Details page showing complete activity history
+- **Connection Events** - Track OAuth connections, disconnections, token refreshes, and expirations
+- **Integration Errors** - Detailed error logging with API request/response data for debugging
+- **System Events** - Automatic logging of sync operations, notifications, and billing changes
+- **90-Day Retention** - Automatic cleanup of logs older than 90 days
+- **Advanced Filtering** - Filter by severity, event type, and search activity descriptions
+- **Error Resolution Tracking** - Mark integration errors as resolved with timestamps
+- **Export Functionality** - Download complete activity logs as JSON for analysis
+- **Real-time Updates** - Refresh button to fetch latest activity in real-time
+
+**Files**:
+- `src/services/activityLogger.ts` - Activity logging service
+- `src/components/ActivityTab.tsx` - Activity UI component
+- `supabase/migrations/*_add_user_activity_tracking_system.sql` - Database schema
+
+**Database Tables**:
+- `user_activity_logs` - Main activity log with event types, categories, severity, and metadata
+- `user_connection_events` - OAuth connection lifecycle tracking
+- `user_integration_errors` - Detailed error logs with request/response data for debugging
 
 **Implementation Details**:
 - **Edge Function**: `fetch-available-agents` - Retrieves all agents from user's HighLevel location
