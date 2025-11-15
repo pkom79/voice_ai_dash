@@ -339,6 +339,11 @@ Deno.serve(async (req: Request) => {
 
           console.log(`Call ${call.id}: duration=${durationSeconds}s, direction=${direction}, cost=$${cost}, display=${displayCost}`);
 
+          // Determine if this is a test call
+          // According to HighLevel, calls without a FROM number are test calls
+          const fromNumber = call.fromNumber || call.from || '';
+          const isTestCall = !fromNumber || fromNumber.trim() === '' || call.isTestCall === true;
+
           // Map HighLevel call data to our schema
           const callRecord = {
             highlevel_call_id: call.id,
@@ -346,7 +351,7 @@ Deno.serve(async (req: Request) => {
             agent_id: agentDbId,
             direction: direction,
             contact_name: contactName,
-            from_number: call.fromNumber || call.from || '',
+            from_number: fromNumber,
             to_number: call.toNumber || call.to || '',
             status: call.status,
             duration_seconds: durationSeconds,
@@ -363,7 +368,7 @@ Deno.serve(async (req: Request) => {
             notes: call.notes,
             tags: call.tags,
             latency_ms: call.latency,
-            is_test_call: call.isTestCall,
+            is_test_call: isTestCall,
             call_started_at: call.createdAt,
             call_ended_at: call.endTime || call.completedAt,
             metadata: call,

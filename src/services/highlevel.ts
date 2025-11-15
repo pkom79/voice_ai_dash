@@ -218,6 +218,13 @@ class HighLevelService {
   }
 
   private isTestCall(callData: HighLevelCallData): boolean {
+    // A call is a test call if it has no FROM phone number
+    // According to HighLevel, calls without a FROM number are considered test calls
+    if (!callData.from || callData.from.trim() === '') {
+      return true;
+    }
+
+    // Additional check: keyword-based detection as fallback
     const testIndicators = ['test', 'demo', 'sample', '1234567890'];
     const phone = callData.from.toLowerCase();
     const contactName = (callData.contactName || '').toLowerCase();
