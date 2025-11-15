@@ -346,8 +346,15 @@ export function AdminConfigPage() {
                     <option value="unsuspend_user">Unsuspend User</option>
                     <option value="invite_user">Invite User</option>
                     <option value="update_billing_model">Update Billing</option>
-                    <option value="bulk_assign_agents">Bulk Assign Agents</option>
-                    <option value="bulk_assign_phone_numbers">Bulk Assign Phones</option>
+                    <option value="assign_agent">Assign Agent</option>
+                    <option value="unassign_agent">Unassign Agent</option>
+                    <option value="update_user_profile">Update User Profile</option>
+                    <option value="reset_password">Reset Password</option>
+                    <option value="delete_user">Delete User</option>
+                    <option value="update_subscription">Update Subscription</option>
+                    <option value="wallet_adjustment">Wallet Adjustment</option>
+                    <option value="oauth_connected">OAuth Connected</option>
+                    <option value="oauth_disconnected">OAuth Disconnected</option>
                   </select>
                 </div>
                 <div>
