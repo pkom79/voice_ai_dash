@@ -195,8 +195,12 @@ export function UserDetailsPage() {
 
     setLoadingApiData(true);
     try {
+      // Force fresh query by adding timestamp (bypasses any caching)
+      console.log('[API Data] Fetching fresh connection data at:', new Date().toISOString());
+
       // Load active HighLevel API connection
       const activeConnection = await oauthService.getUserConnection(userId);
+      console.log('[API Data] Connection data received:', activeConnection);
       setApiConnection(activeConnection);
 
       // Check for expired connection
@@ -1559,7 +1563,24 @@ export function UserDetailsPage() {
                           : 'Automatically refreshes when needed'}
                       </p>
                     </div>
-                    <div className="pt-4 border-t border-gray-200">
+                    <div className="pt-4 border-t border-gray-200 space-y-3">
+                      <button
+                        onClick={loadApiData}
+                        disabled={loadingApiData}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                      >
+                        {loadingApiData ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Refreshing...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4" />
+                            Refresh Connection Status
+                          </>
+                        )}
+                      </button>
                       <button
                         onClick={() => setShowDisconnectModal(true)}
                         className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium"
