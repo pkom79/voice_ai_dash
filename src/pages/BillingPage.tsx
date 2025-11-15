@@ -430,7 +430,7 @@ export function BillingPage() {
               </div>
               <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Current Balance</h3>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                ${((billingAccount?.month_spent_cents || 0) / 100).toFixed(2)}
+                ${Math.max(0, (billingAccount?.month_spent_cents || 0) / 100).toFixed(2)}
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Based on usage</p>
             </div>

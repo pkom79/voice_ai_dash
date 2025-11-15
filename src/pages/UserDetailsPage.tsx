@@ -1674,7 +1674,7 @@ export function UserDetailsPage() {
                         Accrued Usage Cost
                       </label>
                       <div className="text-2xl font-bold text-gray-900">
-                        ${(billingData.month_spent_cents / 100).toFixed(2)}
+                        ${Math.max(0, billingData.month_spent_cents / 100).toFixed(2)}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
                         Total usage charges for current month
@@ -1795,7 +1795,7 @@ export function UserDetailsPage() {
                           ${(billingData.wallet_cents / 100).toFixed(2)}
                         </div>
                         <div className="text-sm text-gray-600">
-                          Spent this month: ${(billingData.month_spent_cents / 100).toFixed(2)}
+                          Spent this month: ${Math.max(0, billingData.month_spent_cents / 100).toFixed(2)}
                         </div>
                       </div>
                       <div className="flex gap-3">
