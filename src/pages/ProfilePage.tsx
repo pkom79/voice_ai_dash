@@ -44,8 +44,12 @@ export function ProfilePage() {
         business_name: profile.business_name || '',
         phone_number: profile.phone_number || '',
       });
-      loadBillingPlan();
-      loadNotificationEmails();
+
+      // Only load billing and notifications for client users, not admins
+      if (profile.role !== 'admin') {
+        loadBillingPlan();
+        loadNotificationEmails();
+      }
     }
   }, [profile]);
 
@@ -307,19 +311,21 @@ export function ProfilePage() {
                 Profile
               </div>
             </button>
-            <button
-              onClick={() => setActiveTab('notifications')}
-              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'notifications'
-                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Bell className="h-4 w-4" />
-                Notifications
-              </div>
-            </button>
+            {profile?.role !== 'admin' && (
+              <button
+                onClick={() => setActiveTab('notifications')}
+                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'notifications'
+                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Bell className="h-4 w-4" />
+                  Notifications
+                </div>
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('security')}
               className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
@@ -454,7 +460,7 @@ export function ProfilePage() {
           )}
 
           {/* Notifications Tab */}
-          {activeTab === 'notifications' && (
+          {activeTab === 'notifications' && profile?.role !== 'admin' && (
             <form onSubmit={handleUpdateNotifications} className="space-y-6">
               <div className="space-y-6">
                 {/* Add New Email Section */}

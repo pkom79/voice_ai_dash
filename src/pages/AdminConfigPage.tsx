@@ -407,7 +407,7 @@ export function AdminConfigPage() {
                               : 'System'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-2 py-0.5 text-xs font-bold rounded bg-blue-100 text-blue-700 uppercase">
+                            <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700 uppercase">
                               {log.action.replace(/_/g, ' ')}
                             </span>
                           </td>
