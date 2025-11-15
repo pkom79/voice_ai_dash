@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock } from 'lucide-react';
+import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2 } from 'lucide-react';
 import { format, startOfToday, endOfToday } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
@@ -10,6 +10,7 @@ import { ActivityTab } from '../components/ActivityTab';
 import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../contexts/AuthContext';
 import { oauthService } from '../services/oauth';
+import { adminService } from '../services/admin';
 
 interface UserData {
   id: string;
@@ -108,6 +109,9 @@ export function UserDetailsPage() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<any[]>([]);
   const [agentPhoneMap, setAgentPhoneMap] = useState<Record<string, string[]>>({});
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [suspendAction, setSuspendAction] = useState<'suspend' | 'activate'>('suspend');
+  const [suspending, setSuspending] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -318,6 +322,27 @@ export function UserDetailsPage() {
       showError('Failed to send password reset link');
     } finally {
       setSendingPasswordReset(false);
+    }
+  };
+
+  const handleSuspendUser = async () => {
+    if (!user) return;
+
+    setSuspending(true);
+    try {
+      const success = await adminService.suspendUser(user.id, suspendAction === 'suspend');
+      if (success) {
+        await loadUser();
+        setShowSuspendModal(false);
+        showSuccess(`User ${suspendAction === 'suspend' ? 'suspended' : 'activated'} successfully`);
+      } else {
+        showError(`Failed to ${suspendAction} user`);
+      }
+    } catch (error) {
+      console.error(`Error ${suspendAction}ing user:`, error);
+      showError(`Failed to ${suspendAction} user`);
+    } finally {
+      setSuspending(false);
     }
   };
 
@@ -1207,6 +1232,45 @@ export function UserDetailsPage() {
                       <span className={`font-medium ${user.is_active ? 'text-green-600' : 'text-red-600'}`}>
                         {user.is_active ? 'ACTIVE' : 'SUSPENDED'}
                       </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Account Status Control */}
+                <div className="pt-4 pb-2 border-t border-gray-200">
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-900">Account Status Control</h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {user.is_active
+                            ? 'Suspend this user to prevent them from accessing the system'
+                            : 'Activate this user to restore their access to the system'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSuspendAction(user.is_active ? 'suspend' : 'activate');
+                          setShowSuspendModal(true);
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                          user.is_active
+                            ? 'bg-red-600 text-white hover:bg-red-700'
+                            : 'bg-green-600 text-white hover:bg-green-700'
+                        }`}
+                      >
+                        {user.is_active ? (
+                          <>
+                            <Ban className="h-4 w-4" />
+                            Suspend User
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="h-4 w-4" />
+                            Activate User
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2813,6 +2877,22 @@ export function UserDetailsPage() {
         onConfirm={handleResetCalls}
         onCancel={() => setShowResetConfirmModal(false)}
         type="danger"
+      />
+
+      {/* Suspend/Activate Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showSuspendModal}
+        title={suspendAction === 'suspend' ? 'Suspend User' : 'Activate User'}
+        message={
+          suspendAction === 'suspend'
+            ? 'Are you sure you want to suspend this user? This will prevent them from accessing the system.'
+            : 'Are you sure you want to activate this user? This will restore their access to the system.'
+        }
+        confirmText={suspendAction === 'suspend' ? 'Suspend User' : 'Activate User'}
+        cancelText="Cancel"
+        onConfirm={handleSuspendUser}
+        onCancel={() => setShowSuspendModal(false)}
+        type={suspendAction === 'suspend' ? 'danger' : 'info'}
       />
 
       {/* Resync Modal */}
