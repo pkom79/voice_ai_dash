@@ -234,6 +234,15 @@ export function AdminCallsAnalytics() {
   const filterCalls = () => {
     let filtered = [...calls];
 
+    // Get all agent IDs that are assigned to any user
+    const allAssignedAgentIds = Object.values(userAgentMap).flat();
+
+    // Filter out calls from agents that aren't assigned to any user
+    filtered = filtered.filter((call) => {
+      if (!call.agent_id) return false;
+      return allAssignedAgentIds.includes(call.agent_id);
+    });
+
     if (selectedUserId !== 'all') {
       const allowedAgentIds = userAgentMap[selectedUserId] || [];
       filtered = filtered.filter((call) => call.agent_id && allowedAgentIds.includes(call.agent_id));
