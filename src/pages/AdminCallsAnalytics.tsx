@@ -46,7 +46,11 @@ interface Call {
   user_id: string;
   message_id: string | null;
   location_id: string | null;
+  agent_id: string | null;
+  phone_number_id: string | null;
   users?: { first_name: string; last_name: string };
+  agents?: { id: string; name: string };
+  phone_numbers?: { id: string; phone_number: string };
 }
 
 interface User {
@@ -119,6 +123,7 @@ export function AdminCallsAnalytics() {
           .from('calls')
           .select(`
             *,
+            agents:agent_id(id, name),
             phone_numbers:phone_number_id(id, phone_number)
           `)
           .eq('is_test_call', false)
@@ -220,6 +225,12 @@ export function AdminCallsAnalytics() {
     return users.find((u) => u.id === userId);
   };
 
+  const getAgentAndPhoneForCall = (call: Call) => {
+    const agentName = call.agents?.name || 'N/A';
+    const phoneNumber = call.phone_numbers?.phone_number || 'N/A';
+    return { agentName, phoneNumber };
+  };
+
   const filterCalls = () => {
     let filtered = [...calls];
 
@@ -306,10 +317,13 @@ export function AdminCallsAnalytics() {
       'Sentiment',
       'Cost',
       'User',
+      'Agent',
+      'Phone Number',
     ];
 
     const rows = filteredCalls.map((call) => {
       const user = getUserForAgent(call.agent_id);
+      const { agentName, phoneNumber } = getAgentAndPhoneForCall(call);
       return [
         format(new Date(call.call_started_at), 'yyyy-MM-dd HH:mm:ss'),
         call.direction.toUpperCase(),
@@ -322,6 +336,8 @@ export function AdminCallsAnalytics() {
         call.sentiment || 'N/A',
         `$${call.cost.toFixed(2)}`,
         user ? `${user.first_name} ${user.last_name}` : 'N/A',
+        agentName,
+        phoneNumber,
       ];
     });
 
@@ -579,6 +595,9 @@ export function AdminCallsAnalytics() {
                   User
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Agent & Phone
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Direction
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -601,7 +620,7 @@ export function AdminCallsAnalytics() {
             <tbody className="divide-y divide-gray-200">
               {filteredCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
                     No calls found matching your filters
                   </td>
                 </tr>
@@ -618,6 +637,17 @@ export function AdminCallsAnalytics() {
                       {(() => {
                         const user = getUserForAgent(call.agent_id);
                         return user ? `${user.first_name} ${user.last_name}` : 'N/A';
+                      })()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {(() => {
+                        const { agentName, phoneNumber } = getAgentAndPhoneForCall(call);
+                        return (
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{agentName}</div>
+                            <div className="text-sm text-gray-500 font-mono">{phoneNumber}</div>
+                          </div>
+                        );
                       })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
