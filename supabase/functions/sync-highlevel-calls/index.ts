@@ -208,59 +208,103 @@ Deno.serve(async (req: Request) => {
 
     syncLogger.logs.push(`[API] Location: ${oauthData.location_id}, Start: ${effectiveStartDate || 'none'}, End: ${endDate || 'none'}`);
 
-    // Fetch calls from HighLevel (Voice AI endpoint returns all calls in date range, no pagination)
-    const params = new URLSearchParams(baseParams);
-    const highLevelUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params.toString()}`;
+    // Fetch calls from HighLevel with pagination support
+    // The Voice AI dashboard endpoint has an undocumented limit (~10 calls per request)
+    // We need to paginate through all results using skip/limit parameters
+    const allCalls: any[] = [];
+    const pageSize = 100; // Request up to 100 calls per page
+    let skip = 0;
+    let hasMore = true;
+    let pageNumber = 1;
 
-    syncLogger.logs.push(`[API] Fetching calls from HighLevel`);
-    console.log(`[API] Fetching calls:`, highLevelUrl);
+    syncLogger.logs.push(`[API] Fetching calls from HighLevel with pagination`);
+    console.log(`[API] Starting paginated fetch`);
 
-    const apiStartTime = Date.now();
-    const callsResponse = await fetch(highLevelUrl, {
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "Version": "2021-07-28",
-      },
-    });
+    while (hasMore) {
+      const params = new URLSearchParams(baseParams);
+      params.set('limit', pageSize.toString());
+      params.set('skip', skip.toString());
 
-    const apiDuration = Date.now() - apiStartTime;
+      const highLevelUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params.toString()}`;
 
-    if (!callsResponse.ok) {
-      const errorText = await callsResponse.text();
-      syncLogger.logs.push(`[ERROR] API request failed: ${callsResponse.status} ${errorText}`);
-      console.error("HighLevel API error:", callsResponse.status, errorText);
+      syncLogger.logs.push(`[API] Fetching page ${pageNumber} (skip: ${skip}, limit: ${pageSize})`);
+      console.log(`[API] Fetching page ${pageNumber}:`, highLevelUrl);
 
-      // Update sync log with error
-      if (syncLogId) {
-        await supabase
-          .from('call_sync_logs')
-          .update({
-            sync_completed_at: new Date().toISOString(),
-            sync_status: 'failed',
-            error_details: { status: callsResponse.status, message: errorText },
-            duration_ms: Date.now() - syncStartTime,
-          })
-          .eq('id', syncLogId);
+      const apiStartTime = Date.now();
+      const callsResponse = await fetch(highLevelUrl, {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "Version": "2021-07-28",
+        },
+      });
+
+      const apiDuration = Date.now() - apiStartTime;
+
+      if (!callsResponse.ok) {
+        const errorText = await callsResponse.text();
+        syncLogger.logs.push(`[ERROR] API request failed on page ${pageNumber}: ${callsResponse.status} ${errorText}`);
+        console.error("HighLevel API error:", callsResponse.status, errorText);
+
+        // Update sync log with error
+        if (syncLogId) {
+          await supabase
+            .from('call_sync_logs')
+            .update({
+              sync_completed_at: new Date().toISOString(),
+              sync_status: 'failed',
+              error_details: { status: callsResponse.status, message: errorText, page: pageNumber },
+              duration_ms: Date.now() - syncStartTime,
+            })
+            .eq('id', syncLogId);
+        }
+
+        return new Response(
+          JSON.stringify({
+            error: `HighLevel API error: ${callsResponse.statusText}`,
+            details: errorText,
+            page: pageNumber,
+          }),
+          {
+            status: callsResponse.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
 
-      return new Response(
-        JSON.stringify({
-          error: `HighLevel API error: ${callsResponse.statusText}`,
-          details: errorText,
-        }),
-        {
-          status: callsResponse.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      const callsData = await callsResponse.json();
+      const pageCalls = callsData.callLogs || [];
+
+      syncLogger.logs.push(`[API] Page ${pageNumber} received ${pageCalls.length} calls (${apiDuration}ms)`);
+      console.log(`[API] Page ${pageNumber} received ${pageCalls.length} calls in ${apiDuration}ms`);
+
+      // Add this page's calls to the total
+      allCalls.push(...pageCalls);
+
+      // Check if there are more pages
+      // If we got fewer calls than the page size, we've reached the end
+      if (pageCalls.length < pageSize) {
+        hasMore = false;
+        syncLogger.logs.push(`[API] Pagination complete: received ${pageCalls.length} calls, less than page size ${pageSize}`);
+        console.log(`[API] Pagination complete - last page had ${pageCalls.length} calls`);
+      } else {
+        // Move to next page
+        skip += pageCalls.length;
+        pageNumber++;
+        syncLogger.logs.push(`[API] Moving to page ${pageNumber} (total fetched so far: ${allCalls.length})`);
+        console.log(`[API] Moving to next page, total fetched: ${allCalls.length}`);
+      }
+
+      // Safety limit to prevent infinite loops
+      if (pageNumber > 100) {
+        syncLogger.logs.push(`[WARNING] Hit safety limit of 100 pages, stopping pagination`);
+        console.warn(`Hit safety limit of 100 pages, stopping pagination`);
+        hasMore = false;
+      }
     }
 
-    const callsData = await callsResponse.json();
-    const allCalls = callsData.callLogs || [];
-
-    syncLogger.logs.push(`[API] Received ${allCalls.length} calls (${apiDuration}ms)`);
-    console.log(`[API] Received ${allCalls.length} calls in ${apiDuration}ms`);
+    syncLogger.logs.push(`[API] Total calls fetched: ${allCalls.length} across ${pageNumber} page(s)`);
+    console.log(`[API] Pagination complete: ${allCalls.length} total calls fetched across ${pageNumber} page(s)`);
 
     // Get user's assigned agents to filter calls
     const { data: userAgents, error: userAgentsError } = await supabase
