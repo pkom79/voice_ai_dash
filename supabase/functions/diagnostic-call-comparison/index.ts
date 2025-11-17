@@ -140,74 +140,50 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[DIAGNOSTIC] Date range: ${effectiveStartDate} to ${effectiveEndDate}`);
 
-    const highLevelCalls: any[] = [];
-    let page = 0;
-    const pageSize = 100;
-    const maxPages = 50;
-    let hasMorePages = true;
+    // Fetch calls from HighLevel (Voice AI endpoint returns all calls in date range)
+    const params = new URLSearchParams({
+      locationId: oauthData.location_id,
+      startDate: effectiveStartDate,
+      endDate: effectiveEndDate,
+    });
 
-    while (hasMorePages && page < maxPages) {
-      const params = new URLSearchParams({
-        locationId: oauthData.location_id,
-        startDate: effectiveStartDate,
-        endDate: effectiveEndDate,
-        limit: pageSize.toString(),
-        skip: (page * pageSize).toString(),
-      });
+    const hlUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params}`;
+    console.log(`[DIAGNOSTIC] Fetching calls from HighLevel:`, hlUrl);
 
-      const hlUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params}`;
-      console.log(`[DIAGNOSTIC] Fetching HL page ${page + 1}`);
+    const response = await fetch(hlUrl, {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "Version": "2021-07-28",
+      },
+    });
 
-      const response = await fetch(hlUrl, {
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          "Version": "2021-07-28",
-        },
-      });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[DIAGNOSTIC] HL API error:`, response.status, errorText);
+      console.error(`[DIAGNOSTIC] Request URL:`, hlUrl);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[DIAGNOSTIC] HL API error:`, response.status, errorText);
-        console.error(`[DIAGNOSTIC] Request URL:`, hlUrl);
-        console.error(`[DIAGNOSTIC] Params:`, {
-          locationId: oauthData.location_id,
-          startDate: effectiveStartDate,
-          endDate: effectiveEndDate,
-          limit: pageSize,
-          skip: page * pageSize,
-        });
-
-        return new Response(
-          JSON.stringify({
-            error: "Failed to fetch calls from HighLevel",
-            details: errorText,
-            status: response.status,
-            url: hlUrl,
-            params: {
-              locationId: oauthData.location_id,
-              startDate: effectiveStartDate,
-              endDate: effectiveEndDate,
-            }
-          }),
-          {
-            status: response.status,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(
+        JSON.stringify({
+          error: "Failed to fetch calls from HighLevel",
+          details: errorText,
+          status: response.status,
+          url: hlUrl,
+          params: {
+            locationId: oauthData.location_id,
+            startDate: effectiveStartDate,
+            endDate: effectiveEndDate,
           }
-        );
-      }
-
-      const data = await response.json();
-      const pageCalls = data.callLogs || [];
-      highLevelCalls.push(...pageCalls);
-
-      hasMorePages = pageCalls.length === pageSize;
-      page++;
-
-      if (hasMorePages && page < maxPages) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+        }),
+        {
+          status: response.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
+
+    const data = await response.json();
+    const highLevelCalls = data.callLogs || [];
 
     console.log(`[DIAGNOSTIC] Fetched ${highLevelCalls.length} calls from HighLevel`);
 
@@ -366,7 +342,6 @@ Deno.serve(async (req: Request) => {
         matching: matching.length,
         missingInDatabase: missingInDB.length,
         extraInDatabase: missingInHL.length,
-        pagesFetched: page,
       },
       missingCalls: missingInDB,
       extraCalls: missingInHL.length > 0 ? missingInHL : undefined,
@@ -397,7 +372,6 @@ Deno.serve(async (req: Request) => {
         },
         api_response_summary: {
           totalFetched: highLevelCalls.length,
-          pageCount: page,
         },
         processing_summary: {
           highlevelTotal: highLevelCalls.length,

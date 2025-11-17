@@ -208,93 +208,59 @@ Deno.serve(async (req: Request) => {
 
     syncLogger.logs.push(`[API] Location: ${oauthData.location_id}, Start: ${effectiveStartDate || 'none'}, End: ${endDate || 'none'}`);
 
-    // Fetch calls with pagination support
-    const allCalls: any[] = [];
-    let page = 0;
-    let hasMorePages = true;
-    const pageSize = 100; // Adjust based on HL API limits
-    const maxPages = 50; // Safety limit to prevent infinite loops
+    // Fetch calls from HighLevel (Voice AI endpoint returns all calls in date range, no pagination)
+    const params = new URLSearchParams(baseParams);
+    const highLevelUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params.toString()}`;
 
-    while (hasMorePages && page < maxPages) {
-      const params = new URLSearchParams(baseParams);
-      params.append("limit", pageSize.toString());
-      params.append("skip", (page * pageSize).toString());
+    syncLogger.logs.push(`[API] Fetching calls from HighLevel`);
+    console.log(`[API] Fetching calls:`, highLevelUrl);
 
-      const highLevelUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params.toString()}`;
+    const apiStartTime = Date.now();
+    const callsResponse = await fetch(highLevelUrl, {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "Version": "2021-07-28",
+      },
+    });
 
-      syncLogger.logs.push(`[API] Fetching page ${page + 1} (skip: ${page * pageSize}, limit: ${pageSize})`);
-      console.log(`[PAGINATION] Fetching page ${page + 1}:`, highLevelUrl);
+    const apiDuration = Date.now() - apiStartTime;
 
-      const pageStartTime = Date.now();
-      const callsResponse = await fetch(highLevelUrl, {
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          "Version": "2021-07-28",
-        },
-      });
+    if (!callsResponse.ok) {
+      const errorText = await callsResponse.text();
+      syncLogger.logs.push(`[ERROR] API request failed: ${callsResponse.status} ${errorText}`);
+      console.error("HighLevel API error:", callsResponse.status, errorText);
 
-      const pageDuration = Date.now() - pageStartTime;
+      // Update sync log with error
+      if (syncLogId) {
+        await supabase
+          .from('call_sync_logs')
+          .update({
+            sync_completed_at: new Date().toISOString(),
+            sync_status: 'failed',
+            error_details: { status: callsResponse.status, message: errorText },
+            duration_ms: Date.now() - syncStartTime,
+          })
+          .eq('id', syncLogId);
+      }
 
-      if (!callsResponse.ok) {
-        const errorText = await callsResponse.text();
-        syncLogger.logs.push(`[ERROR] API request failed: ${callsResponse.status} ${errorText}`);
-        console.error("HighLevel API error:", callsResponse.status, errorText);
-
-        // Update sync log with error
-        if (syncLogId) {
-          await supabase
-            .from('call_sync_logs')
-            .update({
-              sync_completed_at: new Date().toISOString(),
-              sync_status: 'failed',
-              error_details: { status: callsResponse.status, message: errorText },
-              duration_ms: Date.now() - syncStartTime,
-            })
-            .eq('id', syncLogId);
+      return new Response(
+        JSON.stringify({
+          error: `HighLevel API error: ${callsResponse.statusText}`,
+          details: errorText,
+        }),
+        {
+          status: callsResponse.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
-
-        return new Response(
-          JSON.stringify({
-            error: `HighLevel API error: ${callsResponse.statusText}`,
-            details: errorText,
-          }),
-          {
-            status: callsResponse.status,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      const pageData = await callsResponse.json();
-      const pageCalls = pageData.callLogs || [];
-
-      syncLogger.apiPages.push({
-        page: page + 1,
-        callsReceived: pageCalls.length,
-        duration_ms: pageDuration,
-        timestamp: new Date().toISOString(),
-      });
-
-      syncLogger.logs.push(`[API] Page ${page + 1} received: ${pageCalls.length} calls (${pageDuration}ms)`);
-      console.log(`[PAGINATION] Page ${page + 1}: ${pageCalls.length} calls`);
-
-      allCalls.push(...pageCalls);
-
-      // Check if there are more pages
-      hasMorePages = pageCalls.length === pageSize;
-      page++;
-
-      // Rate limiting: wait between requests
-      if (hasMorePages && page < maxPages) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+      );
     }
 
-    syncLogger.logs.push(`[API] Pagination complete: ${allCalls.length} total calls across ${page} page(s)`);
-    console.log(`[PAGINATION] Complete: ${allCalls.length} total calls across ${page} pages`);
+    const callsData = await callsResponse.json();
+    const allCalls = callsData.callLogs || [];
 
-    const callsData = { callLogs: allCalls };
+    syncLogger.logs.push(`[API] Received ${allCalls.length} calls (${apiDuration}ms)`);
+    console.log(`[API] Received ${allCalls.length} calls in ${apiDuration}ms`);
 
     // Get user's assigned agents to filter calls
     const { data: userAgents, error: userAgentsError } = await supabase
@@ -613,8 +579,6 @@ Deno.serve(async (req: Request) => {
           api_params: baseParams,
           api_response_summary: {
             totalFetched: allCalls.length,
-            pageCount: page,
-            pagesDetails: syncLogger.apiPages,
             dateRangeCovered: { start: effectiveStartDate, end: endDate },
           },
           processing_summary: {
@@ -693,7 +657,6 @@ Deno.serve(async (req: Request) => {
         skippedCount,
         errorCount,
         totalFetched: allCalls.length,
-        pagesFetched: page,
         syncLogId,
         duration_ms: syncDuration,
         errors: errors.length > 0 ? errors : undefined,
