@@ -235,13 +235,6 @@ Deno.serve(async (req: Request) => {
 
       for (const call of callsData.callLogs) {
         try {
-          // Skip calls from agents not assigned to this user
-          if (call.agentId && !assignedAgentHighLevelIds.has(call.agentId)) {
-            console.log(`Skipping call ${call.id} - agent ${call.agentId} not assigned to user ${userId}`);
-            skippedCount++;
-            continue;
-          }
-
           // Determine direction - map any possible API values to our schema
           let direction = 'inbound'; // default
           if (call.direction) {
@@ -288,6 +281,24 @@ Deno.serve(async (req: Request) => {
                 .from('agents')
                 .update(updates)
                 .eq('id', existingAgent.id);
+
+              // Auto-assign agent to user if not already assigned
+              // This ensures the user can see calls from all agents that are actively making calls
+              if (!assignedAgentHighLevelIds.has(call.agentId)) {
+                console.log(`Auto-assigning agent ${call.agentId} to user ${userId} based on call activity`);
+                const { error: assignError } = await supabase.rpc('auto_assign_agent_to_user', {
+                  p_user_id: userId,
+                  p_agent_id: agentDbId,
+                });
+
+                if (assignError) {
+                  console.error(`Error auto-assigning agent:`, assignError);
+                } else {
+                  // Add to the set so we don't try to assign again in this sync
+                  assignedAgentHighLevelIds.add(call.agentId);
+                  console.log(`Successfully auto-assigned agent ${call.agentId} to user ${userId}`);
+                }
+              }
             } else {
               // Agent not in database - skip this call since agents must be explicitly assigned
               console.log(`Skipping call ${call.id} - agent ${call.agentId} not found in database`);
