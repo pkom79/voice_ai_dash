@@ -944,23 +944,23 @@ export function UserDetailsPage() {
       const endDateISO = resyncRangeEnd ? createDayEnd(resyncRangeEnd, timezone) : createDayEnd(resyncRangeStart, timezone);
 
       console.log('Syncing calls with params:', {
-        user_id: userId,
-        start_date: startDateISO,
-        end_date: endDateISO,
+        userId: userId,
+        startDate: startDateISO,
+        endDate: endDateISO,
         timezone,
-        admin_override: adminOverride,
-        admin_user_id: currentUser?.id
+        adminOverride: adminOverride,
+        adminUserId: currentUser?.id
       });
 
       const { data, error } = await supabase.functions.invoke('sync-highlevel-calls', {
         body: {
-          user_id: userId,
-          start_date: startDateISO,
-          end_date: endDateISO,
+          userId: userId,
+          startDate: startDateISO,
+          endDate: endDateISO,
           timezone: timezone,
-          admin_override: adminOverride,
-          admin_user_id: currentUser?.id,
-          sync_type: 'admin_historical'
+          adminOverride: adminOverride,
+          adminUserId: currentUser?.id,
+          syncType: 'admin_historical'
         }
       });
 
