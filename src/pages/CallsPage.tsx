@@ -78,12 +78,17 @@ export function CallsPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
-    loadCalls();
     loadAgents();
     if (isAdminView && viewingUserId) {
       loadViewingUserName(viewingUserId);
     }
   }, [viewingUserId]);
+
+  useEffect(() => {
+    if (availableAgents.length > 0 || profile?.role === 'admin') {
+      loadCalls();
+    }
+  }, [availableAgents, effectiveUserId]);
 
   useEffect(() => {
     loadPhoneNumbers();
@@ -125,21 +130,50 @@ export function CallsPage() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('calls')
-        .select(`
-          *,
-          agents (
-            name,
-            highlevel_agent_id
-          )
-        `)
-        .eq('user_id', effectiveUserId)
-        .eq('is_test_call', false)
-        .order('call_started_at', { ascending: false });
+      const isViewingOwnCallsAsAdmin = profile?.role === 'admin' && !isAdminView;
 
-      if (error) throw error;
-      setCalls(data || []);
+      if (isViewingOwnCallsAsAdmin) {
+        const { data, error } = await supabase
+          .from('calls')
+          .select(`
+            *,
+            agents (
+              name,
+              highlevel_agent_id
+            )
+          `)
+          .eq('user_id', effectiveUserId)
+          .eq('is_test_call', false)
+          .order('call_started_at', { ascending: false });
+
+        if (error) throw error;
+        setCalls(data || []);
+      } else {
+        const assignedAgentIds = availableAgents.map(agent => agent.id);
+
+        if (assignedAgentIds.length === 0) {
+          setCalls([]);
+          setLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('calls')
+          .select(`
+            *,
+            agents (
+              name,
+              highlevel_agent_id
+            )
+          `)
+          .eq('user_id', effectiveUserId)
+          .eq('is_test_call', false)
+          .in('agent_id', assignedAgentIds)
+          .order('call_started_at', { ascending: false });
+
+        if (error) throw error;
+        setCalls(data || []);
+      }
     } catch (error) {
       console.error('Error loading calls:', error);
     } finally {
@@ -259,10 +293,6 @@ export function CallsPage() {
 
     if (selectedAgent !== 'all') {
       filtered = filtered.filter((call) => call.agent_id === selectedAgent);
-    } else {
-      // When "All Agents" is selected, only show calls from assigned agents
-      const assignedAgentIds = availableAgents.map(agent => agent.id);
-      filtered = filtered.filter((call) => call.agent_id && assignedAgentIds.includes(call.agent_id));
     }
 
     if (selectedPhoneNumber !== 'all') {
@@ -515,12 +545,6 @@ export function CallsPage() {
           </div>
         </div>
 
-        {/* Results Count and Export */}
-        <div className="mt-4 flex items-center justify-between">
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Showing {filteredCalls.length} call{filteredCalls.length !== 1 ? 's' : ''}
-          </div>
-        </div>
       </div>
 
       {/* Calls Table */}
@@ -531,6 +555,9 @@ export function CallsPage() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Agent
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Phone #
                 </th>
                 <th
                   onClick={() => handleSort('contact_name')}
@@ -570,7 +597,7 @@ export function CallsPage() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {paginatedCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     No calls found. Try adjusting your filters or click Sync Now to refresh your data.
                   </td>
                 </tr>
@@ -580,6 +607,11 @@ export function CallsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900 dark:text-gray-100">
                         {call.agents?.name || '-'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900 dark:text-gray-100 font-mono">
+                        {formatPhoneNumber(call.direction === 'inbound' ? call.to_number : call.from_number)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
