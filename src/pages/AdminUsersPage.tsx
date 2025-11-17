@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Phone,
   BarChart3,
+  RefreshCw,
 } from 'lucide-react';
 import { CreateUserModal } from '../components/admin/CreateUserModal';
 import { UserSessionsModal } from '../components/admin/UserSessionsModal';
@@ -84,6 +85,7 @@ export function AdminUsersPage() {
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [sendingInvite, setSendingInvite] = useState<string | null>(null);
+  const [syncingUser, setSyncingUser] = useState<string | null>(null);
   const [showSessionsModal, setShowSessionsModal] = useState(false);
   const [showBillingModal, setShowBillingModal] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{
@@ -357,6 +359,46 @@ export function AdminUsersPage() {
     }
   };
 
+  const handleSyncCalls = async (userId: string) => {
+    setSyncingUser(userId);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        showError('Not authenticated');
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-highlevel-calls`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok) {
+        showSuccess(
+          `Sync completed! Fetched ${result.totalFetched || 0} calls, saved ${result.savedCount || 0}, skipped ${result.skippedCount || 0}`
+        );
+      } else {
+        showError(`Sync failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error syncing calls:', error);
+      showError('Failed to sync calls');
+    } finally {
+      setSyncingUser(null);
+    }
+  };
+
   const handleSuspendUser = async (suspend: boolean) => {
     if (!selectedUser) return;
 
@@ -530,6 +572,25 @@ export function AdminUsersPage() {
                       >
                         View Details
                       </button>
+                      {user.hasConnection && (
+                        <button
+                          onClick={() => handleSyncCalls(user.id)}
+                          disabled={syncingUser === user.id}
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {syncingUser === user.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Syncing...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-4 w-4" />
+                              Sync Calls
+                            </>
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setConfirmModal({
