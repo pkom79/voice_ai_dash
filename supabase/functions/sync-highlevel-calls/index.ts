@@ -136,8 +136,11 @@ Deno.serve(async (req: Request) => {
         timezone_used: timezone,
         admin_override: adminOverride,
         admin_user_id: adminUserId || null,
-        start_date_requested: startDate || null,
-        end_date_requested: endDate || null,
+        api_params: {
+          startDate: startDate || null,
+          endDate: endDate || null,
+          timezone: timezone,
+        },
       })
       .select()
       .single();
@@ -171,8 +174,7 @@ Deno.serve(async (req: Request) => {
           .update({
             sync_status: 'failed',
             sync_completed_at: new Date().toISOString(),
-            error_message: errorMsg,
-            logs: syncLogger.logs,
+            error_details: { message: errorMsg, logs: syncLogger.logs },
           })
           .eq('id', syncLogId);
       }
@@ -197,8 +199,7 @@ Deno.serve(async (req: Request) => {
           .update({
             sync_status: 'failed',
             sync_completed_at: new Date().toISOString(),
-            error_message: errorMsg,
-            logs: syncLogger.logs,
+            error_details: { message: errorMsg, logs: syncLogger.logs },
           })
           .eq('id', syncLogId);
       }
@@ -522,16 +523,20 @@ Deno.serve(async (req: Request) => {
         .update({
           sync_status: 'completed',
           sync_completed_at: new Date().toISOString(),
-          calls_fetched: allRawCalls.length,
-          calls_inserted: insertedCount,
-          calls_updated: updatedCount,
-          calls_skipped: skippedCount,
-          api_time_ms: totalApiTime,
-          total_time_ms: syncDuration,
-          logs: syncLogger.logs,
-          skip_reasons: syncLogger.skipReasons,
-          api_pages: syncLogger.apiPages,
-          skipped_calls_sample: syncLogger.skippedCalls.slice(0, 50),
+          duration_ms: syncDuration,
+          api_response_summary: {
+            total_calls: allRawCalls.length,
+            api_time_ms: totalApiTime,
+            pages: syncLogger.apiPages,
+            logs: syncLogger.logs,
+          },
+          processing_summary: {
+            inserted: insertedCount,
+            updated: updatedCount,
+            skipped: skippedCount,
+            skip_reasons: syncLogger.skipReasons,
+          },
+          skipped_calls: syncLogger.skippedCalls.slice(0, 50),
         })
         .eq('id', syncLogId);
     }
@@ -570,7 +575,7 @@ Deno.serve(async (req: Request) => {
           .update({
             sync_status: 'failed',
             sync_completed_at: new Date().toISOString(),
-            error_message: errorMessage,
+            error_details: { message: errorMessage, stack: errorStack },
           })
           .eq('id', syncLogId);
       } catch (logError) {
