@@ -175,49 +175,61 @@ Deno.serve(async (req: Request) => {
     const allHighLevelCalls: any[] = [];
     const allApiResponses: any[] = [];
 
-    // Fetch each chunk
+    // Fetch each chunk with pagination
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      const params = new URLSearchParams({
-        locationId: oauthData.location_id,
-        startDate: chunk.start,
-        endDate: chunk.end,
-      });
+      let page = 1;
+      let hasMorePages = true;
 
-      const hlUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params}`;
-      console.log(`[DIAGNOSTIC] Chunk ${i + 1}/${chunks.length}: ${chunk.start} to ${chunk.end}`);
-      console.log(`[DIAGNOSTIC] URL:`, hlUrl);
+      while (hasMorePages) {
+        const params = new URLSearchParams({
+          locationId: oauthData.location_id,
+          startDate: chunk.start,
+          endDate: chunk.end,
+          page: page.toString(),
+        });
 
-      const response = await fetch(hlUrl, {
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          "Version": "2021-07-28",
-        },
-      });
+        const hlUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params}`;
+        console.log(`[DIAGNOSTIC] Chunk ${i + 1}/${chunks.length}, Page ${page}: ${chunk.start} to ${chunk.end}`);
+        console.log(`[DIAGNOSTIC] URL:`, hlUrl);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[DIAGNOSTIC] HL API error on chunk ${i + 1}:`, response.status, errorText);
+        const response = await fetch(hlUrl, {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+            "Version": "2021-07-28",
+          },
+        });
 
-        // Continue with other chunks even if one fails
-        continue;
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[DIAGNOSTIC] HL API error on chunk ${i + 1}, page ${page}:`, response.status, errorText);
+          break; // Exit pagination loop for this chunk
+        }
+
+        const data = await response.json();
+        const chunkCalls = data.callLogs || [];
+
+        console.log(`[DIAGNOSTIC] Chunk ${i + 1}, Page ${page} returned ${chunkCalls.length} calls (total: ${data.total})`);
+
+        allHighLevelCalls.push(...chunkCalls);
+        allApiResponses.push({
+          chunk: i + 1,
+          page: page,
+          dateRange: { start: chunk.start, end: chunk.end },
+          total: data.total,
+          pageSize: data.pageSize,
+          callCount: chunkCalls.length,
+        });
+
+        // Check if there are more pages
+        const totalPages = Math.ceil(data.total / data.pageSize);
+        if (page >= totalPages || chunkCalls.length < data.pageSize) {
+          hasMorePages = false;
+        } else {
+          page++;
+        }
       }
-
-      const data = await response.json();
-      const chunkCalls = data.callLogs || [];
-
-      console.log(`[DIAGNOSTIC] Chunk ${i + 1} returned ${chunkCalls.length} calls`);
-
-      allHighLevelCalls.push(...chunkCalls);
-      allApiResponses.push({
-        chunk: i + 1,
-        dateRange: { start: chunk.start, end: chunk.end },
-        total: data.total,
-        page: data.page,
-        pageSize: data.pageSize,
-        callCount: chunkCalls.length,
-      });
     }
 
     const highLevelCalls = allHighLevelCalls;
