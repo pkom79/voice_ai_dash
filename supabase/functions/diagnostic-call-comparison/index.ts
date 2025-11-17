@@ -246,8 +246,8 @@ Deno.serve(async (req: Request) => {
     console.log(`[DIAGNOSTIC] After deduplication: ${callsById.size} unique calls (removed ${allRawCalls.length - callsById.size} duplicates)`);
 
     // Convert to array and filter by actual date range
-    const startUtc = new Date(start);
-    const endUtc = new Date(end);
+    const startUtc = new Date(effectiveStartDate);
+    const endUtc = new Date(effectiveEndDate);
 
     let highLevelCalls = Array.from(callsById.values())
       .filter(call => {
@@ -256,7 +256,7 @@ Deno.serve(async (req: Request) => {
       })
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-    console.log(`[DIAGNOSTIC] After date filtering: ${highLevelCalls.length} calls in range [${start}, ${end})`);
+    console.log(`[DIAGNOSTIC] After date filtering: ${highLevelCalls.length} calls in range [${effectiveStartDate}, ${effectiveEndDate})`);
     console.log(`[DIAGNOSTIC] Filtered out: ${callsById.size - highLevelCalls.length} calls outside date range`);
 
     // If raw dump mode, just return the HighLevel data without any comparison
