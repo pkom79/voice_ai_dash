@@ -64,6 +64,8 @@ Deno.serve(async (req: Request) => {
   let syncLogId: string | null = null;
 
   try {
+    console.log("[SYNC] Function invoked");
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -75,6 +77,10 @@ Deno.serve(async (req: Request) => {
       }
     );
 
+    console.log("[SYNC] Parsing request body");
+    const requestBody = await req.json();
+    console.log("[SYNC] Request body:", JSON.stringify(requestBody));
+
     const {
       userId,
       startDate,
@@ -83,7 +89,33 @@ Deno.serve(async (req: Request) => {
       timezone = 'America/New_York',
       adminOverride = false,
       adminUserId
-    }: SyncCallsRequest = await req.json();
+    }: SyncCallsRequest = requestBody;
+
+    // Validate required parameters
+    if (!userId) {
+      console.error("[SYNC] Missing userId");
+      return new Response(
+        JSON.stringify({ error: "userId is required" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Validate date parameters if provided
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      console.error("[SYNC] Invalid date range: start > end");
+      return new Response(
+        JSON.stringify({ error: "startDate must be before or equal to endDate" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log(`[SYNC] Parameters validated - userId: ${userId}, syncType: ${syncType}, adminOverride: ${adminOverride}`);
 
     const syncLogger: SyncLogger = {
       logId: crypto.randomUUID(),
@@ -119,16 +151,7 @@ Deno.serve(async (req: Request) => {
 
     syncLogger.logs.push(`[START] Sync initiated - Type: ${syncType}, Admin Override: ${adminOverride}`);
 
-    if (!userId) {
-      return new Response(
-        JSON.stringify({ error: "userId is required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
+    console.log(`[SYNC] Looking up OAuth connection for user ${userId}`);
     const { data: oauthData, error: oauthError } = await supabase
       .from("api_keys")
       .select("access_token, refresh_token, token_expires_at, location_id")
@@ -137,8 +160,9 @@ Deno.serve(async (req: Request) => {
       .eq("is_active", true)
       .maybeSingle();
 
-    if (oauthError || !oauthData) {
-      const errorMsg = "No valid OAuth connection found";
+    if (oauthError) {
+      console.error("[SYNC] Database error fetching OAuth:", oauthError);
+      const errorMsg = `Database error: ${oauthError.message}`;
       syncLogger.logs.push(`[ERROR] ${errorMsg}`);
 
       if (syncLogId) {
@@ -156,11 +180,39 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: errorMsg }),
         {
-          status: 401,
+          status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
+
+    if (!oauthData) {
+      console.error("[SYNC] No OAuth connection found for user");
+      const errorMsg = "No HighLevel OAuth connection found for this user. Please connect to HighLevel first.";
+      syncLogger.logs.push(`[ERROR] ${errorMsg}`);
+
+      if (syncLogId) {
+        await supabase
+          .from('call_sync_logs')
+          .update({
+            sync_status: 'failed',
+            sync_completed_at: new Date().toISOString(),
+            error_message: errorMsg,
+            logs: syncLogger.logs,
+          })
+          .eq('id', syncLogId);
+      }
+
+      return new Response(
+        JSON.stringify({ error: errorMsg, requiresSetup: true }),
+        {
+          status: 422,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log(`[SYNC] OAuth connection found - location: ${oauthData.location_id}`);
 
     const { data: billingAccount, error: billingError } = await supabase
       .from("billing_accounts")
@@ -253,6 +305,7 @@ Deno.serve(async (req: Request) => {
     baseParams.timezone = timezone;
 
     syncLogger.logs.push(`[API] Location: ${oauthData.location_id}, Start: ${effectiveStartDate || 'none'}, End: ${effectiveEndDate}, Timezone: ${timezone}`);
+    console.log(`[SYNC] Preparing to fetch calls - Start: ${effectiveStartDate}, End: ${effectiveEndDate}, Timezone: ${timezone}`);
 
     const allRawCalls: any[] = [];
     const callsById = new Map<string, any>();
@@ -308,6 +361,7 @@ Deno.serve(async (req: Request) => {
         const apiCallStart = Date.now();
 
         syncLogger.logs.push(`[API REQUEST] Page ${page}, Limit ${limit}, Date Range: ${chunk.start} to ${chunk.end}, Timezone: ${timezone}`);
+        console.log(`[SYNC] Calling HighLevel API: ${apiUrl}`);
 
         const response = await fetch(apiUrl, {
           headers: {
@@ -498,26 +552,38 @@ Deno.serve(async (req: Request) => {
       }
     );
   } catch (error) {
-    console.error("Error syncing calls:", error);
+    console.error("[SYNC] Unhandled error:", error);
+    console.error("[SYNC] Error stack:", error.stack);
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
 
     if (syncLogId) {
-      const supabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-      );
+      try {
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+        );
 
-      await supabase
-        .from('call_sync_logs')
-        .update({
-          sync_status: 'failed',
-          sync_completed_at: new Date().toISOString(),
-          error_message: error.message,
-        })
-        .eq('id', syncLogId);
+        await supabase
+          .from('call_sync_logs')
+          .update({
+            sync_status: 'failed',
+            sync_completed_at: new Date().toISOString(),
+            error_message: errorMessage,
+          })
+          .eq('id', syncLogId);
+      } catch (logError) {
+        console.error("[SYNC] Failed to update sync log:", logError);
+      }
     }
 
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: error.message }),
+      JSON.stringify({
+        error: "Internal server error",
+        details: errorMessage,
+        stack: errorStack
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
