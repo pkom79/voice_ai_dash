@@ -456,10 +456,24 @@ Deno.serve(async (req: Request) => {
         const durationSeconds = rawCall.duration || 0;
         const { cost, displayCost } = calculateCallCost(durationSeconds, direction, billingAccount);
 
+        // Look up the database UUID for the HighLevel agent ID
+        const highlevelAgentId = rawCall.agent_id || rawCall.agentId;
+        let agentUuid = null;
+
+        if (highlevelAgentId) {
+          const { data: agentData } = await supabase
+            .from("agents")
+            .select("id")
+            .eq("highlevel_agent_id", highlevelAgentId)
+            .maybeSingle();
+
+          agentUuid = agentData?.id || null;
+        }
+
         const callData = {
           highlevel_call_id: rawCall.id,
           user_id: userId,
-          agent_id: rawCall.agent_id || rawCall.agentId,
+          agent_id: agentUuid,
           contact_id: rawCall.contact_id || rawCall.contactId,
           from_number: fromNumber,
           to_number: toNumber,
