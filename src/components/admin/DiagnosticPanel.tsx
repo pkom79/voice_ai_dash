@@ -50,6 +50,8 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
   const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [diagnosticLoading, setDiagnosticLoading] = useState(false);
+  const [rawDumpLoading, setRawDumpLoading] = useState(false);
+  const [rawDumpResult, setRawDumpResult] = useState<any>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -123,6 +125,48 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
     }
   };
 
+  const runRawDump = async () => {
+    setRawDumpLoading(true);
+    setRawDumpResult(null);
+
+    try {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diagnostic-call-comparison`;
+
+      const body: any = {
+        userId,
+        rawDumpOnly: true,
+      };
+
+      if (startDate) body.startDate = startDate.toISOString();
+      if (endDate) body.endDate = endDate.toISOString();
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Raw dump error response:', errorData);
+        const errorMessage = errorData.error || 'Raw dump failed';
+        const errorDetails = errorData.details ? `\n\nDetails: ${errorData.details}` : '';
+        throw new Error(errorMessage + errorDetails);
+      }
+
+      const result = await response.json();
+      setRawDumpResult(result);
+    } catch (error) {
+      console.error('Raw dump error:', error);
+      alert(`Raw dump failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setRawDumpLoading(false);
+    }
+  };
+
   const exportLogAsJSON = (log: SyncLog) => {
     const dataStr = JSON.stringify(log, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -141,6 +185,17 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
     const link = document.createElement('a');
     link.href = url;
     link.download = `diagnostic-${userId}-${Date.now()}.json`;
+    link.click();
+  };
+
+  const exportRawDumpAsJSON = () => {
+    if (!rawDumpResult) return;
+    const dataStr = JSON.stringify(rawDumpResult, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `raw-dump-${userId}-${Date.now()}.json`;
     link.click();
   };
 
@@ -226,6 +281,18 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
               Refresh
             </button>
             <button
+              onClick={runRawDump}
+              disabled={rawDumpLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {rawDumpLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Raw HL Dump
+            </button>
+            <button
               onClick={runDiagnostic}
               disabled={diagnosticLoading}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
@@ -260,12 +327,68 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
           )}
         </div>
 
+        {rawDumpLoading && (
+          <div className="py-8 text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-green-600 mx-auto mb-2" />
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Fetching raw call data from HighLevel...
+            </p>
+          </div>
+        )}
+
         {diagnosticLoading && (
           <div className="py-8 text-center">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Analyzing call data from HighLevel and database...
             </p>
+          </div>
+        )}
+
+        {rawDumpResult && (
+          <div className="space-y-4 mb-6">
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-semibold text-green-900 dark:text-green-300">
+                  Raw HighLevel Data Dump
+                </h4>
+                <button
+                  onClick={exportRawDumpAsJSON}
+                  className="flex items-center gap-2 px-3 py-1 text-sm bg-white dark:bg-gray-700 border border-green-300 dark:border-green-600 rounded hover:bg-green-50 dark:hover:bg-gray-600"
+                >
+                  <Download className="h-4 w-4" />
+                  Export JSON
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    {rawDumpResult.totalCalls}
+                  </div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Total Calls from HighLevel</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
+                    <strong>Location ID:</strong> {rawDumpResult.locationId}
+                  </div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    {format(new Date(rawDumpResult.dateRange.start), 'MMM d, yyyy')} -{' '}
+                    {format(new Date(rawDumpResult.dateRange.end), 'MMM d, yyyy')}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded border border-green-200 dark:border-green-700">
+                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Sample Calls (first 3):
+                </div>
+                <div className="max-h-60 overflow-y-auto text-xs text-gray-600 dark:text-gray-400 font-mono">
+                  <pre>{JSON.stringify(rawDumpResult.calls.slice(0, 3), null, 2)}</pre>
+                </div>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-3">
+                This is the unfiltered response from HighLevel API. No agent filtering or database comparison has been applied.
+              </p>
+            </div>
           </div>
         )}
 
