@@ -598,6 +598,9 @@ export function AdminCallsAnalytics() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Call ID
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Contact
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -629,13 +632,18 @@ export function AdminCallsAnalytics() {
             <tbody className="divide-y divide-gray-200">
               {filteredCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
                     No calls found matching your filters
                   </td>
                 </tr>
               ) : (
                 filteredCalls.slice(0, 50).map((call) => (
                   <tr key={call.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs text-gray-600 font-mono">
+                        {call.highlevel_call_id}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {formatContactName(call.contact_name)}
