@@ -122,6 +122,7 @@ Deno.serve(async (req: Request) => {
     let effectiveStartDate = startDate;
     let effectiveEndDate = endDate;
 
+    // Only apply default dates if user hasn't provided them
     if (!effectiveStartDate) {
       if (billingAccount?.calls_reset_at) {
         effectiveStartDate = new Date(billingAccount.calls_reset_at).toISOString();
@@ -132,10 +133,15 @@ Deno.serve(async (req: Request) => {
         effectiveStartDate = sevenDaysAgo.toISOString();
         console.log(`[DIAGNOSTIC] Using default 7 days start: ${effectiveStartDate}`);
       }
+    } else {
+      console.log(`[DIAGNOSTIC] Using user-provided startDate: ${effectiveStartDate}`);
     }
 
     if (!effectiveEndDate) {
       effectiveEndDate = new Date().toISOString();
+      console.log(`[DIAGNOSTIC] Using current time as endDate: ${effectiveEndDate}`);
+    } else {
+      console.log(`[DIAGNOSTIC] Using user-provided endDate: ${effectiveEndDate}`);
     }
 
     console.log(`[DIAGNOSTIC] Date range: ${effectiveStartDate} to ${effectiveEndDate}`);
