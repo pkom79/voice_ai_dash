@@ -49,6 +49,8 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
   const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [diagnosticLoading, setDiagnosticLoading] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     loadRecentLogs();
@@ -80,16 +82,21 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
     try {
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diagnostic-call-comparison`;
 
+      const body: any = {
+        userId,
+        includeRawData: false,
+      };
+
+      if (startDate) body.startDate = new Date(startDate).toISOString();
+      if (endDate) body.endDate = new Date(endDate).toISOString();
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userId,
-          includeRawData: false,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -184,6 +191,17 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
     }
   };
 
+  const formatReason = (reason: string) => {
+    const reasonMap: Record<string, string> = {
+      'filtering_or_sync_issue': 'Agent Assigned but Call Not Synced (Potential Sync Bug)',
+      'agent_not_assigned_to_user': 'Agent Not Assigned to User',
+      'agent_not_in_system': 'Agent Not Found in System',
+      'no_agent_id_in_call': 'No Agent ID in Call Data',
+      'not_in_hl_response': 'Not in HighLevel Response',
+    };
+    return reasonMap[reason] || reason.replace(/_/g, ' ');
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-6">
@@ -216,6 +234,39 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
                 <AlertCircle className="h-4 w-4" />
               )}
               Run Diagnostic
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Start Date (optional)
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              End Date (optional)
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={() => { setStartDate(''); setEndDate(''); }}
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
+            >
+              Clear Dates
             </button>
           </div>
         </div>
@@ -291,7 +342,7 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
                   {Object.entries(diagnosticResult.reasonBreakdown).map(([reason, count]) => (
                     <div key={reason} className="flex justify-between text-sm">
                       <span className="text-gray-700 dark:text-gray-300">
-                        {reason.replace(/_/g, ' ')}:
+                        {formatReason(reason)}:
                       </span>
                       <span className="font-semibold text-yellow-900 dark:text-yellow-300">
                         {count} calls
@@ -384,7 +435,7 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
                   </div>
                   <div className="flex items-center gap-2">
                     <span
-                      className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(
+                      className={`px-2 py-1 text-xs font-medium rounded uppercase ${getStatusColor(
                         log.sync_status
                       )}`}
                     >
