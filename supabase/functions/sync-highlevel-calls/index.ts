@@ -208,27 +208,58 @@ Deno.serve(async (req: Request) => {
 
     syncLogger.logs.push(`[API] Location: ${oauthData.location_id}, Start: ${effectiveStartDate || 'none'}, End: ${endDate || 'none'}`);
 
-    // Fetch calls from HighLevel with pagination support
-    // The Voice AI dashboard endpoint has an undocumented limit (~10 calls per request)
-    // We need to paginate through all results using skip/limit parameters
+    // Fetch calls from HighLevel with smart chunking
+    // IMPORTANT: The HighLevel Voice AI API has a hard limit of ~10 calls per request
+    // To get all calls, we split large date ranges into daily chunks
     const allCalls: any[] = [];
-    const pageSize = 100; // Request up to 100 calls per page
-    let skip = 0;
-    let hasMore = true;
-    let pageNumber = 1;
+    let totalApiTime = 0;
 
-    syncLogger.logs.push(`[API] Fetching calls from HighLevel with pagination`);
-    console.log(`[API] Starting paginated fetch`);
+    // Calculate the date range to fetch
+    const rangeStartDate = effectiveStartDate ? new Date(effectiveStartDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const rangeEndDate = endDate ? new Date(endDate) : new Date();
 
-    while (hasMore) {
-      const params = new URLSearchParams(baseParams);
-      params.set('limit', pageSize.toString());
-      params.set('skip', skip.toString());
+    // Split into daily chunks
+    const chunks: Array<{ start: string; end: string }> = [];
+    let currentDate = new Date(rangeStartDate);
 
+    while (currentDate <= rangeEndDate) {
+      const chunkStart = new Date(currentDate);
+      const chunkEnd = new Date(currentDate);
+      chunkEnd.setHours(23, 59, 59, 999);
+
+      // Don't go past the overall end date
+      if (chunkEnd > rangeEndDate) {
+        chunks.push({
+          start: chunkStart.toISOString(),
+          end: rangeEndDate.toISOString(),
+        });
+        break;
+      } else {
+        chunks.push({
+          start: chunkStart.toISOString(),
+          end: chunkEnd.toISOString(),
+        });
+      }
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    syncLogger.logs.push(`[API] Splitting into ${chunks.length} daily chunk(s) to bypass 10-call API limit`);
+    console.log(`[API] Fetching ${chunks.length} daily chunks`);
+
+    // Fetch each chunk
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const chunkParams: Record<string, string> = {};
+      if (oauthData.location_id) chunkParams.locationId = oauthData.location_id;
+      chunkParams.startDate = chunk.start;
+      chunkParams.endDate = chunk.end;
+
+      const params = new URLSearchParams(chunkParams);
       const highLevelUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params.toString()}`;
 
-      syncLogger.logs.push(`[API] Fetching page ${pageNumber} (skip: ${skip}, limit: ${pageSize})`);
-      console.log(`[API] Fetching page ${pageNumber}:`, highLevelUrl);
+      syncLogger.logs.push(`[API] Chunk ${i + 1}/${chunks.length}: ${chunk.start.split('T')[0]}`);
+      console.log(`[API] Fetching chunk ${i + 1}/${chunks.length}:`, highLevelUrl);
 
       const apiStartTime = Date.now();
       const callsResponse = await fetch(highLevelUrl, {
@@ -240,71 +271,28 @@ Deno.serve(async (req: Request) => {
       });
 
       const apiDuration = Date.now() - apiStartTime;
+      totalApiTime += apiDuration;
 
       if (!callsResponse.ok) {
         const errorText = await callsResponse.text();
-        syncLogger.logs.push(`[ERROR] API request failed on page ${pageNumber}: ${callsResponse.status} ${errorText}`);
-        console.error("HighLevel API error:", callsResponse.status, errorText);
+        syncLogger.logs.push(`[ERROR] Chunk ${i + 1} failed: ${callsResponse.status} ${errorText}`);
+        console.error("HighLevel API error on chunk:", i + 1, callsResponse.status, errorText);
 
-        // Update sync log with error
-        if (syncLogId) {
-          await supabase
-            .from('call_sync_logs')
-            .update({
-              sync_completed_at: new Date().toISOString(),
-              sync_status: 'failed',
-              error_details: { status: callsResponse.status, message: errorText, page: pageNumber },
-              duration_ms: Date.now() - syncStartTime,
-            })
-            .eq('id', syncLogId);
-        }
-
-        return new Response(
-          JSON.stringify({
-            error: `HighLevel API error: ${callsResponse.statusText}`,
-            details: errorText,
-            page: pageNumber,
-          }),
-          {
-            status: callsResponse.status,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        // Continue with other chunks even if one fails
+        continue;
       }
 
       const callsData = await callsResponse.json();
-      const pageCalls = callsData.callLogs || [];
+      const chunkCalls = callsData.callLogs || [];
 
-      syncLogger.logs.push(`[API] Page ${pageNumber} received ${pageCalls.length} calls (${apiDuration}ms)`);
-      console.log(`[API] Page ${pageNumber} received ${pageCalls.length} calls in ${apiDuration}ms`);
+      syncLogger.logs.push(`[API] Chunk ${i + 1} received ${chunkCalls.length} calls (${apiDuration}ms)`);
+      console.log(`[API] Chunk ${i + 1} received ${chunkCalls.length} calls`);
 
-      // Add this page's calls to the total
-      allCalls.push(...pageCalls);
-
-      // Check if there are more pages
-      // If we got fewer calls than the page size, we've reached the end
-      if (pageCalls.length < pageSize) {
-        hasMore = false;
-        syncLogger.logs.push(`[API] Pagination complete: received ${pageCalls.length} calls, less than page size ${pageSize}`);
-        console.log(`[API] Pagination complete - last page had ${pageCalls.length} calls`);
-      } else {
-        // Move to next page
-        skip += pageCalls.length;
-        pageNumber++;
-        syncLogger.logs.push(`[API] Moving to page ${pageNumber} (total fetched so far: ${allCalls.length})`);
-        console.log(`[API] Moving to next page, total fetched: ${allCalls.length}`);
-      }
-
-      // Safety limit to prevent infinite loops
-      if (pageNumber > 100) {
-        syncLogger.logs.push(`[WARNING] Hit safety limit of 100 pages, stopping pagination`);
-        console.warn(`Hit safety limit of 100 pages, stopping pagination`);
-        hasMore = false;
-      }
+      allCalls.push(...chunkCalls);
     }
 
-    syncLogger.logs.push(`[API] Total calls fetched: ${allCalls.length} across ${pageNumber} page(s)`);
-    console.log(`[API] Pagination complete: ${allCalls.length} total calls fetched across ${pageNumber} page(s)`);
+    syncLogger.logs.push(`[API] Total: ${allCalls.length} calls from ${chunks.length} chunks (${totalApiTime}ms)`);
+    console.log(`[API] Complete: ${allCalls.length} total calls in ${totalApiTime}ms`);
 
     // Get user's assigned agents to filter calls
     const { data: userAgents, error: userAgentsError } = await supabase
