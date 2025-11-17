@@ -72,7 +72,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       }
 
       // Sync calls first
-      await highLevelService.syncCalls(profile.id);
+      const callSyncResult = await highLevelService.syncCalls(profile.id);
 
       // Then sync phone numbers for the user's agents
       const phoneNumberResult = await highLevelService.syncPhoneNumbersForUser(profile.id);
@@ -81,7 +81,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const now = new Date();
       const syncType = isAuto ? 'auto' : 'manual';
       setLastSyncTime(now);
-      setLastSyncMessage('Sync completed successfully');
+
+      // Show warning if calls were skipped
+      if (callSyncResult.skippedCount && callSyncResult.skippedCount > 0) {
+        const skipMessage = `Sync completed with ${callSyncResult.skippedCount} call(s) skipped (unassigned agents)`;
+        setLastSyncMessage(skipMessage);
+        console.warn('⚠️ Skipped calls:', callSyncResult.skippedCalls);
+      } else {
+        setLastSyncMessage('Sync completed successfully');
+      }
       setLastSyncType(syncType);
 
       // Upsert sync status record (auto-detects unique constraint)

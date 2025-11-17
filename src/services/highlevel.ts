@@ -84,17 +84,32 @@ class HighLevelService {
       console.log('Sync response data:', responseData);
 
       // Edge function now handles saving to database, so just use its response
-      const { savedCount, errorCount, totalFetched, calls } = responseData;
+      const { savedCount, errorCount, totalFetched, skippedCount, skippedCalls, calls } = responseData;
+
+      // Log skipped calls to console for diagnostics
+      if (skippedCalls && skippedCalls.length > 0) {
+        console.warn('⚠️ Some calls were skipped during sync:', skippedCalls);
+        console.warn(`Total skipped: ${skippedCount} calls`);
+      }
 
       // Update sync status based on edge function results
       if (savedCount > 0 || totalFetched === 0) {
-        await this.updateSyncStatus('success', savedCount || 0,
-          totalFetched === 0 ? 'No calls found in date range' : undefined);
+        const message = skippedCount > 0
+          ? `Synced ${savedCount} calls (${skippedCount} skipped due to unassigned agents)`
+          : totalFetched === 0
+            ? 'No calls found in date range'
+            : undefined;
+        await this.updateSyncStatus('success', savedCount || 0, message);
       } else {
         await this.updateSyncStatus('failure', 0, `Failed to save ${errorCount} calls`);
       }
 
-      return { success: true, count: savedCount || 0 };
+      return {
+        success: true,
+        count: savedCount || 0,
+        skippedCount: skippedCount || 0,
+        skippedCalls: skippedCalls || []
+      };
     } catch (error) {
       console.error('Error syncing calls:', error);
       await this.updateSyncStatus('failure', 0, error instanceof Error ? error.message : 'Unknown error');

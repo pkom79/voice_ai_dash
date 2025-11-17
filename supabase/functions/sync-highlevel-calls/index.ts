@@ -224,6 +224,7 @@ Deno.serve(async (req: Request) => {
     let errorCount = 0;
     let skippedCount = 0;
     const errors: any[] = [];
+    const skippedCalls: any[] = []; // Track skipped calls with reasons
     let totalCostAdded = 0; // Track total cost for billing update
 
     if (callsData.callLogs && Array.isArray(callsData.callLogs)) {
@@ -301,7 +302,16 @@ Deno.serve(async (req: Request) => {
               }
             } else {
               // Agent not in database - skip this call since agents must be explicitly assigned
-              console.log(`Skipping call ${call.id} - agent ${call.agentId} not found in database`);
+              const skipReason = `Agent ${call.agentId} not found in database`;
+              console.log(`Skipping call ${call.id} - ${skipReason}`);
+              skippedCalls.push({
+                callId: call.id,
+                reason: skipReason,
+                agentId: call.agentId,
+                fromNumber: call.fromNumber || call.from || '',
+                callTime: call.createdAt,
+                contactName: call.contactName,
+              });
               skippedCount++;
               continue;
             }
@@ -469,6 +479,9 @@ Deno.serve(async (req: Request) => {
     if (errors.length > 0) {
       console.error('Errors encountered:', JSON.stringify(errors, null, 2));
     }
+    if (skippedCalls.length > 0) {
+      console.warn('Skipped calls details:', JSON.stringify(skippedCalls, null, 2));
+    }
 
     // Log sync activity
     await supabase.rpc('log_user_activity', {
@@ -485,6 +498,7 @@ Deno.serve(async (req: Request) => {
         startDate: effectiveStartDate,
         endDate,
         totalCostAdded: totalCostAdded / 100,
+        skippedCalls: skippedCalls.length > 0 ? skippedCalls : undefined,
       },
       p_severity: errorCount > 0 ? 'warning' : 'info',
     });
@@ -530,6 +544,7 @@ Deno.serve(async (req: Request) => {
         errorCount,
         totalFetched: callsData.callLogs?.length || 0,
         errors: errors.length > 0 ? errors : undefined,
+        skippedCalls: skippedCalls.length > 0 ? skippedCalls : undefined,
         calls: callsData
       }),
       {
