@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { AlertCircle, CheckCircle, Download, Loader2, RefreshCw, XCircle } from 'lucide-react';
+import { AlertCircle, Calendar, CheckCircle, Download, Loader2, RefreshCw, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import DateRangePicker from '../DateRangePicker';
 
 interface DiagnosticPanelProps {
   userId: string;
@@ -49,8 +50,9 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
   const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [diagnosticLoading, setDiagnosticLoading] = useState(false);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     loadRecentLogs();
@@ -87,8 +89,8 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
         includeRawData: false,
       };
 
-      if (startDate) body.startDate = new Date(startDate).toISOString();
-      if (endDate) body.endDate = new Date(endDate).toISOString();
+      if (startDate) body.startDate = startDate.toISOString();
+      if (endDate) body.endDate = endDate.toISOString();
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -238,37 +240,24 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
           </div>
         </div>
 
-        <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Start Date (optional)
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              End Date (optional)
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
-          </div>
-          <div className="flex items-end">
+        <div className="mb-4 flex items-center gap-2">
+          <button
+            onClick={() => setShowDatePicker(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
+          >
+            <Calendar className="h-4 w-4" />
+            {startDate && endDate
+              ? `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`
+              : 'Select Date Range (optional)'}
+          </button>
+          {(startDate || endDate) && (
             <button
-              onClick={() => { setStartDate(''); setEndDate(''); }}
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
+              onClick={() => { setStartDate(null); setEndDate(null); }}
+              className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
             >
-              Clear Dates
+              Clear
             </button>
-          </div>
+          )}
         </div>
 
         {diagnosticLoading && (
@@ -496,6 +485,18 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
           </div>
         )}
       </div>
+
+      {showDatePicker && (
+        <DateRangePicker
+          startDate={startDate}
+          endDate={endDate}
+          onDateRangeChange={(start, end) => {
+            setStartDate(start);
+            setEndDate(end);
+          }}
+          onClose={() => setShowDatePicker(false)}
+        />
+      )}
     </div>
   );
 }
