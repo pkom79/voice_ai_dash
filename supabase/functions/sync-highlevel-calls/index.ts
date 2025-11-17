@@ -342,17 +342,41 @@ Deno.serve(async (req: Request) => {
           // Determine if this is a test call
           // According to HighLevel, calls without a FROM number are test calls
           const fromNumber = call.fromNumber || call.from || '';
+          const toNumber = call.toNumber || call.to || '';
           const isTestCall = !fromNumber || fromNumber.trim() === '' || call.isTestCall === true;
+
+          // Determine which phone number is "our" business phone number
+          // For inbound calls: toNumber is our phone (customer called us)
+          // For outbound calls: fromNumber is our phone (we called customer)
+          const ourPhoneNumber = direction === 'inbound' ? toNumber : fromNumber;
+
+          // Look up phone_number_id from our database
+          let phoneNumberId = null;
+          if (ourPhoneNumber) {
+            const { data: phoneNumberData } = await supabase
+              .from('phone_numbers')
+              .select('id')
+              .eq('phone_number', ourPhoneNumber)
+              .maybeSingle();
+
+            if (phoneNumberData) {
+              phoneNumberId = phoneNumberData.id;
+              console.log(`Matched phone number ${ourPhoneNumber} to phone_number_id: ${phoneNumberId}`);
+            } else {
+              console.log(`Phone number ${ourPhoneNumber} not found in phone_numbers table`);
+            }
+          }
 
           // Map HighLevel call data to our schema
           const callRecord = {
             highlevel_call_id: call.id,
             user_id: userId,
             agent_id: agentDbId,
+            phone_number_id: phoneNumberId,
             direction: direction,
             contact_name: contactName,
             from_number: fromNumber,
-            to_number: call.toNumber || call.to || '',
+            to_number: toNumber,
             status: call.status,
             duration_seconds: durationSeconds,
             cost: cost,
