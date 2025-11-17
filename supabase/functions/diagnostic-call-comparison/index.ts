@@ -140,51 +140,88 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[DIAGNOSTIC] Date range: ${effectiveStartDate} to ${effectiveEndDate}`);
 
-    const params = new URLSearchParams({
-      locationId: oauthData.location_id,
-      startDate: effectiveStartDate,
-      endDate: effectiveEndDate,
-    });
+    // Split into daily chunks to bypass 10-call API limit (same as sync function)
+    const rangeStartDate = new Date(effectiveStartDate);
+    const rangeEndDate = new Date(effectiveEndDate);
 
-    const hlUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params}`;
-    console.log(`[DIAGNOSTIC] Fetching calls from HighLevel:`, hlUrl);
+    const chunks: Array<{ start: string; end: string }> = [];
+    let currentDate = new Date(rangeStartDate);
 
-    const response = await fetch(hlUrl, {
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "Version": "2021-07-28",
-      },
-    });
+    while (currentDate <= rangeEndDate) {
+      const chunkStart = new Date(currentDate);
+      chunkStart.setHours(0, 0, 0, 0);
+      const chunkEnd = new Date(currentDate);
+      chunkEnd.setHours(23, 59, 59, 999);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[DIAGNOSTIC] HL API error:`, response.status, errorText);
-      console.error(`[DIAGNOSTIC] Request URL:`, hlUrl);
+      // Don't go past the overall end date
+      if (chunkEnd > rangeEndDate) {
+        chunks.push({
+          start: chunkStart.toISOString(),
+          end: rangeEndDate.toISOString(),
+        });
+        break;
+      } else {
+        chunks.push({
+          start: chunkStart.toISOString(),
+          end: chunkEnd.toISOString(),
+        });
+      }
 
-      return new Response(
-        JSON.stringify({
-          error: "Failed to fetch calls from HighLevel",
-          details: errorText,
-          status: response.status,
-          url: hlUrl,
-          params: {
-            locationId: oauthData.location_id,
-            startDate: effectiveStartDate,
-            endDate: effectiveEndDate,
-          }
-        }),
-        {
-          status: response.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    const data = await response.json();
-    const highLevelCalls = data.callLogs || [];
+    console.log(`[DIAGNOSTIC] Fetching ${chunks.length} daily chunk(s) from HighLevel`);
 
-    console.log(`[DIAGNOSTIC] Fetched ${highLevelCalls.length} calls from HighLevel`);
+    const allHighLevelCalls: any[] = [];
+    const allApiResponses: any[] = [];
+
+    // Fetch each chunk
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const params = new URLSearchParams({
+        locationId: oauthData.location_id,
+        startDate: chunk.start,
+        endDate: chunk.end,
+      });
+
+      const hlUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params}`;
+      console.log(`[DIAGNOSTIC] Chunk ${i + 1}/${chunks.length}: ${chunk.start} to ${chunk.end}`);
+      console.log(`[DIAGNOSTIC] URL:`, hlUrl);
+
+      const response = await fetch(hlUrl, {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "Version": "2021-07-28",
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[DIAGNOSTIC] HL API error on chunk ${i + 1}:`, response.status, errorText);
+
+        // Continue with other chunks even if one fails
+        continue;
+      }
+
+      const data = await response.json();
+      const chunkCalls = data.callLogs || [];
+
+      console.log(`[DIAGNOSTIC] Chunk ${i + 1} returned ${chunkCalls.length} calls`);
+
+      allHighLevelCalls.push(...chunkCalls);
+      allApiResponses.push({
+        chunk: i + 1,
+        dateRange: { start: chunk.start, end: chunk.end },
+        total: data.total,
+        page: data.page,
+        pageSize: data.pageSize,
+        callCount: chunkCalls.length,
+      });
+    }
+
+    const highLevelCalls = allHighLevelCalls;
+    console.log(`[DIAGNOSTIC] Total fetched: ${highLevelCalls.length} calls from ${chunks.length} chunks`);
 
     // If raw dump mode, just return the HighLevel data without any comparison
     if (rawDumpOnly) {
@@ -194,8 +231,9 @@ Deno.serve(async (req: Request) => {
           dateRange: { start: effectiveStartDate, end: effectiveEndDate },
           locationId: oauthData.location_id,
           totalCalls: highLevelCalls.length,
+          chunks: chunks.length,
+          apiResponses: allApiResponses,
           calls: highLevelCalls,
-          rawResponse: data,
         }),
         {
           status: 200,
