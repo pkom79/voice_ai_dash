@@ -12,6 +12,7 @@ interface DiagnosticRequest {
   startDate?: string;
   endDate?: string;
   includeRawData?: boolean;
+  rawDumpOnly?: boolean; // Just fetch and return raw HighLevel data
 }
 
 interface CallComparison {
@@ -48,7 +49,7 @@ Deno.serve(async (req: Request) => {
       }
     );
 
-    const { userId, startDate, endDate, includeRawData = false }: DiagnosticRequest = await req.json();
+    const { userId, startDate, endDate, includeRawData = false, rawDumpOnly = false }: DiagnosticRequest = await req.json();
 
     if (!userId) {
       return new Response(
@@ -60,7 +61,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`[DIAGNOSTIC] Starting comparison for user: ${userId}`);
+    const mode = rawDumpOnly ? 'RAW DUMP' : 'COMPARISON';
+    console.log(`[DIAGNOSTIC] Starting ${mode} for user: ${userId}`);
 
     const { data: oauthData, error: oauthError } = await supabase
       .from("api_keys")
@@ -183,6 +185,24 @@ Deno.serve(async (req: Request) => {
     const highLevelCalls = data.callLogs || [];
 
     console.log(`[DIAGNOSTIC] Fetched ${highLevelCalls.length} calls from HighLevel`);
+
+    // If raw dump mode, just return the HighLevel data without any comparison
+    if (rawDumpOnly) {
+      return new Response(
+        JSON.stringify({
+          mode: 'raw_dump',
+          dateRange: { start: effectiveStartDate, end: effectiveEndDate },
+          locationId: oauthData.location_id,
+          totalCalls: highLevelCalls.length,
+          calls: highLevelCalls,
+          rawResponse: data,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     const { data: dbCalls, error: dbError } = await supabase
       .from('calls')
