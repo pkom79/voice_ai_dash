@@ -444,6 +444,29 @@ Deno.serve(async (req: Request) => {
           const toNumber = call.toNumber || call.to || '';
           const isTestCall = call.isTestCall === true || call.isTestCall === 'true';
 
+          // CRITICAL: Skip calls without a valid "from" number - these are test calls
+          if (!fromNumber || fromNumber.trim() === '') {
+            const skipReason = 'no_from_number_test_call';
+            const skipDetail = {
+              callId: call.id,
+              reason: skipReason,
+              message: 'Test call without from number',
+              fromNumber: fromNumber,
+              toNumber: toNumber,
+              contactName: contactName,
+            };
+
+            syncLogger.logs.push(`[SKIP] Call ${call.id}: ${skipDetail.message}`);
+            console.log(`Skipping test call ${call.id} - no from number`);
+
+            syncLogger.skippedCalls.push(skipDetail);
+            syncLogger.skipReasons[skipReason] = (syncLogger.skipReasons[skipReason] || 0) + 1;
+
+            skippedCalls.push(skipDetail);
+            skippedCount++;
+            continue;
+          }
+
           // Determine which phone number is "our" business phone number
           // For inbound calls: toNumber is our phone (customer called us)
           // For outbound calls: fromNumber is our phone (we called customer)

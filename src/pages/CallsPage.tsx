@@ -144,6 +144,8 @@ export function CallsPage() {
           `)
           .eq('user_id', effectiveUserId)
           .eq('is_test_call', false)
+          .not('from_number', 'is', null)
+          .neq('from_number', '')
           .order('call_started_at', { ascending: false });
 
         if (error) throw error;
@@ -168,6 +170,8 @@ export function CallsPage() {
           `)
           .eq('user_id', effectiveUserId)
           .eq('is_test_call', false)
+          .not('from_number', 'is', null)
+          .neq('from_number', '')
           .in('agent_id', assignedAgentIds)
           .order('call_started_at', { ascending: false });
 
