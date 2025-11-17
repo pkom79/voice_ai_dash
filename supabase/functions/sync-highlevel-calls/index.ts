@@ -263,15 +263,13 @@ Deno.serve(async (req: Request) => {
         .eq('id', syncLogId);
     }
 
-    // Build base query params
+    // Build base query params (do NOT include timezone in query params)
     const baseParams: Record<string, string> = {};
     if (oauthData.location_id) {
       baseParams.locationId = oauthData.location_id;
     }
     if (effectiveStartDate) baseParams.startDate = effectiveStartDate;
     if (endDate) baseParams.endDate = endDate;
-    // Add timezone parameter for HighLevel API
-    if (timezone) baseParams.timezone = timezone;
 
     syncLogger.logs.push(`[API] Location: ${oauthData.location_id}, Start: ${effectiveStartDate || 'none'}, End: ${endDate || 'none'}, Timezone: ${timezone}`);
 
