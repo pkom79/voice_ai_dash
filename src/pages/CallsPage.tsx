@@ -554,6 +554,9 @@ export function CallsPage() {
             <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Call ID
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Agent
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -597,13 +600,18 @@ export function CallsPage() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {paginatedCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     No calls found. Try adjusting your filters or click Sync Now to refresh your data.
                   </td>
                 </tr>
               ) : (
                 paginatedCalls.map((call) => (
                   <tr key={call.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 font-mono">
+                        {call.highlevel_call_id}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900 dark:text-gray-100">
                         {call.agents?.name || '-'}
