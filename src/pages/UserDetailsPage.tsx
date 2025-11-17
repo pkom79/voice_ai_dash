@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2, Bug } from 'lucide-react';
 import { format, startOfToday, endOfToday } from 'date-fns';
+import { getLocationTimezone, createDayStart, createDayEnd, getFullTimezoneDisplay, getDaysDifference } from '../utils/timezone';
 import { NotificationModal } from '../components/NotificationModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import DateRangePicker from '../components/DateRangePicker';
@@ -113,6 +114,11 @@ export function UserDetailsPage() {
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [suspendAction, setSuspendAction] = useState<'suspend' | 'activate'>('suspend');
   const [suspending, setSuspending] = useState(false);
+  const [locationTimezone, setLocationTimezone] = useState<string | null>(null);
+  const [resyncRangeStart, setResyncRangeStart] = useState<Date | null>(new Date(2025, 10, 1));
+  const [resyncRangeEnd, setResyncRangeEnd] = useState<Date | null>(new Date());
+  const [adminOverride, setAdminOverride] = useState(false);
+  const [showResyncDatePicker, setShowResyncDatePicker] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -214,6 +220,13 @@ export function UserDetailsPage() {
         setExpiredConnection(connectionWithExpired);
       } else {
         setExpiredConnection(null);
+      }
+
+      // Fetch location timezone
+      const timezone = await getLocationTimezone(userId);
+      setLocationTimezone(timezone);
+      if (!timezone) {
+        console.warn('Location timezone not found, defaulting to America/New_York');
       }
 
       // Load assigned agents (independent of API connection)
@@ -897,15 +910,57 @@ export function UserDetailsPage() {
     }
   };
 
-  const handleResyncCalls = async (startDate?: string) => {
+  const handleResyncCalls = async () => {
     if (!userId) return;
+
+    // Validate date range
+    if (!resyncRangeStart) {
+      showError('Please select a start date');
+      return;
+    }
+
+    if (resyncRangeEnd && resyncRangeStart > resyncRangeEnd) {
+      showError('Start date must be before end date');
+      return;
+    }
+
+    // Get timezone
+    const timezone = locationTimezone || 'America/New_York';
+
+    // Warn for large date ranges
+    if (resyncRangeEnd) {
+      const daysDiff = getDaysDifference(resyncRangeStart, resyncRangeEnd);
+      if (daysDiff > 90) {
+        if (!confirm(`You are syncing ${daysDiff} days of data. This may take a while. Continue?`)) {
+          return;
+        }
+      }
+    }
 
     setSyncingCalls(true);
     try {
+      // Convert dates to timezone-aware ISO strings
+      const startDateISO = createDayStart(resyncRangeStart, timezone);
+      const endDateISO = resyncRangeEnd ? createDayEnd(resyncRangeEnd, timezone) : createDayEnd(resyncRangeStart, timezone);
+
+      console.log('Syncing calls with params:', {
+        user_id: userId,
+        start_date: startDateISO,
+        end_date: endDateISO,
+        timezone,
+        admin_override: adminOverride,
+        admin_user_id: currentUser?.id
+      });
+
       const { data, error } = await supabase.functions.invoke('sync-highlevel-calls', {
         body: {
           user_id: userId,
-          start_date: startDate || undefined
+          start_date: startDateISO,
+          end_date: endDateISO,
+          timezone: timezone,
+          admin_override: adminOverride,
+          admin_user_id: currentUser?.id,
+          sync_type: 'admin_historical'
         }
       });
 
@@ -913,7 +968,6 @@ export function UserDetailsPage() {
 
       showSuccess('Call sync initiated successfully');
       setShowResyncModal(false);
-      setResyncStartDate('');
 
       setTimeout(() => loadCalls(), 2000);
     } catch (error: any) {
@@ -2907,13 +2961,13 @@ export function UserDetailsPage() {
       {/* Resync Modal */}
       {showResyncModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <h3 className="text-xl font-semibold text-gray-900">Resync Calls from HighLevel</h3>
               <button
                 onClick={() => {
                   setShowResyncModal(false);
-                  setResyncStartDate('');
+                  setAdminOverride(false);
                 }}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
@@ -2922,36 +2976,87 @@ export function UserDetailsPage() {
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-gray-600">
-                This will fetch call data from HighLevel for this user. You can optionally specify a start date to sync from.
+                Fetch call data from HighLevel for this user. Select a date range to sync specific calls.
               </p>
+
+              {/* Timezone Warning */}
+              {!locationTimezone && (
+                <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-yellow-800">
+                    <p className="font-medium">Location timezone not set</p>
+                    <p className="mt-1">Defaulting to America/New_York. Reconnect OAuth to fetch the correct timezone.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Date Range Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Start Date (optional)
+                  Date Range
                 </label>
-                <input
-                  type="date"
-                  value={resyncStartDate}
-                  onChange={(e) => setResyncStartDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                <button
+                  onClick={() => setShowResyncDatePicker(true)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-left hover:bg-gray-50 transition-colors"
+                >
+                  {resyncRangeStart && resyncRangeEnd ? (
+                    <span className="text-gray-900">
+                      {format(resyncRangeStart, 'MMM d, yyyy')} - {format(resyncRangeEnd, 'MMM d, yyyy')}
+                    </span>
+                  ) : resyncRangeStart ? (
+                    <span className="text-gray-900">{format(resyncRangeStart, 'MMM d, yyyy')}</span>
+                  ) : (
+                    <span className="text-gray-500">Select date range</span>
+                  )}
+                </button>
                 <p className="text-xs text-gray-500 mt-1">
-                  Leave blank to sync all available data
+                  Times: 00:00:00 to 23:59:59 in {getFullTimezoneDisplay(locationTimezone || 'America/New_York')}
                 </p>
               </div>
+
+              {/* Admin Override Checkbox */}
+              <div className="flex items-start gap-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="adminOverride"
+                  checked={adminOverride}
+                  onChange={(e) => setAdminOverride(e.target.checked)}
+                  className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <div className="flex-1">
+                  <label htmlFor="adminOverride" className="text-sm font-medium text-gray-900 cursor-pointer">
+                    Admin Override (bypass calls_reset_at)
+                  </label>
+                  <p className="text-xs text-gray-600 mt-1">
+                    When enabled, fetches all calls in the selected date range, ignoring the calls_reset_at restriction. Use this to sync historical calls.
+                  </p>
+                </div>
+              </div>
+
+              {/* Warning for Admin Override */}
+              {adminOverride && (
+                <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <AlertTriangle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-orange-800">
+                    <p className="font-medium">Admin override enabled</p>
+                    <p className="mt-1">This will bypass the normal sync restrictions. This action will be logged in the audit trail.</p>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="p-6 border-t border-gray-200 flex gap-3">
               <button
                 onClick={() => {
                   setShowResyncModal(false);
-                  setResyncStartDate('');
+                  setAdminOverride(false);
                 }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleResyncCalls(resyncStartDate || undefined)}
-                disabled={syncingCalls}
+                onClick={handleResyncCalls}
+                disabled={syncingCalls || !resyncRangeStart}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 {syncingCalls ? (
@@ -2966,6 +3071,22 @@ export function UserDetailsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Date Range Picker for Resync */}
+      {showResyncDatePicker && (
+        <DateRangePicker
+          startDate={resyncRangeStart}
+          endDate={resyncRangeEnd}
+          onDateRangeChange={(start, end) => {
+            setResyncRangeStart(start);
+            setResyncRangeEnd(end);
+            setShowResyncDatePicker(false);
+          }}
+          onClose={() => setShowResyncDatePicker(false)}
+          timezone={locationTimezone}
+          showTimezoneInfo={true}
+        />
       )}
 
       <NotificationModal
