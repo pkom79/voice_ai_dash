@@ -251,8 +251,7 @@ Deno.serve(async (req: Request) => {
             .update({
               sync_status: 'failed',
               sync_completed_at: new Date().toISOString(),
-              error_message: errorMsg,
-              logs: syncLogger.logs,
+              error_details: { message: errorMsg, logs: syncLogger.logs },
             })
             .eq('id', syncLogId);
         }
@@ -386,8 +385,7 @@ Deno.serve(async (req: Request) => {
               .update({
                 sync_status: 'failed',
                 sync_completed_at: new Date().toISOString(),
-                error_message: errorMsg,
-                logs: syncLogger.logs,
+                error_details: { message: errorMsg, logs: syncLogger.logs },
               })
               .eq('id', syncLogId);
           }
