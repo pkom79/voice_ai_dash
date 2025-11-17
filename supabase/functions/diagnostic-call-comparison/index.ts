@@ -120,13 +120,11 @@ Deno.serve(async (req: Request) => {
     let effectiveStartDate = startDate;
     let effectiveEndDate = endDate;
 
-    // If no date range specified, use billing period or default to last 7 days
     if (!effectiveStartDate) {
       if (billingAccount?.calls_reset_at) {
         effectiveStartDate = new Date(billingAccount.calls_reset_at).toISOString();
         console.log(`[DIAGNOSTIC] Using calls_reset_at as start: ${effectiveStartDate}`);
       } else {
-        // Default to last 7 days for diagnostic (more reasonable than 30)
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         effectiveStartDate = sevenDaysAgo.toISOString();
@@ -140,7 +138,6 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[DIAGNOSTIC] Date range: ${effectiveStartDate} to ${effectiveEndDate}`);
 
-    // Fetch calls from HighLevel (Voice AI endpoint returns all calls in date range)
     const params = new URLSearchParams({
       locationId: oauthData.location_id,
       startDate: effectiveStartDate,
