@@ -328,14 +328,14 @@ Deno.serve(async (req: Request) => {
     syncLogger.logs.push(`[FILTER] User has ${assignedAgentHighLevelIds.size} assigned agents: ${Array.from(assignedAgentHighLevelIds).join(', ')}`);
     console.log(`User has ${assignedAgentHighLevelIds.size} assigned agents:`, Array.from(assignedAgentHighLevelIds));
 
-    if (callsData.callLogs && Array.isArray(callsData.callLogs)) {
-      syncLogger.logs.push(`[PROCESS] Starting to process ${callsData.callLogs.length} calls`);
-      console.log(`Processing ${callsData.callLogs.length} calls...`);
-      if (callsData.callLogs[0]) {
-        console.log('First call detailed sample:', JSON.stringify(callsData.callLogs[0], null, 2));
+    if (allCalls && Array.isArray(allCalls)) {
+      syncLogger.logs.push(`[PROCESS] Starting to process ${allCalls.length} calls`);
+      console.log(`Processing ${allCalls.length} calls...`);
+      if (allCalls[0]) {
+        console.log('First call detailed sample:', JSON.stringify(allCalls[0], null, 2));
       }
 
-      for (const call of callsData.callLogs) {
+      for (const call of allCalls) {
         try {
           // Determine direction - map any possible API values to our schema
           let direction = 'inbound'; // default
@@ -663,7 +663,7 @@ Deno.serve(async (req: Request) => {
         savedCount,
         skippedCount,
         errorCount,
-        totalFetched: callsData.callLogs?.length || 0,
+        totalFetched: allCalls?.length || 0,
         startDate: effectiveStartDate,
         endDate,
         totalCostAdded: totalCostAdded / 100,
