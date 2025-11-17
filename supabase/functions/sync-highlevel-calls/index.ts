@@ -351,10 +351,11 @@ Deno.serve(async (req: Request) => {
           console.log(`Call ${call.id}: duration=${durationSeconds}s, direction=${direction}, cost=$${cost}, display=${displayCost}`);
 
           // Determine if this is a test call
-          // According to HighLevel, calls without a FROM number are test calls
+          // Prioritize HighLevel's explicit isTestCall flag if provided
+          // Only fall back to fromNumber check if HighLevel doesn't specify
           const fromNumber = call.fromNumber || call.from || '';
           const toNumber = call.toNumber || call.to || '';
-          const isTestCall = !fromNumber || fromNumber.trim() === '' || call.isTestCall === true;
+          const isTestCall = call.isTestCall === true || call.isTestCall === 'true';
 
           // Determine which phone number is "our" business phone number
           // For inbound calls: toNumber is our phone (customer called us)
