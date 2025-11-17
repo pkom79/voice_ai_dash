@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
+import { getTimezoneDisplay, getFullTimezoneDisplay } from '../utils/timezone';
 
 interface DateRangePickerProps {
   startDate: Date | null;
   endDate: Date | null;
   onDateRangeChange: (start: Date | null, end: Date | null) => void;
   onClose: () => void;
+  timezone?: string | null;
+  showTimezoneInfo?: boolean;
 }
 
 export default function DateRangePicker({
@@ -14,6 +17,8 @@ export default function DateRangePicker({
   endDate,
   onDateRangeChange,
   onClose,
+  timezone = 'America/New_York',
+  showTimezoneInfo = true,
 }: DateRangePickerProps) {
   const [tempStartDate, setTempStartDate] = useState<Date | null>(startDate);
   const [tempEndDate, setTempEndDate] = useState<Date | null>(endDate);
@@ -21,6 +26,9 @@ export default function DateRangePicker({
     const date = startDate || new Date();
     return new Date(date.getFullYear(), date.getMonth(), 1);
   });
+
+  // Use the provided timezone or default
+  const effectiveTimezone = timezone || 'America/New_York';
 
   const handleDateClick = (date: Date) => {
     if (!tempStartDate || (tempStartDate && tempEndDate)) {
@@ -146,31 +154,41 @@ export default function DateRangePicker({
     if (selected) {
       classes += 'bg-blue-600 text-white font-semibold ';
     } else if (inRange) {
-      classes += 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300 ';
+      classes += 'bg-blue-100 text-blue-900 ';
     } else if (today) {
-      classes += 'border-2 border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 font-medium ';
+      classes += 'border-2 border-blue-600 text-blue-600 font-medium ';
     } else {
-      classes += 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 ';
+      classes += 'text-gray-700 hover:bg-gray-100 ';
     }
 
     return classes;
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-2">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div className="p-4 border-b border-gray-200">
+          {/* Timezone Info */}
+          {showTimezoneInfo && effectiveTimezone && (
+            <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
+              <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              <span className="text-sm text-blue-900">
+                All times in <span className="font-semibold">{getFullTimezoneDisplay(effectiveTimezone)}</span>
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between">
             <input
               type="text"
               readOnly
               value={formatDateRange() || 'Select date range'}
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 cursor-default"
+              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50 text-gray-900 cursor-default"
               placeholder="YYYY-MM-DD → YYYY-MM-DD"
             />
             <button
               onClick={onClose}
-              className="ml-2 p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="ml-2 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -181,22 +199,22 @@ export default function DateRangePicker({
           <div className="flex items-center justify-between mb-4">
             <button
               onClick={() => navigateMonth('prev')}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
             </button>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">{monthName}</h3>
+            <h3 className="text-base font-semibold text-gray-900">{monthName}</h3>
             <button
               onClick={() => navigateMonth('next')}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <ChevronRight className="w-5 h-5 text-gray-600" />
             </button>
           </div>
 
           <div className="grid grid-cols-7 gap-1 mb-2">
             {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
-              <div key={day} className="h-10 flex items-center justify-center text-xs font-medium text-gray-500 dark:text-gray-400">
+              <div key={day} className="h-10 flex items-center justify-center text-xs font-medium text-gray-500">
                 {day}
               </div>
             ))}
@@ -220,29 +238,29 @@ export default function DateRangePicker({
           </div>
         </div>
 
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-t border-gray-200">
           <div className="flex flex-wrap gap-2 mb-4">
             <button
               onClick={() => handleQuickSelect('thisWeek')}
-              className="px-3 py-1.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              className="px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               This Week
             </button>
             <button
               onClick={() => handleQuickSelect('lastWeek')}
-              className="px-3 py-1.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              className="px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Last Week
             </button>
             <button
               onClick={() => handleQuickSelect('last7Days')}
-              className="px-3 py-1.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              className="px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Last 7 Days
             </button>
             <button
               onClick={() => handleQuickSelect('thisMonth')}
-              className="px-3 py-1.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              className="px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               This Month
             </button>
@@ -250,7 +268,7 @@ export default function DateRangePicker({
           <button
             onClick={handleConfirm}
             disabled={!tempStartDate}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
           >
             Confirm
           </button>

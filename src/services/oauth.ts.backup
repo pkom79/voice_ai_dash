@@ -569,32 +569,24 @@ class OAuthService {
       const locationData = await response.json();
       console.log('Location data received:', locationData);
 
-      // Extract location name and timezone from response
+      // Extract location name from response (adjust based on actual API response structure)
       const locationName = locationData.name || locationData.location?.name || locationData.businessName || null;
-      const timezone = locationData.timezone || locationData.location?.timezone || 'America/New_York';
 
-      console.log('Extracted location info:', { locationName, timezone });
-
-      // Update both location name and timezone
-      if (locationName || timezone) {
-        const updateData: any = {};
-        if (locationName) updateData.location_name = locationName;
-        if (timezone) updateData.location_timezone = timezone;
-
+      if (locationName) {
         const { error } = await supabase
           .from('api_keys')
-          .update(updateData)
+          .update({ location_name: locationName })
           .eq('user_id', userId)
           .eq('service', 'highlevel');
 
         if (error) {
-          console.error('Failed to update location details:', error);
+          console.error('Failed to update location name:', error);
         } else {
-          console.log('Location details updated successfully:', updateData);
+          console.log('Location name updated successfully:', locationName);
         }
       }
     } catch (error) {
-      console.error('Error fetching location details:', error);
+      console.error('Error fetching location name:', error);
     }
   }
 }
