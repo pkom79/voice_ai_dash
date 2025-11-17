@@ -343,88 +343,72 @@ Deno.serve(async (req: Request) => {
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
       const chunk = chunks[chunkIndex];
 
-      let page = 1;
-      const limit = 100;
-      let hasMore = true;
+      const queryParams = new URLSearchParams({
+        ...baseParams,
+        startDate: chunk.start,
+        endDate: chunk.end,
+        timezone: timezone,
+      });
 
-      while (hasMore) {
-        const queryParams = new URLSearchParams({
-          ...baseParams,
-          startDate: chunk.start,
-          endDate: chunk.end,
-          timezone: timezone,
-          limit: limit.toString(),
-          page: page.toString(),
-        });
+      const apiUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${queryParams}`;
+      const apiCallStart = Date.now();
 
-        const apiUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${queryParams}`;
-        const apiCallStart = Date.now();
+      syncLogger.logs.push(`[API REQUEST] Date Range: ${chunk.start} to ${chunk.end}, Timezone: ${timezone}`);
+      console.log(`[SYNC] Calling HighLevel API: ${apiUrl}`);
 
-        syncLogger.logs.push(`[API REQUEST] Page ${page}, Limit ${limit}, Date Range: ${chunk.start} to ${chunk.end}, Timezone: ${timezone}`);
-        console.log(`[SYNC] Calling HighLevel API: ${apiUrl}`);
+      const response = await fetch(apiUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Version: "2021-07-28",
+        },
+      });
 
-        const response = await fetch(apiUrl, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Version: "2021-07-28",
-          },
-        });
+      const apiCallTime = Date.now() - apiCallStart;
+      totalApiTime += apiCallTime;
 
-        const apiCallTime = Date.now() - apiCallStart;
-        totalApiTime += apiCallTime;
+      if (!response.ok) {
+        const errorText = await response.text();
+        const errorMsg = `HighLevel API error: ${response.status}`;
+        console.error(errorMsg, errorText);
+        syncLogger.logs.push(`[ERROR] ${errorMsg}: ${errorText}`);
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          const errorMsg = `HighLevel API error: ${response.status}`;
-          console.error(errorMsg, errorText);
-          syncLogger.logs.push(`[ERROR] ${errorMsg}: ${errorText}`);
-
-          if (syncLogId) {
-            await supabase
-              .from('call_sync_logs')
-              .update({
-                sync_status: 'failed',
-                sync_completed_at: new Date().toISOString(),
-                error_details: { message: errorMsg, logs: syncLogger.logs },
-              })
-              .eq('id', syncLogId);
-          }
-
-          return new Response(
-            JSON.stringify({ error: errorMsg, details: errorText }),
-            {
-              status: 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
+        if (syncLogId) {
+          await supabase
+            .from('call_sync_logs')
+            .update({
+              sync_status: 'failed',
+              sync_completed_at: new Date().toISOString(),
+              error_details: { message: errorMsg, logs: syncLogger.logs },
+            })
+            .eq('id', syncLogId);
         }
 
-        const data = await response.json();
-        const calls = data.calls || [];
-
-        syncLogger.apiPages.push({
-          chunk: `${chunkIndex + 1}/${chunks.length}`,
-          page: page,
-          limit,
-          callsReturned: calls.length,
-          apiTime: apiCallTime,
-          dateRange: `${chunk.start} to ${chunk.end}`,
-          timezone: timezone,
-        });
-
-        syncLogger.logs.push(`[API RESPONSE] Page ${page} returned ${calls.length} calls`);
-
-        for (const call of calls) {
-          if (!callsById.has(call.id)) {
-            callsById.set(call.id, call);
-            allRawCalls.push(call);
+        return new Response(
+          JSON.stringify({ error: errorMsg, details: errorText }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
-        }
+        );
+      }
 
-        if (calls.length < limit) {
-          hasMore = false;
-        } else {
-          page++;
+      const data = await response.json();
+      const calls = data.calls || [];
+
+      syncLogger.apiPages.push({
+        chunk: `${chunkIndex + 1}/${chunks.length}`,
+        callsReturned: calls.length,
+        apiTime: apiCallTime,
+        dateRange: `${chunk.start} to ${chunk.end}`,
+        timezone: timezone,
+      });
+
+      syncLogger.logs.push(`[API RESPONSE] Chunk ${chunkIndex + 1}/${chunks.length} returned ${calls.length} calls`);
+
+      for (const call of calls) {
+        if (!callsById.has(call.id)) {
+          callsById.set(call.id, call);
+          allRawCalls.push(call);
         }
       }
     }
