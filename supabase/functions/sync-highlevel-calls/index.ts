@@ -91,7 +91,6 @@ Deno.serve(async (req: Request) => {
       adminUserId
     }: SyncCallsRequest = requestBody;
 
-    // Validate required parameters
     if (!userId) {
       console.error("[SYNC] Missing userId");
       return new Response(
@@ -103,7 +102,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Validate date parameters if provided
     if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
       console.error("[SYNC] Invalid date range: start > end");
       return new Response(
@@ -452,14 +450,14 @@ Deno.serve(async (req: Request) => {
         const { data: existingCall } = await supabase
           .from("calls")
           .select("id")
-          .eq("call_id", rawCall.id)
+          .eq("highlevel_call_id", rawCall.id)
           .maybeSingle();
 
         const durationSeconds = rawCall.duration || 0;
         const { cost, displayCost } = calculateCallCost(durationSeconds, direction, billingAccount);
 
         const callData = {
-          call_id: rawCall.id,
+          highlevel_call_id: rawCall.id,
           user_id: userId,
           agent_id: rawCall.agent_id || rawCall.agentId,
           contact_id: rawCall.contact_id || rawCall.contactId,
@@ -467,22 +465,24 @@ Deno.serve(async (req: Request) => {
           to_number: toNumber,
           direction: direction,
           status: rawCall.status,
-          duration: durationSeconds,
-          started_at: rawCall.started_at ? new Date(rawCall.started_at).toISOString() : null,
-          ended_at: rawCall.ended_at ? new Date(rawCall.ended_at).toISOString() : null,
+          duration_seconds: durationSeconds,
+          call_started_at: rawCall.createdAt ? new Date(rawCall.createdAt).toISOString() : null,
+          call_ended_at: rawCall.ended_at ? new Date(rawCall.ended_at).toISOString() : null,
           recording_url: rawCall.recording_url || rawCall.recordingUrl || null,
           transcript: rawCall.transcript || null,
-          call_cost: cost,
-          cost_display: displayCost,
-          business_phone_number: rawCall.business_phone_number || null,
+          cost: cost,
+          display_cost: displayCost,
           message_id: rawCall.message_id || null,
+          location_id: oauthData.location_id,
+          is_test_call: rawCall.trialCall || false,
+          summary: rawCall.summary || null,
         };
 
         if (existingCall) {
           await supabase
             .from("calls")
             .update(callData)
-            .eq("call_id", rawCall.id);
+            .eq("highlevel_call_id", rawCall.id);
           updatedCount++;
         } else {
           await supabase
