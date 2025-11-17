@@ -209,9 +209,10 @@ Deno.serve(async (req: Request) => {
     syncLogger.logs.push(`[API] Location: ${oauthData.location_id}, Start: ${effectiveStartDate || 'none'}, End: ${endDate || 'none'}`);
 
     // Fetch calls from HighLevel with smart chunking
-    // IMPORTANT: The HighLevel Voice AI API has a hard limit of ~10 calls per request
-    // To get all calls, we split large date ranges into daily chunks
-    const allCalls: any[] = [];
+    // IMPORTANT: The HighLevel Voice AI API returns paginated results
+    // To get all calls, we split large date ranges into daily chunks and paginate within each
+    const allRawCalls: any[] = [];
+    const callsById = new Map<string, any>();
     let totalApiTime = 0;
 
     // Calculate the date range to fetch
@@ -244,55 +245,89 @@ Deno.serve(async (req: Request) => {
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    syncLogger.logs.push(`[API] Splitting into ${chunks.length} daily chunk(s) to bypass 10-call API limit`);
+    syncLogger.logs.push(`[API] Splitting into ${chunks.length} daily chunk(s)`);
     console.log(`[API] Fetching ${chunks.length} daily chunks`);
 
-    // Fetch each chunk
+    // Fetch each chunk with pagination
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      const chunkParams: Record<string, string> = {};
-      if (oauthData.location_id) chunkParams.locationId = oauthData.location_id;
-      chunkParams.startDate = chunk.start;
-      chunkParams.endDate = chunk.end;
+      let page = 1;
+      let hasMorePages = true;
 
-      const params = new URLSearchParams(chunkParams);
-      const highLevelUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params.toString()}`;
+      while (hasMorePages) {
+        const chunkParams: Record<string, string> = {};
+        if (oauthData.location_id) chunkParams.locationId = oauthData.location_id;
+        chunkParams.startDate = chunk.start;
+        chunkParams.endDate = chunk.end;
+        chunkParams.page = page.toString();
 
-      syncLogger.logs.push(`[API] Chunk ${i + 1}/${chunks.length}: ${chunk.start.split('T')[0]}`);
-      console.log(`[API] Fetching chunk ${i + 1}/${chunks.length}:`, highLevelUrl);
+        const params = new URLSearchParams(chunkParams);
+        const highLevelUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params.toString()}`;
 
-      const apiStartTime = Date.now();
-      const callsResponse = await fetch(highLevelUrl, {
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          "Version": "2021-07-28",
-        },
-      });
+        syncLogger.logs.push(`[API] Chunk ${i + 1}/${chunks.length}, Page ${page}: ${chunk.start.split('T')[0]}`);
+        console.log(`[API] Fetching chunk ${i + 1}/${chunks.length}, page ${page}:`, highLevelUrl);
 
-      const apiDuration = Date.now() - apiStartTime;
-      totalApiTime += apiDuration;
+        const apiStartTime = Date.now();
+        const callsResponse = await fetch(highLevelUrl, {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+            "Version": "2021-07-28",
+          },
+        });
 
-      if (!callsResponse.ok) {
-        const errorText = await callsResponse.text();
-        syncLogger.logs.push(`[ERROR] Chunk ${i + 1} failed: ${callsResponse.status} ${errorText}`);
-        console.error("HighLevel API error on chunk:", i + 1, callsResponse.status, errorText);
+        const apiDuration = Date.now() - apiStartTime;
+        totalApiTime += apiDuration;
 
-        // Continue with other chunks even if one fails
-        continue;
+        if (!callsResponse.ok) {
+          const errorText = await callsResponse.text();
+          syncLogger.logs.push(`[ERROR] Chunk ${i + 1}, Page ${page} failed: ${callsResponse.status} ${errorText}`);
+          console.error("HighLevel API error:", i + 1, page, callsResponse.status, errorText);
+          break; // Exit pagination for this chunk
+        }
+
+        const callsData = await callsResponse.json();
+        const pageCalls = callsData.callLogs || [];
+
+        syncLogger.logs.push(`[API] Chunk ${i + 1}, Page ${page} received ${pageCalls.length} calls (${apiDuration}ms)`);
+        console.log(`[API] Chunk ${i + 1}, Page ${page} received ${pageCalls.length} calls`);
+
+        // Collect all raw calls
+        allRawCalls.push(...pageCalls);
+
+        // Check pagination
+        const totalPages = Math.ceil(callsData.total / callsData.pageSize);
+        if (page >= totalPages || pageCalls.length === 0) {
+          hasMorePages = false;
+        } else {
+          page++;
+        }
       }
-
-      const callsData = await callsResponse.json();
-      const chunkCalls = callsData.callLogs || [];
-
-      syncLogger.logs.push(`[API] Chunk ${i + 1} received ${chunkCalls.length} calls (${apiDuration}ms)`);
-      console.log(`[API] Chunk ${i + 1} received ${chunkCalls.length} calls`);
-
-      allCalls.push(...chunkCalls);
     }
 
-    syncLogger.logs.push(`[API] Total: ${allCalls.length} calls from ${chunks.length} chunks (${totalApiTime}ms)`);
-    console.log(`[API] Complete: ${allCalls.length} total calls in ${totalApiTime}ms`);
+    syncLogger.logs.push(`[API] Raw fetch complete: ${allRawCalls.length} total API responses`);
+    console.log(`[API] Raw fetch complete: ${allRawCalls.length} responses`);
+
+    // Deduplicate by ID (must happen AFTER all chunks/pages collected)
+    for (const call of allRawCalls) {
+      if (call.id) {
+        callsById.set(call.id, call);
+      }
+    }
+
+    syncLogger.logs.push(`[API] After deduplication: ${callsById.size} unique calls (removed ${allRawCalls.length - callsById.size} duplicates)`);
+    console.log(`[API] Unique calls: ${callsById.size} (${allRawCalls.length - callsById.size} duplicates removed)`);
+
+    // Filter by actual date range
+    const allCalls = Array.from(callsById.values())
+      .filter(call => {
+        const callDate = new Date(call.createdAt);
+        return callDate >= rangeStartDate && callDate < rangeEndDate;
+      })
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    syncLogger.logs.push(`[API] After date filtering: ${allCalls.length} calls in range (${callsById.size - allCalls.length} outside range)`);
+    console.log(`[API] Final: ${allCalls.length} calls in date range (${totalApiTime}ms total)`);
 
     // Get user's assigned agents to filter calls
     const { data: userAgents, error: userAgentsError } = await supabase

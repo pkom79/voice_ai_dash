@@ -172,63 +172,92 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[DIAGNOSTIC] Fetching ${chunks.length} daily chunk(s) from HighLevel`);
 
-    const allHighLevelCalls: any[] = [];
+    const allRawCalls: any[] = [];
     const allApiResponses: any[] = [];
+    const callsById = new Map<string, any>();
 
-    // Fetch each chunk (HighLevel API ignores date filters and pagination doesn't work properly)
-    // It only returns the 10 most recent calls regardless of parameters
-    // We'll fetch without pagination to avoid duplicates and document the API limitation
+    // Fetch each chunk with proper pagination
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      const params = new URLSearchParams({
-        locationId: oauthData.location_id,
-        startDate: chunk.start,
-        endDate: chunk.end,
-      });
+      let page = 1;
+      let hasMorePages = true;
 
-      const hlUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params}`;
-      console.log(`[DIAGNOSTIC] Chunk ${i + 1}/${chunks.length}: ${chunk.start} to ${chunk.end}`);
-      console.log(`[DIAGNOSTIC] URL:`, hlUrl);
-      console.log(`[DIAGNOSTIC] WARNING: HighLevel API ignores date filters - returns most recent calls only`);
+      while (hasMorePages) {
+        const params = new URLSearchParams({
+          locationId: oauthData.location_id,
+          startDate: chunk.start,
+          endDate: chunk.end,
+          page: page.toString(),
+        });
 
-      const response = await fetch(hlUrl, {
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          "Version": "2021-07-28",
-        },
-      });
+        const hlUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params}`;
+        console.log(`[DIAGNOSTIC] Chunk ${i + 1}/${chunks.length}, Page ${page}: ${chunk.start} to ${chunk.end}`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[DIAGNOSTIC] HL API error on chunk ${i + 1}:`, response.status, errorText);
-        continue;
+        const response = await fetch(hlUrl, {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+            "Version": "2021-07-28",
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[DIAGNOSTIC] HL API error on chunk ${i + 1}, page ${page}:`, response.status, errorText);
+          break;
+        }
+
+        const data = await response.json();
+        const pageCalls = data.callLogs || [];
+
+        console.log(`[DIAGNOSTIC] Chunk ${i + 1}, Page ${page}: ${pageCalls.length} calls (total: ${data.total})`);
+
+        // Collect all raw calls without deduplication yet
+        allRawCalls.push(...pageCalls);
+
+        allApiResponses.push({
+          chunk: i + 1,
+          page: page,
+          dateRange: { start: chunk.start, end: chunk.end },
+          total: data.total,
+          pageSize: data.pageSize,
+          callCount: pageCalls.length,
+        });
+
+        // Check pagination
+        const totalPages = Math.ceil(data.total / data.pageSize);
+        if (page >= totalPages || pageCalls.length === 0) {
+          hasMorePages = false;
+        } else {
+          page++;
+        }
       }
-
-      const data = await response.json();
-      const chunkCalls = data.callLogs || [];
-
-      console.log(`[DIAGNOSTIC] Chunk ${i + 1} returned ${chunkCalls.length} calls (API reports ${data.total} total, but date filter ignored)`);
-
-      // Deduplicate by call ID before adding
-      const existingIds = new Set(allHighLevelCalls.map(c => c.id));
-      const newCalls = chunkCalls.filter((c: any) => !existingIds.has(c.id));
-
-      allHighLevelCalls.push(...newCalls);
-      allApiResponses.push({
-        chunk: i + 1,
-        dateRange: { start: chunk.start, end: chunk.end },
-        total: data.total,
-        page: data.page,
-        pageSize: data.pageSize,
-        callCount: chunkCalls.length,
-        newCallsAdded: newCalls.length,
-        duplicatesSkipped: chunkCalls.length - newCalls.length,
-      });
     }
 
-    const highLevelCalls = allHighLevelCalls;
-    console.log(`[DIAGNOSTIC] Total fetched: ${highLevelCalls.length} calls from ${chunks.length} chunks`);
+    console.log(`[DIAGNOSTIC] Raw fetch complete: ${allRawCalls.length} total API responses`);
+
+    // Deduplicate by ID (must happen AFTER all chunks/pages collected)
+    for (const call of allRawCalls) {
+      if (call.id) {
+        callsById.set(call.id, call);
+      }
+    }
+
+    console.log(`[DIAGNOSTIC] After deduplication: ${callsById.size} unique calls (removed ${allRawCalls.length - callsById.size} duplicates)`);
+
+    // Convert to array and filter by actual date range
+    const startUtc = new Date(start);
+    const endUtc = new Date(end);
+
+    let highLevelCalls = Array.from(callsById.values())
+      .filter(call => {
+        const callDate = new Date(call.createdAt);
+        return callDate >= startUtc && callDate < endUtc;
+      })
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    console.log(`[DIAGNOSTIC] After date filtering: ${highLevelCalls.length} calls in range [${start}, ${end})`);
+    console.log(`[DIAGNOSTIC] Filtered out: ${callsById.size - highLevelCalls.length} calls outside date range`);
 
     // If raw dump mode, just return the HighLevel data without any comparison
     if (rawDumpOnly) {
