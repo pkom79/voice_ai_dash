@@ -24,7 +24,6 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get Authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -33,7 +32,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Verify the user making the request
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
@@ -44,7 +42,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Verify user is admin
     const { data: userRecord } = await supabase
       .from("users")
       .select("role")
@@ -58,7 +55,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Get userId from request body
     const { userId } = await req.json();
 
     if (!userId) {
@@ -68,7 +64,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Get user's active HighLevel connection
     const { data: apiKey, error: apiKeyError } = await supabase
       .from("api_keys")
       .select("access_token, refresh_token, token_expires_at, location_id")
@@ -85,13 +80,11 @@ Deno.serve(async (req: Request) => {
 
     let accessToken = apiKey.access_token;
 
-    // Check if token needs refresh
     const expiresAt = new Date(apiKey.token_expires_at);
     const now = new Date();
     const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
 
     if (expiresAt <= fiveMinutesFromNow) {
-      // Need to refresh token
       const tokenResponse = await fetch("https://services.leadconnectorhq.com/oauth/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -113,7 +106,6 @@ Deno.serve(async (req: Request) => {
       const tokenData = await tokenResponse.json();
       accessToken = tokenData.access_token;
 
-      // Update token in database
       await supabase
         .from("api_keys")
         .update({
@@ -124,67 +116,43 @@ Deno.serve(async (req: Request) => {
         .eq("user_id", userId);
     }
 
-    // Fetch agents from HighLevel with pagination support
-    // The /voice-ai/agents endpoint is paginated per HL API docs
-    const allAgents: Agent[] = [];
-    let page = 1;
-    const limit = 100;
-    let hasMore = true;
+    const agentsUrl = `https://services.leadconnectorhq.com/voice-ai/agents?locationId=${apiKey.location_id}`;
 
-    while (hasMore) {
-      const agentsUrl = `https://services.leadconnectorhq.com/voice-ai/agents?locationId=${apiKey.location_id}&page=${page}&limit=${limit}`;
+    const agentsResponse = await fetch(agentsUrl, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Version: "2021-07-28",
+      },
+    });
 
-      const agentsResponse = await fetch(agentsUrl, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Version: "2021-07-28",
-        },
+    if (!agentsResponse.ok) {
+      const errorText = await agentsResponse.text();
+      console.error("HighLevel API error:", {
+        status: agentsResponse.status,
+        statusText: agentsResponse.statusText,
+        body: errorText,
+        url: agentsUrl
       });
-
-      if (!agentsResponse.ok) {
-        const errorText = await agentsResponse.text();
-        console.error("HighLevel API error:", {
-          status: agentsResponse.status,
-          statusText: agentsResponse.statusText,
-          body: errorText,
-          url: agentsUrl
-        });
-        return new Response(
-          JSON.stringify({
-            error: "Failed to fetch agents from HighLevel",
-            details: `Status: ${agentsResponse.status}, ${errorText.substring(0, 200)}`
-          }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const agentsData = await agentsResponse.json();
-      console.log(`HighLevel API response for page ${page}:`, JSON.stringify(agentsData));
-
-      // Try multiple possible field names
-      const pageAgents: Agent[] =
-        agentsData.voiceAiAgents ||
-        agentsData.agents ||
-        agentsData.data ||
-        (Array.isArray(agentsData) ? agentsData : []);
-
-      console.log(`Found ${pageAgents.length} agents on page ${page}`);
-
-      // Add agents from this page to the collection
-      allAgents.push(...pageAgents);
-
-      // Check if there are more pages
-      if (pageAgents.length < limit) {
-        hasMore = false;
-      } else {
-        page++;
-      }
+      return new Response(
+        JSON.stringify({
+          error: "Failed to fetch agents from HighLevel",
+          details: `Status: ${agentsResponse.status}, ${errorText.substring(0, 200)}`
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const agents = allAgents;
-    console.log(`Total agents fetched across all pages: ${agents.length}`);
+    const agentsData = await agentsResponse.json();
+    console.log(`HighLevel API response:`, JSON.stringify(agentsData));
 
-    // Filter out agents without names (check both agentName and name fields)
+    const agents: Agent[] =
+      agentsData.voiceAiAgents ||
+      agentsData.agents ||
+      agentsData.data ||
+      (Array.isArray(agentsData) ? agentsData : []);
+
+    console.log(`Total agents fetched: ${agents.length}`);
+
     const validAgents = agents.filter(agent => {
       const name = agent.agentName || agent.name;
       return name && name.trim() !== "";
@@ -200,16 +168,13 @@ Deno.serve(async (req: Request) => {
           debug: {
             totalAgents: agents.length,
             locationId: apiKey.location_id,
-            rawResponse: JSON.stringify(agentsData).substring(0, 500),
-            responseKeys: Object.keys(agentsData),
-            fullResponse: agentsData
+            sampleAgent: agents.length > 0 ? agents[0] : null
           }
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Return agents with location_id included
     return new Response(
       JSON.stringify({
         agents: validAgents.map(agent => ({
