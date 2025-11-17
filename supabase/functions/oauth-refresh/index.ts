@@ -66,6 +66,9 @@ Deno.serve(async (req: Request) => {
     // Refresh the token with HighLevel
     console.log("Refreshing HighLevel OAuth token for user:", userId);
 
+    // Get redirect URI from environment
+    const redirectUri = Deno.env.get("HIGHLEVEL_REDIRECT_URI") || "https://voiceaidash.com/oauth/callback";
+
     const refreshResponse = await fetch(tokenUrl, {
       method: "POST",
       headers: {
@@ -76,6 +79,8 @@ Deno.serve(async (req: Request) => {
         client_secret: clientSecret,
         grant_type: "refresh_token",
         refresh_token: tokenData.refresh_token,
+        user_type: "Company",
+        redirect_uri: redirectUri,
       }).toString(),
     });
 

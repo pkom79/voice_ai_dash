@@ -124,46 +124,65 @@ Deno.serve(async (req: Request) => {
         .eq("user_id", userId);
     }
 
-    // Fetch agents from HighLevel
-    const agentsResponse = await fetch(
-      `https://services.leadconnectorhq.com/voice-ai/agents?locationId=${apiKey.location_id}`,
-      {
+    // Fetch agents from HighLevel with pagination support
+    // The /voice-ai/agents endpoint is paginated per HL API docs
+    const allAgents: Agent[] = [];
+    let page = 1;
+    const limit = 100;
+    let hasMore = true;
+
+    while (hasMore) {
+      const agentsUrl = `https://services.leadconnectorhq.com/voice-ai/agents?locationId=${apiKey.location_id}&page=${page}&limit=${limit}`;
+
+      const agentsResponse = await fetch(agentsUrl, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Version: "2021-07-28",
         },
-      }
-    );
-
-    if (!agentsResponse.ok) {
-      const errorText = await agentsResponse.text();
-      console.error("HighLevel API error:", {
-        status: agentsResponse.status,
-        statusText: agentsResponse.statusText,
-        body: errorText,
-        url: `https://services.leadconnectorhq.com/voice-ai/agents?locationId=${apiKey.location_id}`
       });
-      return new Response(
-        JSON.stringify({
-          error: "Failed to fetch agents from HighLevel",
-          details: `Status: ${agentsResponse.status}, ${errorText.substring(0, 200)}`
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+
+      if (!agentsResponse.ok) {
+        const errorText = await agentsResponse.text();
+        console.error("HighLevel API error:", {
+          status: agentsResponse.status,
+          statusText: agentsResponse.statusText,
+          body: errorText,
+          url: agentsUrl
+        });
+        return new Response(
+          JSON.stringify({
+            error: "Failed to fetch agents from HighLevel",
+            details: `Status: ${agentsResponse.status}, ${errorText.substring(0, 200)}`
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const agentsData = await agentsResponse.json();
+      console.log(`HighLevel API response for page ${page}:`, JSON.stringify(agentsData));
+
+      // Try multiple possible field names
+      const pageAgents: Agent[] =
+        agentsData.voiceAiAgents ||
+        agentsData.agents ||
+        agentsData.data ||
+        (Array.isArray(agentsData) ? agentsData : []);
+
+      console.log(`Found ${pageAgents.length} agents on page ${page}`);
+
+      // Add agents from this page to the collection
+      allAgents.push(...pageAgents);
+
+      // Check if there are more pages
+      if (pageAgents.length < limit) {
+        hasMore = false;
+      } else {
+        page++;
+      }
     }
 
-    const agentsData = await agentsResponse.json();
-    console.log('HighLevel API full response:', JSON.stringify(agentsData));
-    console.log('Response keys:', Object.keys(agentsData));
-
-    // Try multiple possible field names
-    const agents: Agent[] =
-      agentsData.voiceAiAgents ||
-      agentsData.agents ||
-      agentsData.data ||
-      (Array.isArray(agentsData) ? agentsData : []);
-
-    console.log(`Found ${agents.length} agents in response from field check`);
+    const agents = allAgents;
+    console.log(`Total agents fetched across all pages: ${agents.length}`);
 
     // Filter out agents without names (check both agentName and name fields)
     const validAgents = agents.filter(agent => {
