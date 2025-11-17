@@ -62,7 +62,6 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[DIAGNOSTIC] Starting comparison for user: ${userId}`);
 
-    // Get OAuth token
     const { data: oauthData, error: oauthError } = await supabase
       .from("api_keys")
       .select("access_token, refresh_token, token_expires_at, location_id")
@@ -83,7 +82,6 @@ Deno.serve(async (req: Request) => {
 
     let accessToken = oauthData.access_token;
 
-    // Check token expiration and refresh if needed
     if (new Date(oauthData.token_expires_at) <= new Date()) {
       console.log("[DIAGNOSTIC] Token expired, refreshing...");
 
@@ -113,31 +111,35 @@ Deno.serve(async (req: Request) => {
       accessToken = refreshData.access_token;
     }
 
-    // Get billing account to check for calls_reset_at
     const { data: billingAccount } = await supabase
       .from("billing_accounts")
       .select("calls_reset_at")
       .eq("user_id", userId)
       .maybeSingle();
 
-    // Determine effective date range
     let effectiveStartDate = startDate;
-    if (!effectiveStartDate && billingAccount?.calls_reset_at) {
-      effectiveStartDate = new Date(billingAccount.calls_reset_at).toISOString();
-      console.log(`[DIAGNOSTIC] Using calls_reset_at as start: ${effectiveStartDate}`);
-    } else if (!effectiveStartDate) {
-      // Default to last 30 days
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      effectiveStartDate = thirtyDaysAgo.toISOString();
-      console.log(`[DIAGNOSTIC] Using default 30 days start: ${effectiveStartDate}`);
+    let effectiveEndDate = endDate;
+
+    // If no date range specified, use billing period or default to last 7 days
+    if (!effectiveStartDate) {
+      if (billingAccount?.calls_reset_at) {
+        effectiveStartDate = new Date(billingAccount.calls_reset_at).toISOString();
+        console.log(`[DIAGNOSTIC] Using calls_reset_at as start: ${effectiveStartDate}`);
+      } else {
+        // Default to last 7 days for diagnostic (more reasonable than 30)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        effectiveStartDate = sevenDaysAgo.toISOString();
+        console.log(`[DIAGNOSTIC] Using default 7 days start: ${effectiveStartDate}`);
+      }
     }
 
-    const effectiveEndDate = endDate || new Date().toISOString();
+    if (!effectiveEndDate) {
+      effectiveEndDate = new Date().toISOString();
+    }
 
     console.log(`[DIAGNOSTIC] Date range: ${effectiveStartDate} to ${effectiveEndDate}`);
 
-    // Fetch ALL calls from HighLevel with pagination
     const highLevelCalls: any[] = [];
     let page = 0;
     const pageSize = 100;
@@ -167,8 +169,27 @@ Deno.serve(async (req: Request) => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`[DIAGNOSTIC] HL API error:`, response.status, errorText);
+        console.error(`[DIAGNOSTIC] Request URL:`, hlUrl);
+        console.error(`[DIAGNOSTIC] Params:`, {
+          locationId: oauthData.location_id,
+          startDate: effectiveStartDate,
+          endDate: effectiveEndDate,
+          limit: pageSize,
+          skip: page * pageSize,
+        });
+
         return new Response(
-          JSON.stringify({ error: "Failed to fetch calls from HighLevel", details: errorText }),
+          JSON.stringify({
+            error: "Failed to fetch calls from HighLevel",
+            details: errorText,
+            status: response.status,
+            url: hlUrl,
+            params: {
+              locationId: oauthData.location_id,
+              startDate: effectiveStartDate,
+              endDate: effectiveEndDate,
+            }
+          }),
           {
             status: response.status,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -190,7 +211,6 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[DIAGNOSTIC] Fetched ${highLevelCalls.length} calls from HighLevel`);
 
-    // Fetch calls from database for the same date range
     const { data: dbCalls, error: dbError } = await supabase
       .from('calls')
       .select(`
@@ -224,7 +244,6 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[DIAGNOSTIC] Fetched ${dbCalls?.length || 0} calls from database`);
 
-    // Get user's assigned agents
     const { data: userAgents } = await supabase
       .from('user_agents')
       .select('agent_id, agents(id, highlevel_agent_id, name)')
@@ -236,7 +255,6 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[DIAGNOSTIC] User has ${assignedAgentHLIds.size} assigned agents`);
 
-    // Get all agents in system
     const { data: allAgents } = await supabase
       .from('agents')
       .select('id, highlevel_agent_id, name');
@@ -245,7 +263,6 @@ Deno.serve(async (req: Request) => {
       allAgents?.map((a: any) => [a.highlevel_agent_id, a]) || []
     );
 
-    // Create comparison maps
     const hlCallMap = new Map(highLevelCalls.map(c => [c.id, c]));
     const dbCallMap = new Map((dbCalls || []).map((c: any) => [c.highlevel_call_id, c]));
 
@@ -254,7 +271,6 @@ Deno.serve(async (req: Request) => {
     const missingInHL: CallComparison[] = [];
     const matching: CallComparison[] = [];
 
-    // Analyze HighLevel calls
     for (const hlCall of highLevelCalls) {
       const dbCall = dbCallMap.get(hlCall.id);
 
@@ -269,7 +285,6 @@ Deno.serve(async (req: Request) => {
           contactName: hlCall.contactName,
         });
       } else {
-        // Determine why this call is missing from DB
         let reason = 'unknown';
         let agentStatus = 'unknown';
 
@@ -304,7 +319,6 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Check for calls in DB but not in HL response (should be rare)
     for (const dbCall of (dbCalls || [])) {
       if (!hlCallMap.has(dbCall.highlevel_call_id)) {
         const comparison: CallComparison = {
@@ -323,13 +337,11 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Aggregate reasons
     const reasonCounts: Record<string, number> = {};
     missingInDB.forEach(c => {
       reasonCounts[c.reason || 'unknown'] = (reasonCounts[c.reason || 'unknown'] || 0) + 1;
     });
 
-    // Agent analysis
     const agentsInCalls = new Set(highLevelCalls.map(c => c.agentId).filter(Boolean));
     const unassignedAgents = Array.from(agentsInCalls).filter(id => !assignedAgentHLIds.has(id));
 
@@ -346,7 +358,6 @@ Deno.serve(async (req: Request) => {
 
     const diagnosticDuration = Date.now() - diagnosticStartTime;
 
-    // Build response
     const response: any = {
       summary: {
         dateRange: { start: effectiveStartDate, end: effectiveEndDate },
@@ -371,7 +382,6 @@ Deno.serve(async (req: Request) => {
       };
     }
 
-    // Log diagnostic run
     await supabase
       .from('call_sync_logs')
       .insert({
