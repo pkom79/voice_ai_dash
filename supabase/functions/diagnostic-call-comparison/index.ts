@@ -331,7 +331,7 @@ Deno.serve(async (req: Request) => {
 
     const diagnosticDuration = Date.now() - diagnosticStartTime;
 
-    const response: any = {
+    const result: any = {
       summary: {
         dateRange: { start: effectiveStartDate, end: effectiveEndDate },
         highlevelTotal: highLevelCalls.length,
@@ -348,7 +348,7 @@ Deno.serve(async (req: Request) => {
     };
 
     if (includeRawData) {
-      response.rawData = {
+      result.rawData = {
         highlevelCalls: highLevelCalls,
         databaseCalls: dbCalls,
       };
@@ -382,7 +382,7 @@ Deno.serve(async (req: Request) => {
       });
 
     return new Response(
-      JSON.stringify(response),
+      JSON.stringify(result),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
