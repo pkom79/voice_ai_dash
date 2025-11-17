@@ -329,7 +329,7 @@ Deno.serve(async (req: Request) => {
           skip: skip.toString(),
         });
 
-        const apiUrl = `https://services.leadconnectorhq.com/voice-ai/calls?${queryParams}`;
+        const apiUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${queryParams}`;
         const apiCallStart = Date.now();
 
         const response = await fetch(apiUrl, {
