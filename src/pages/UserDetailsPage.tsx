@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2, Bug } from 'lucide-react';
 import { format, startOfToday, endOfToday } from 'date-fns';
 import { NotificationModal } from '../components/NotificationModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import DateRangePicker from '../components/DateRangePicker';
 import { ActivityTab } from '../components/ActivityTab';
+import { DiagnosticPanel } from '../components/admin/DiagnosticPanel';
 import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../contexts/AuthContext';
 import { oauthService } from '../services/oauth';
@@ -39,7 +40,7 @@ interface BillingData {
   outbound_plan: string | null;
 }
 
-type TabType = 'profile' | 'api' | 'billing' | 'call-analytics' | 'activity';
+type TabType = 'profile' | 'api' | 'billing' | 'call-analytics' | 'activity' | 'diagnostics';
 
 export function UserDetailsPage() {
   const navigate = useNavigate();
@@ -1113,6 +1114,7 @@ export function UserDetailsPage() {
     { id: 'billing', label: 'Billing', icon: DollarSign },
     { id: 'call-analytics', label: 'Call Analytics', icon: Phone },
     { id: 'activity', label: 'Activity', icon: Activity },
+    { id: 'diagnostics', label: 'Diagnostics', icon: Bug },
   ] as const;
 
   return (
@@ -2307,6 +2309,13 @@ export function UserDetailsPage() {
 
         {activeTab === 'activity' && userId && (
           <ActivityTab userId={userId} />
+        )}
+
+        {activeTab === 'diagnostics' && userId && user && (
+          <DiagnosticPanel
+            userId={userId}
+            userName={user.business_name || `${user.first_name} ${user.last_name}`}
+          />
         )}
       </div>
 

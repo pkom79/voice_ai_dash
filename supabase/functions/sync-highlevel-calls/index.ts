@@ -11,6 +11,16 @@ interface SyncCallsRequest {
   userId: string;
   startDate?: string;
   endDate?: string;
+  syncType?: 'manual' | 'auto';
+}
+
+interface SyncLogger {
+  logId: string;
+  startTime: number;
+  logs: string[];
+  skippedCalls: any[];
+  skipReasons: Record<string, number>;
+  apiPages: any[];
 }
 
 // Calculate cost based on duration, direction, and billing plan
@@ -53,6 +63,9 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  const syncStartTime = Date.now();
+  let syncLogId: string | null = null;
+
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -65,7 +78,36 @@ Deno.serve(async (req: Request) => {
       }
     );
 
-    const { userId, startDate, endDate }: SyncCallsRequest = await req.json();
+    const { userId, startDate, endDate, syncType = 'manual' }: SyncCallsRequest = await req.json();
+
+    // Initialize sync log
+    const syncLogger: SyncLogger = {
+      logId: crypto.randomUUID(),
+      startTime: syncStartTime,
+      logs: [],
+      skippedCalls: [],
+      skipReasons: {},
+      apiPages: [],
+    };
+
+    // Create sync log entry in database
+    const { data: syncLogData, error: syncLogError } = await supabase
+      .from('call_sync_logs')
+      .insert({
+        user_id: userId,
+        sync_started_at: new Date(syncStartTime).toISOString(),
+        sync_type: syncType,
+        sync_status: 'in_progress',
+      })
+      .select('id')
+      .single();
+
+    if (syncLogData) {
+      syncLogId = syncLogData.id;
+      syncLogger.logs.push(`[INIT] Sync log created: ${syncLogId}`);
+    }
+
+    syncLogger.logs.push(`[START] User: ${userId}, Type: ${syncType}, Date Range: ${startDate || 'auto'} to ${endDate || 'now'}`);
 
     if (!userId) {
       return new Response(
@@ -145,56 +187,114 @@ Deno.serve(async (req: Request) => {
       accessToken = refreshData.access_token;
     }
 
-    // Build query params for Voice AI dashboard call logs endpoint
-    const params = new URLSearchParams();
-    if (oauthData.location_id) {
-      params.append("locationId", oauthData.location_id);
-    }
-
     // Apply startDate filter based on calls_reset_at or provided startDate
     let effectiveStartDate = startDate;
     if (billingAccount?.calls_reset_at) {
       const resetDate = new Date(billingAccount.calls_reset_at).toISOString();
-      // Use the most recent date between reset date and provided startDate
       if (!startDate || new Date(resetDate) > new Date(startDate)) {
         effectiveStartDate = resetDate;
+        syncLogger.logs.push(`[DATE] Using calls_reset_at as startDate filter: ${resetDate}`);
         console.log(`Using calls_reset_at as startDate filter: ${resetDate}`);
       }
     }
 
-    if (effectiveStartDate) params.append("startDate", effectiveStartDate);
-    if (endDate) params.append("endDate", endDate);
+    // Build base query params
+    const baseParams: Record<string, string> = {};
+    if (oauthData.location_id) {
+      baseParams.locationId = oauthData.location_id;
+    }
+    if (effectiveStartDate) baseParams.startDate = effectiveStartDate;
+    if (endDate) baseParams.endDate = endDate;
 
-    // Fetch Voice AI call logs from HighLevel (requires voice-ai-dashboard.readonly scope)
-    const highLevelUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs${params.toString() ? `?${params.toString()}` : ""}`;
+    syncLogger.logs.push(`[API] Location: ${oauthData.location_id}, Start: ${effectiveStartDate || 'none'}, End: ${endDate || 'none'}`);
 
-    console.log("Fetching Voice AI call logs from HighLevel:", highLevelUrl);
+    // Fetch calls with pagination support
+    const allCalls: any[] = [];
+    let page = 0;
+    let hasMorePages = true;
+    const pageSize = 100; // Adjust based on HL API limits
+    const maxPages = 50; // Safety limit to prevent infinite loops
 
-    const callsResponse = await fetch(highLevelUrl, {
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "Version": "2021-07-28",
-      },
-    });
+    while (hasMorePages && page < maxPages) {
+      const params = new URLSearchParams(baseParams);
+      params.append("limit", pageSize.toString());
+      params.append("skip", (page * pageSize).toString());
 
-    if (!callsResponse.ok) {
-      const errorText = await callsResponse.text();
-      console.error("HighLevel API error:", callsResponse.status, errorText);
-      return new Response(
-        JSON.stringify({
-          error: `HighLevel API error: ${callsResponse.statusText}`,
-          details: errorText,
-        }),
-        {
-          status: callsResponse.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const highLevelUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${params.toString()}`;
+
+      syncLogger.logs.push(`[API] Fetching page ${page + 1} (skip: ${page * pageSize}, limit: ${pageSize})`);
+      console.log(`[PAGINATION] Fetching page ${page + 1}:`, highLevelUrl);
+
+      const pageStartTime = Date.now();
+      const callsResponse = await fetch(highLevelUrl, {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "Version": "2021-07-28",
+        },
+      });
+
+      const pageDuration = Date.now() - pageStartTime;
+
+      if (!callsResponse.ok) {
+        const errorText = await callsResponse.text();
+        syncLogger.logs.push(`[ERROR] API request failed: ${callsResponse.status} ${errorText}`);
+        console.error("HighLevel API error:", callsResponse.status, errorText);
+
+        // Update sync log with error
+        if (syncLogId) {
+          await supabase
+            .from('call_sync_logs')
+            .update({
+              sync_completed_at: new Date().toISOString(),
+              sync_status: 'failed',
+              error_details: { status: callsResponse.status, message: errorText },
+              duration_ms: Date.now() - syncStartTime,
+            })
+            .eq('id', syncLogId);
         }
-      );
+
+        return new Response(
+          JSON.stringify({
+            error: `HighLevel API error: ${callsResponse.statusText}`,
+            details: errorText,
+          }),
+          {
+            status: callsResponse.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const pageData = await callsResponse.json();
+      const pageCalls = pageData.callLogs || [];
+
+      syncLogger.apiPages.push({
+        page: page + 1,
+        callsReceived: pageCalls.length,
+        duration_ms: pageDuration,
+        timestamp: new Date().toISOString(),
+      });
+
+      syncLogger.logs.push(`[API] Page ${page + 1} received: ${pageCalls.length} calls (${pageDuration}ms)`);
+      console.log(`[PAGINATION] Page ${page + 1}: ${pageCalls.length} calls`);
+
+      allCalls.push(...pageCalls);
+
+      // Check if there are more pages
+      hasMorePages = pageCalls.length === pageSize;
+      page++;
+
+      // Rate limiting: wait between requests
+      if (hasMorePages && page < maxPages) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
 
-    const callsData = await callsResponse.json();
-    console.log("Fetched calls:", callsData);
+    syncLogger.logs.push(`[API] Pagination complete: ${allCalls.length} total calls across ${page} page(s)`);
+    console.log(`[PAGINATION] Complete: ${allCalls.length} total calls across ${page} pages`);
+
+    const callsData = { callLogs: allCalls };
 
     // Get user's assigned agents to filter calls
     const { data: userAgents, error: userAgentsError } = await supabase
@@ -227,9 +327,12 @@ Deno.serve(async (req: Request) => {
     const skippedCalls: any[] = []; // Track skipped calls with reasons
     let totalCostAdded = 0; // Track total cost for billing update
 
+    syncLogger.logs.push(`[FILTER] User has ${assignedAgentHighLevelIds.size} assigned agents: ${Array.from(assignedAgentHighLevelIds).join(', ')}`);
+    console.log(`User has ${assignedAgentHighLevelIds.size} assigned agents:`, Array.from(assignedAgentHighLevelIds));
+
     if (callsData.callLogs && Array.isArray(callsData.callLogs)) {
+      syncLogger.logs.push(`[PROCESS] Starting to process ${callsData.callLogs.length} calls`);
       console.log(`Processing ${callsData.callLogs.length} calls...`);
-      console.log('Full API response structure:', JSON.stringify(callsData, null, 2));
       if (callsData.callLogs[0]) {
         console.log('First call detailed sample:', JSON.stringify(callsData.callLogs[0], null, 2));
       }
@@ -302,16 +405,24 @@ Deno.serve(async (req: Request) => {
               }
             } else {
               // Agent not in database - skip this call since agents must be explicitly assigned
-              const skipReason = `Agent ${call.agentId} not found in database`;
-              console.log(`Skipping call ${call.id} - ${skipReason}`);
-              skippedCalls.push({
+              const skipReason = 'agent_not_in_system';
+              const skipDetail = {
                 callId: call.id,
                 reason: skipReason,
                 agentId: call.agentId,
                 fromNumber: call.fromNumber || call.from || '',
                 callTime: call.createdAt,
                 contactName: call.contactName,
-              });
+                message: `Agent ${call.agentId} not found in database`,
+              };
+
+              syncLogger.logs.push(`[SKIP] Call ${call.id}: ${skipDetail.message}`);
+              console.log(`Skipping call ${call.id} - ${skipDetail.message}`);
+
+              syncLogger.skippedCalls.push(skipDetail);
+              syncLogger.skipReasons[skipReason] = (syncLogger.skipReasons[skipReason] || 0) + 1;
+
+              skippedCalls.push(skipDetail);
               skippedCount++;
               continue;
             }
@@ -433,10 +544,12 @@ Deno.serve(async (req: Request) => {
             .single();
 
           if (upsertError) {
+            syncLogger.logs.push(`[ERROR] Failed to save call ${call.id}: ${upsertError.message}`);
             console.error('Error upserting call:', call.id, upsertError);
             errors.push({ callId: call.id, error: upsertError.message, details: upsertError });
             errorCount++;
           } else {
+            syncLogger.logs.push(`[SAVE] Successfully saved call ${call.id} (agent: ${agentDbId})`);
             console.log(`Successfully saved call ${call.id}`);
             savedCount++;
 
@@ -468,6 +581,7 @@ Deno.serve(async (req: Request) => {
             }
           }
         } catch (callError) {
+          syncLogger.logs.push(`[ERROR] Exception processing call ${call.id}: ${callError instanceof Error ? callError.message : 'Unknown'}`);
           console.error('Error processing call:', call.id, callError);
           errors.push({ callId: call.id, error: callError instanceof Error ? callError.message : 'Unknown error' });
           errorCount++;
@@ -475,12 +589,48 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const syncDuration = Date.now() - syncStartTime;
+    syncLogger.logs.push(`[COMPLETE] Sync finished: ${savedCount} saved, ${skippedCount} skipped, ${errorCount} errors (${syncDuration}ms)`);
     console.log(`Sync complete: ${savedCount} calls saved, ${skippedCount} skipped (unassigned agents), ${errorCount} errors`);
+
     if (errors.length > 0) {
+      syncLogger.logs.push(`[ERRORS] ${errors.length} errors encountered`);
       console.error('Errors encountered:', JSON.stringify(errors, null, 2));
     }
     if (skippedCalls.length > 0) {
+      syncLogger.logs.push(`[SKIPPED] ${skippedCalls.length} calls skipped - reasons: ${JSON.stringify(syncLogger.skipReasons)}`);
       console.warn('Skipped calls details:', JSON.stringify(skippedCalls, null, 2));
+    }
+
+    // Update sync log with final results
+    if (syncLogId) {
+      const syncStatus = errorCount > 0 ? 'partial' : 'success';
+      await supabase
+        .from('call_sync_logs')
+        .update({
+          sync_completed_at: new Date().toISOString(),
+          sync_status: syncStatus,
+          api_params: baseParams,
+          api_response_summary: {
+            totalFetched: allCalls.length,
+            pageCount: page,
+            pagesDetails: syncLogger.apiPages,
+            dateRangeCovered: { start: effectiveStartDate, end: endDate },
+          },
+          processing_summary: {
+            saved: savedCount,
+            skipped: skippedCount,
+            errors: errorCount,
+            skipReasons: syncLogger.skipReasons,
+            totalCostAdded: totalCostAdded / 100,
+          },
+          skipped_calls: syncLogger.skippedCalls,
+          error_details: errors.length > 0 ? { errors } : null,
+          duration_ms: syncDuration,
+        })
+        .eq('id', syncLogId);
+
+      syncLogger.logs.push(`[LOG] Sync log updated: ${syncLogId}`);
     }
 
     // Log sync activity
@@ -542,10 +692,14 @@ Deno.serve(async (req: Request) => {
         savedCount,
         skippedCount,
         errorCount,
-        totalFetched: callsData.callLogs?.length || 0,
+        totalFetched: allCalls.length,
+        pagesFetched: page,
+        syncLogId,
+        duration_ms: syncDuration,
         errors: errors.length > 0 ? errors : undefined,
         skippedCalls: skippedCalls.length > 0 ? skippedCalls : undefined,
-        calls: callsData
+        skipReasons: syncLogger.skipReasons,
+        logs: syncLogger.logs,
       }),
       {
         status: 200,
@@ -553,6 +707,7 @@ Deno.serve(async (req: Request) => {
       }
     );
   } catch (error) {
+    const syncDuration = Date.now() - syncStartTime;
     console.error("Error in sync-highlevel-calls:", error);
 
     // Try to log the error if we have userId from the request
@@ -563,6 +718,22 @@ Deno.serve(async (req: Request) => {
           Deno.env.get("SUPABASE_URL")!,
           Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
         );
+
+        // Update sync log with failure status
+        if (syncLogId) {
+          await supabase
+            .from('call_sync_logs')
+            .update({
+              sync_completed_at: new Date().toISOString(),
+              sync_status: 'failed',
+              error_details: {
+                message: error instanceof Error ? error.message : 'Unknown error',
+                stack: error instanceof Error ? error.stack : undefined,
+              },
+              duration_ms: syncDuration,
+            })
+            .eq('id', syncLogId);
+        }
 
         await supabase.rpc('log_integration_error', {
           p_user_id: body.userId,
@@ -583,6 +754,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         error: error instanceof Error ? error.message : "Unknown error",
         details: error,
+        syncLogId,
       }),
       {
         status: 500,
