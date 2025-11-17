@@ -94,7 +94,12 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Diagnostic failed');
+        console.error('Full diagnostic error response:', errorData);
+        const errorMessage = errorData.error || 'Diagnostic failed';
+        const errorDetails = errorData.details ? `\n\nDetails: ${errorData.details}` : '';
+        const errorUrl = errorData.url ? `\n\nURL: ${errorData.url}` : '';
+        const errorParams = errorData.params ? `\n\nParams: ${JSON.stringify(errorData.params, null, 2)}` : '';
+        throw new Error(errorMessage + errorDetails + errorUrl + errorParams);
       }
 
       const result = await response.json();
