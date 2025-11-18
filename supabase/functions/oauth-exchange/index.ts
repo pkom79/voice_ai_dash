@@ -16,34 +16,32 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({ error: "Missing or invalid authorization" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const token = authHeader.replace("Bearer ", "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const { code } = await req.json();
 
     if (!code) {
       return new Response(
         JSON.stringify({ error: "code is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Look up the authorization code to identify the user
+    const { data: authCode, error: codeError } = await supabase
+      .from("oauth_authorization_codes")
+      .select("user_id")
+      .eq("code", code)
+      .maybeSingle();
+
+    if (codeError || !authCode) {
+      console.error("Invalid auth code:", codeError);
+      return new Response(
+        JSON.stringify({ error: "invalid_code" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -92,7 +90,7 @@ Deno.serve(async (req: Request) => {
     await supabase
       .from("api_keys")
       .delete()
-      .eq("user_id", user.id)
+      .eq("user_id", authCode.user_id)
       .eq("service", "highlevel");
 
     const { error: insertError } = await supabase
@@ -100,7 +98,7 @@ Deno.serve(async (req: Request) => {
       .insert({
         name: "HighLevel OAuth Connection",
         service: "highlevel",
-        user_id: user.id,
+        user_id: authCode.user_id,
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         token_expires_at: expiresAt,
