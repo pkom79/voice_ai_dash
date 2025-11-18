@@ -2321,7 +2321,7 @@ export function UserDetailsPage() {
                           Duration
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
+                          Actions
                         </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Cost
@@ -2344,15 +2344,62 @@ export function UserDetailsPage() {
                               {Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`px-2 py-1 text-xs font-medium rounded-full uppercase ${
-                                call.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                call.status === 'missed' ? 'bg-red-100 text-red-800' :
-                                call.status === 'no-answer' ? 'bg-yellow-100 text-yellow-800' :
-                                call.status === 'busy' ? 'bg-orange-100 text-orange-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {call.status || 'N/A'}
-                              </span>
+                              <div className="flex flex-wrap gap-2">
+                                {(() => {
+                                  const rawActions = (call.action_triggered || call.actions || []);
+                                  const actionsArray = Array.isArray(rawActions)
+                                    ? rawActions
+                                    : typeof rawActions === 'string'
+                                      ? rawActions.split(',').map(a => a.trim()).filter(Boolean)
+                                      : [];
+
+                                  if (actionsArray.length === 0) {
+                                    return <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">NONE</span>;
+                                  }
+
+                                  const mapLabel = (a: string) => {
+                                    const key = a.toLowerCase();
+                                    if (key.includes('knowledge')) return 'KB';
+                                    if (key.includes('call_transfer') || key.includes('transfer')) return 'TRANSFER';
+                                    if (key.includes('workflow')) return 'WORKFLOW';
+                                    if (key.includes('sms')) return 'SMS';
+                                    if (key.includes('appointment')) return 'APPT';
+                                    if (key.includes('contact')) return 'CONTACT';
+                                    return 'CUSTOM';
+                                  };
+
+                                  const mapStyle = (label: string) => {
+                                    switch (label) {
+                                      case 'KB':
+                                        return 'bg-blue-100 text-blue-800';
+                                      case 'TRANSFER':
+                                        return 'bg-purple-100 text-purple-800';
+                                      case 'WORKFLOW':
+                                        return 'bg-indigo-100 text-indigo-800';
+                                      case 'SMS':
+                                        return 'bg-teal-100 text-teal-800';
+                                      case 'APPT':
+                                        return 'bg-emerald-100 text-emerald-800';
+                                      case 'CONTACT':
+                                        return 'bg-sky-100 text-sky-800';
+                                      default:
+                                        return 'bg-gray-100 text-gray-800';
+                                    }
+                                  };
+
+                                  return actionsArray.map((act: string, idx: number) => {
+                                    const label = mapLabel(act);
+                                    return (
+                                      <span
+                                        key={`${act}-${idx}`}
+                                        className={`px-2 py-1 text-xs font-semibold rounded-full uppercase ${mapStyle(label)}`}
+                                      >
+                                        {label}
+                                      </span>
+                                    );
+                                  });
+                                })()}
+                              </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                               {call.display_cost === 'INCLUDED' ? (
