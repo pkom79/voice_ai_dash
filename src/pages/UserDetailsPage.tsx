@@ -958,53 +958,22 @@ export function UserDetailsPage() {
         adminUserId: currentUser?.id
       });
 
-      let syncSucceeded = false;
+      const { data, error } = await supabase.functions.invoke('sync-highlevel-calls', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: {
+          userId: userId,
+          startDate: startDateISO,
+          endDate: endDateISO,
+          timezone: timezone,
+          adminOverride: adminOverride,
+          adminUserId: currentUser?.id,
+          syncType: 'admin_historical',
+        },
+      });
 
-      // Prefer same-origin rewrite to avoid CORS
-      try {
-        const response = await fetch('/api/sync-highlevel-calls', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: userId,
-            startDate: startDateISO,
-            endDate: endDateISO,
-            timezone: timezone,
-            adminOverride: adminOverride,
-            adminUserId: currentUser?.id,
-            syncType: 'admin_historical'
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || 'Failed to sync calls');
-        }
-        syncSucceeded = true;
-      } catch (fetchError) {
-        console.warn('Sync via /api/sync-highlevel-calls failed, falling back to Supabase invoke', fetchError);
-        const { data, error } = await supabase.functions.invoke('sync-highlevel-calls', {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: {
-            userId: userId,
-            startDate: startDateISO,
-            endDate: endDateISO,
-            timezone: timezone,
-            adminOverride: adminOverride,
-            adminUserId: currentUser?.id,
-            syncType: 'admin_historical',
-          },
-        });
-
-        if (error) throw error;
-        if (data) syncSucceeded = true;
-      }
+      if (error) throw error;
 
       showSuccess('Call sync initiated successfully');
       setShowResyncModal(false);
