@@ -87,7 +87,8 @@ export function AdminCallsAnalytics() {
   const [selectedPhoneNumberId, setSelectedPhoneNumberId] = useState<string>('all');
   const [direction, setDirection] = useState<'inbound' | 'outbound'>('inbound');
   const [searchQuery, setSearchQuery] = useState('');
-  const [startDate, setStartDate] = useState<Date | null>(startOfToday());
+  const today = startOfToday();
+  const [startDate, setStartDate] = useState<Date | null>(new Date(today.getFullYear(), today.getMonth(), 1));
   const [endDate, setEndDate] = useState<Date | null>(endOfToday());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -271,9 +272,11 @@ export function AdminCallsAnalytics() {
     }
 
     if (startDate && endDate) {
+      const endInclusive = new Date(endDate);
+      endInclusive.setHours(23, 59, 59, 999);
       filtered = filtered.filter((call) => {
         const callDate = new Date(call.call_started_at);
-        return callDate >= startDate && callDate <= endDate;
+        return callDate >= startDate && callDate <= endInclusive;
       });
     }
 
@@ -624,9 +627,7 @@ export function AdminCallsAnalytics() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Cost
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -686,12 +687,6 @@ export function AdminCallsAnalytics() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatDuration(call.duration_seconds)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {call.status || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
-                      ${call.cost.toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">

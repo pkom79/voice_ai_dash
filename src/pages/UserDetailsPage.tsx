@@ -106,8 +106,8 @@ export function UserDetailsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
   const [selectedPhoneNumberId, setSelectedPhoneNumberId] = useState<string>('all');
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [endDate, setEndDate] = useState<Date | null>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<any[]>([]);
   const [agentPhoneMap, setAgentPhoneMap] = useState<Record<string, string[]>>({});
