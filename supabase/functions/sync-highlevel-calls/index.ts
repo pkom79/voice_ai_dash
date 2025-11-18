@@ -105,6 +105,9 @@ Deno.serve(async (req: Request) => {
       adminUserId
     }: SyncCallsRequest = requestBody;
 
+    const allowedSyncTypes = ['manual', 'auto'];
+    const normalizedSyncType = allowedSyncTypes.includes(syncType) ? syncType : 'manual';
+
     if (!userId) {
       console.error("[SYNC] Missing userId");
       return new Response(
@@ -127,7 +130,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`[SYNC] Parameters validated - userId: ${userId}, syncType: ${syncType}, adminOverride: ${adminOverride}`);
+    console.log(`[SYNC] Parameters validated - userId: ${userId}, syncType: ${normalizedSyncType}, adminOverride: ${adminOverride}`);
 
     let isAdmin = false;
     let callerId: string | null = null;
@@ -194,7 +197,7 @@ Deno.serve(async (req: Request) => {
       .insert({
         user_id: userId,
         sync_started_at: new Date(syncStartTime).toISOString(),
-        sync_type: syncType,
+        sync_type: normalizedSyncType,
         sync_status: 'in_progress',
         timezone_used: timezone,
         admin_override: adminOverride && isAdmin,
@@ -215,7 +218,7 @@ Deno.serve(async (req: Request) => {
       syncLogger.logId = syncLogId;
     }
 
-    syncLogger.logs.push(`[START] Sync initiated - Type: ${syncType}, Admin Override: ${adminOverride}`);
+    syncLogger.logs.push(`[START] Sync initiated - Type: ${normalizedSyncType}, Admin Override: ${adminOverride}`);
 
     console.log(`[SYNC] Looking up OAuth connection for user ${userId}`);
     const { data: oauthData, error: oauthError } = await supabase
