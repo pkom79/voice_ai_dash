@@ -1376,6 +1376,26 @@ VITE_HIGHLEVEL_TOKEN_URL=https://voiceaidash.app/api/oauth/token
 VITE_HIGHLEVEL_REDIRECT_URI=https://www.voiceaidash.app/oauth/callback
 ```
 
+### HighLevel OAuth setup (working configuration)
+- In HighLevel developer app:  
+  - Authorization URL: `https://www.voiceaidash.app/api/oauth/authorize` (GET)  
+  - Access token URL: `https://www.voiceaidash.app/api/oauth/token` (POST)  
+  - Refresh token URL: `https://www.voiceaidash.app/api/oauth/token` (POST, grant_type=refresh_token)  
+  - Callback/redirect: `https://www.voiceaidash.app/oauth/callback`  
+  - Test API endpoint: `https://www.voiceaidash.app/api/oauth-test` (GET with Bearer access_token)  
+  - Scopes: `voice-ai-agents.readonly voice-ai-agents.write voice-ai-dashboard.readonly voice-ai-agent-goals.readonly voice-ai-agent-goals.write contacts.readonly locations.readonly conversations.readonly conversations/message.readonly phonenumbers.read numberpools.read`  
+  - Enable “Automatically refresh token” on 401.
+- Supabase function secrets: `HIGHLEVEL_AUTH_URL=https://marketplace.gohighlevel.com/oauth/chooselocation`, `HIGHLEVEL_TOKEN_URL=https://services.leadconnectorhq.com/oauth/token`, plus client ID/secret and redirect above.
+- Vercel rewrites: `/api/oauth/authorize` → Supabase `oauth-authorize`, `/api/oauth/token` → `oauth-token`, `/api/(.*)` → Supabase functions, `/(.*)` → `/`.
+
+### Fetching HighLevel agents
+- Function: `fetch-available-agents` (deployed in Supabase; JWT verification disabled).
+- Client calls via same-origin `/api/fetch-available-agents` to avoid CORS, sending:  
+  - `Authorization: Bearer <Supabase session access_token>`  
+  - `apikey: <VITE_SUPABASE_ANON_KEY>`  
+  - Body: `{ "userId": "<target_user_id>" }`
+- Uses stored HighLevel access/refresh tokens for that user, refreshes if expiring, then reads agents for the connected location.
+
 #### HighLevel API
 ```env
 VITE_HIGHLEVEL_API_URL=https://services.leadconnectorhq.com
