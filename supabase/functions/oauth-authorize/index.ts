@@ -35,26 +35,25 @@ Deno.serve(async (req: Request) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const authHeader = req.headers.get("Authorization");
-    const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : tokenFromQuery;
+    // Validate state and fetch the user who initiated the flow
+    const { data: stateRecord, error: stateError } = await supabase
+      .from("oauth_states")
+      .select("user_id, admin_id, expires_at")
+      .eq("state", state)
+      .maybeSingle();
 
-    if (!bearerToken) {
-      const loginUrl = `${supabaseUrl}/auth/v1/authorize?redirect_to=${encodeURIComponent(req.url)}`;
-      return new Response(null, {
-        status: 302,
-        headers: {
-          ...corsHeaders,
-          "Location": loginUrl,
-        },
-      });
+    if (stateError || !stateRecord) {
+      console.error("State lookup failed:", stateError);
+      return new Response(
+        JSON.stringify({ error: "invalid_state" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser(bearerToken);
-
-    if (userError || !user) {
+    if (stateRecord.expires_at && new Date(stateRecord.expires_at) < new Date()) {
       return new Response(
-        JSON.stringify({ error: "unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "state_expired" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -63,7 +62,7 @@ Deno.serve(async (req: Request) => {
       .from("oauth_authorization_codes")
       .insert({
         code,
-        user_id: user.id,
+        user_id: stateRecord.user_id,
         client_id: clientId,
         redirect_uri: redirectUri,
         scope: scope || "",
