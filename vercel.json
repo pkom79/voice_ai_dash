@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/api/oauth/authorize", "destination": "https://pjlrcchptrkymevoiolu.supabase.co/functions/v1/oauth-authorize" },
+    { "source": "/api/oauth/token", "destination": "https://pjlrcchptrkymevoiolu.supabase.co/functions/v1/oauth-token" },
     { "source": "/api/(.*)", "destination": "https://pjlrcchptrkymevoiolu.supabase.co/functions/v1/$1" },
     { "source": "/(.*)", "destination": "/" }
   ]
