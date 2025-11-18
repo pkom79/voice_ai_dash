@@ -406,7 +406,7 @@ Deno.serve(async (req: Request) => {
 
     syncLogger.logs.push(`[CHUNKING] Date range split into ${chunks.length} daily chunks`);
 
-    const pageSize = 100;
+    const pageSize = 50; // HighLevel limit is 50
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
       const chunk = chunks[chunkIndex];
       let page = 1;
