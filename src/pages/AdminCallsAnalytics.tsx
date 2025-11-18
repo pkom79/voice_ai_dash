@@ -67,6 +67,7 @@ interface Agent {
 interface PhoneNumber {
   id: string;
   phone_number: string;
+  label?: string;
 }
 
 export function AdminCallsAnalytics() {
@@ -94,6 +95,7 @@ export function AdminCallsAnalytics() {
 
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [showModal, setShowModal] = useState<'summary' | 'transcript' | 'notes' | 'recording' | null>(null);
+  const [billingPlans, setBillingPlans] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadData();
@@ -119,7 +121,7 @@ export function AdminCallsAnalytics() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [callsResult, usersResult, userAgentsResult, agentPhonesResult] = await Promise.all([
+      const [callsResult, usersResult, userAgentsResult, agentPhonesResult, billingResult] = await Promise.all([
         supabase
           .from('calls')
           .select(`
@@ -132,10 +134,18 @@ export function AdminCallsAnalytics() {
         supabase.from('users').select('id, first_name, last_name').eq('role', 'client'),
         supabase.from('user_agents').select('user_id, agent_id'),
         supabase.from('agent_phone_numbers').select('agent_id, phone_number_id'),
+        supabase.from('billing_accounts').select('user_id, inbound_plan'),
       ]);
 
       if (callsResult.data) setCalls(callsResult.data);
       if (usersResult.data) setUsers(usersResult.data);
+      if (billingResult.data) {
+        const planMap: Record<string, string> = {};
+        billingResult.data.forEach((b) => {
+          planMap[b.user_id] = b.inbound_plan;
+        });
+        setBillingPlans(planMap);
+      }
 
       // Get only agents that are assigned to at least one user
       if (userAgentsResult.data) {
@@ -189,7 +199,20 @@ export function AdminCallsAnalytics() {
           setAllPhoneNumbers([]);
         }
       } else {
-        setAllPhoneNumbers([]);
+        // Fallback: derive numbers from calls if nothing is assigned
+        if (callsResult.data && callsResult.data.length > 0) {
+          const unique = new Map<string, PhoneNumber>();
+          callsResult.data.forEach((c) => {
+            [c.from_number, c.to_number].forEach((num) => {
+              if (num && !unique.has(num)) {
+                unique.set(num, { id: `num:${num}`, phone_number: num, label: num });
+              }
+            });
+          });
+          setAllPhoneNumbers(Array.from(unique.values()));
+        } else {
+          setAllPhoneNumbers([]);
+        }
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -213,10 +236,10 @@ export function AdminCallsAnalytics() {
       }
       const agentIds = userAgentMap[selectedUserId] || [];
       const phoneIds = agentIds.flatMap((agentId) => agentPhoneMap[agentId] || []);
-      return allPhoneNumbers.filter((phone) => phoneIds.includes(phone.id));
+      return allPhoneNumbers.filter((phone) => phoneIds.includes(phone.id) || phone.id.startsWith('num:'));
     }
     const phoneIds = agentPhoneMap[selectedAgentId] || [];
-    return allPhoneNumbers.filter((phone) => phoneIds.includes(phone.id));
+    return allPhoneNumbers.filter((phone) => phoneIds.includes(phone.id) || phone.id.startsWith('num:'));
   };
 
   const getUserForAgent = (agentId: string | null) => {
@@ -257,7 +280,12 @@ export function AdminCallsAnalytics() {
     }
 
     if (selectedPhoneNumberId !== 'all') {
-      filtered = filtered.filter((call) => call.phone_number_id === selectedPhoneNumberId);
+      if (selectedPhoneNumberId.startsWith('num:')) {
+        const num = selectedPhoneNumberId.replace(/^num:/, '');
+        filtered = filtered.filter((call) => call.from_number === num || call.to_number === num);
+      } else {
+        filtered = filtered.filter((call) => call.phone_number_id === selectedPhoneNumberId);
+      }
     }
 
     filtered = filtered.filter((call) => call.direction === direction);
@@ -291,7 +319,12 @@ export function AdminCallsAnalytics() {
     const outbound = filteredCalls.filter((c) => c.direction === 'outbound');
     const totalDuration = filteredCalls.reduce((sum, c) => sum + c.duration_seconds, 0);
     const actionsTriggered = filteredCalls.filter((c) => c.action_triggered).length;
-    const totalCost = filteredCalls.reduce((sum, c) => sum + c.cost, 0);
+    const totalCost = filteredCalls.reduce((sum, c) => {
+      if (c.display_cost === 'INCLUDED') return sum;
+      const userPlan = billingPlans[c.user_id];
+      if (userPlan === 'inbound_unlimited') return sum;
+      return sum + c.cost;
+    }, 0);
 
     const sentimentCounts = {
       positive: filteredCalls.filter((c) => c.sentiment === 'positive').length,
@@ -691,7 +724,7 @@ export function AdminCallsAnalytics() {
                       {formatDuration(call.duration_seconds)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {call.display_cost === 'INCLUDED' ? (
+                      {(call.display_cost === 'INCLUDED' || billingPlans[call.user_id] === 'inbound_unlimited') ? (
                         <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
                           INCLUDED
                         </span>

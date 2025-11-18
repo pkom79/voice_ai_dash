@@ -668,7 +668,14 @@ Deno.serve(async (req: Request) => {
           duration_seconds: durationSeconds,
           call_started_at: rawCall.createdAt ? new Date(rawCall.createdAt).toISOString() : null,
           call_ended_at: rawCall.ended_at ? new Date(rawCall.ended_at).toISOString() : null,
-          recording_url: rawCall.recording_url || rawCall.recordingUrl || (rawCall.recordings?.[0]?.url ?? null),
+          recording_url:
+            rawCall.recording_url ||
+            rawCall.recordingUrl ||
+            rawCall.call_recording_url ||
+            rawCall.callRecordingUrl ||
+            rawCall.recording_link ||
+            rawCall.recordingLink ||
+            (rawCall.recordings?.[0]?.url ?? null),
           transcript: rawCall.transcript || null,
           cost: cost,
           display_cost: displayCost,
