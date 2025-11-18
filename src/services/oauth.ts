@@ -108,11 +108,9 @@ class OAuthService {
     if (error || !data) return null;
 
     if (new Date(data.expires_at) < new Date()) {
-      await this.deleteState(state);
       return null;
     }
 
-    await this.deleteState(state);
     return { userId: data.user_id, adminId: data.admin_id };
   }
 
@@ -120,7 +118,7 @@ class OAuthService {
     await supabase.from('oauth_states').delete().eq('state', state);
   }
 
-  async exchangeCodeForTokens(code: string, userId: string): Promise<boolean> {
+  async exchangeCodeForTokens(code: string, userId: string, state: string): Promise<boolean> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
@@ -135,7 +133,7 @@ class OAuthService {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ code }),
+          body: JSON.stringify({ code, state }),
         }
       );
 

@@ -56,7 +56,7 @@ export function OAuthCallback() {
       }
 
       console.log('[OAuth Callback] State validated, exchanging code for tokens');
-      const success = await oauthService.exchangeCodeForTokens(code, stateData.userId);
+      const success = await oauthService.exchangeCodeForTokens(code, stateData.userId, state);
 
       if (success) {
         console.log('[OAuth Callback] Token exchange successful');
