@@ -235,14 +235,17 @@ export function AdminCallsAnalytics() {
   const filterCalls = () => {
     let filtered = [...calls];
 
-    // Get all agent IDs that are assigned to any user
-    const allAssignedAgentIds = Object.values(userAgentMap).flat();
+    const hasAssignments = Object.keys(userAgentMap).length > 0;
+    if (hasAssignments) {
+      // Get all agent IDs that are assigned to any user
+      const allAssignedAgentIds = Object.values(userAgentMap).flat();
 
-    // Filter out calls from agents that aren't assigned to any user
-    filtered = filtered.filter((call) => {
-      if (!call.agent_id) return false;
-      return allAssignedAgentIds.includes(call.agent_id);
-    });
+      // Filter out calls from agents that aren't assigned to any user
+      filtered = filtered.filter((call) => {
+        if (!call.agent_id) return false;
+        return allAssignedAgentIds.includes(call.agent_id);
+      });
+    }
 
     if (selectedUserId !== 'all') {
       const allowedAgentIds = userAgentMap[selectedUserId] || [];
@@ -622,14 +625,11 @@ export function AdminCallsAnalytics() {
                   Duration
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Cost
                 </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          CONTENT
-                        </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Content
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -690,6 +690,15 @@ export function AdminCallsAnalytics() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatDuration(call.duration_seconds)}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {call.display_cost === 'INCLUDED' ? (
+                        <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
+                          INCLUDED
+                        </span>
+                      ) : (
+                        `$${call.cost.toFixed(2)}`
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">
                         {call.summary && (
@@ -716,7 +725,7 @@ export function AdminCallsAnalytics() {
                             <FileText className="h-4 w-4" />
                           </button>
                         )}
-                        {(call.message_id && call.location_id) && (
+                        {(call.recording_url || (call.message_id && call.location_id)) && (
                           <button
                             onClick={() => {
                               setSelectedCall(call);
