@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://pjlrcchptrkymevoiolu.supabase.co/functions/v1/$1" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
