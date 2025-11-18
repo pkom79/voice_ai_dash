@@ -559,16 +559,45 @@ Deno.serve(async (req: Request) => {
           agentUuid = agentData?.id || null;
         }
 
-        const contactNameRaw =
-          rawCall.contact_name ||
-          rawCall.contactName ||
-          (rawCall.extractedData?.name
-            ? `${rawCall.extractedData.name} ${rawCall.extractedData.lastName || rawCall.extractedData['Last Name'] || ''}`.trim()
-            : null) ||
-          (rawCall.contactId ? `Contact ${rawCall.contactId}` : null);
+        const rawFirst =
+          rawCall.extractedData?.name ||
+          rawCall.extractedData?.Name ||
+          rawCall.first_name ||
+          rawCall.firstName ||
+          null;
+        const rawLast =
+          rawCall.extractedData?.lastName ||
+          rawCall.extractedData?.['Last Name'] ||
+          rawCall.last_name ||
+          rawCall.lastName ||
+          null;
+
+        // Build a sane contact display name with simple cleanup rules
+        let contactName = '';
+        if (rawFirst && rawFirst.toLowerCase() !== 'n/a') {
+          contactName = rawFirst;
+        }
+        if (rawLast && rawLast.toLowerCase() !== 'n/a') {
+          contactName = contactName ? `${contactName} ${rawLast}` : rawLast;
+        }
+
+        if (!contactName && rawCall.contact_name && !/contact\s+[a-z0-9]+/i.test(rawCall.contact_name)) {
+          contactName = rawCall.contact_name;
+        }
+
+        if (!contactName && rawCall.contactName && !/contact\s+[a-z0-9]+/i.test(rawCall.contactName)) {
+          contactName = rawCall.contactName;
+        }
+
+        // If still empty or looks like a raw contact id, set Unknown
+        if (!contactName || /contact\s+[a-z0-9]+/i.test(contactName) || /^contact\s*$/i.test(contactName)) {
+          contactName = 'Unknown';
+        }
+
+        // Normalize spacing and title case
         const contactNameFormatted =
-          contactNameRaw && contactNameRaw.trim().length > 0
-            ? contactNameRaw.replace(/\s+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          contactName && contactName.trim().length > 0
+            ? contactName.trim().replace(/\s+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
             : 'Unknown';
 
         const callData = {
