@@ -24,9 +24,20 @@ Deno.serve(async (req: Request) => {
     const responseType = url.searchParams.get("response_type");
     const tokenFromQuery = url.searchParams.get("access_token");
 
+    console.log("[oauth-authorize] request", {
+      clientId,
+      redirectUri,
+      responseType,
+      hasState: Boolean(state),
+      hasTokenQuery: Boolean(tokenFromQuery),
+      origin: req.headers.get("origin"),
+      host: req.headers.get("host"),
+      path: url.pathname,
+    });
+
     if (!clientId || !redirectUri || responseType !== "code") {
       return new Response(
-        JSON.stringify({ error: "invalid_request" }),
+        JSON.stringify({ error: "invalid_request", details: { clientId, redirectUri, responseType } }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -43,14 +54,15 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (stateError || !stateRecord) {
-      console.error("State lookup failed:", stateError);
+      console.error("[oauth-authorize] State lookup failed", stateError);
       return new Response(
-        JSON.stringify({ error: "invalid_state" }),
+        JSON.stringify({ error: "invalid_state", details: stateError?.message || "not found" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (stateRecord.expires_at && new Date(stateRecord.expires_at) < new Date()) {
+      console.warn("[oauth-authorize] State expired", { state, expires_at: stateRecord.expires_at });
       return new Response(
         JSON.stringify({ error: "state_expired" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -70,7 +82,7 @@ Deno.serve(async (req: Request) => {
       });
 
     if (insertError) {
-      console.error("Error inserting auth code:", insertError);
+      console.error("[oauth-authorize] Error inserting auth code:", insertError);
       return new Response(
         JSON.stringify({ error: "server_error" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -91,7 +103,7 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     console.error("OAuth authorize error:", error);
     return new Response(
-      JSON.stringify({ error: "server_error", message: error.message }),
+      JSON.stringify({ error: "server_error", message: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
