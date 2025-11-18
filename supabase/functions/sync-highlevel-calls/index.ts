@@ -503,17 +503,9 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        if (!toNumber || toNumber === 'null' || toNumber === 'undefined') {
-          skippedCount++;
-          syncLogger.skipReasons['no_to_number'] = (syncLogger.skipReasons['no_to_number'] || 0) + 1;
-          syncLogger.skippedCalls.push({
-            id: rawCall.id,
-            reason: 'no_to_number',
-            from_number: fromNumber,
-            direction,
-          });
-          continue;
-        }
+        const toNumberSafe = toNumber && toNumber !== 'null' && toNumber !== 'undefined'
+          ? toNumber
+          : 'unknown';
 
         if (rawCall.is_test_call === true) {
           skippedCount++;
@@ -556,7 +548,7 @@ Deno.serve(async (req: Request) => {
           agent_id: agentUuid,
           contact_id: rawCall.contact_id || rawCall.contactId,
           from_number: fromNumber,
-          to_number: toNumber,
+          to_number: toNumberSafe,
           direction: direction,
           status: rawCall.status,
           duration_seconds: durationSeconds,
@@ -575,7 +567,7 @@ Deno.serve(async (req: Request) => {
         if (existingCall) {
           const { error: updateError } = await supabase
             .from("calls")
-            .update(callData)
+            .update({ ...callData, to_number: toNumberSafe })
             .eq("highlevel_call_id", rawCall.id);
 
           if (updateError) {
@@ -592,7 +584,7 @@ Deno.serve(async (req: Request) => {
         } else {
           const { error: insertError } = await supabase
             .from("calls")
-            .insert(callData);
+            .insert({ ...callData, to_number: toNumberSafe });
 
           if (insertError) {
             skippedCount++;
@@ -619,7 +611,7 @@ Deno.serve(async (req: Request) => {
       const { error: logUpdateError } = await supabase
         .from('call_sync_logs')
         .update({
-          sync_status: 'completed',
+          sync_status: 'success',
           sync_completed_at: new Date().toISOString(),
           duration_ms: syncDuration,
           api_response_summary: {
