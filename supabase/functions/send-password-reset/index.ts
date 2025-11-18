@@ -180,7 +180,7 @@ Deno.serve(async (req: Request) => {
 
     try {
       const result = await resend.emails.send({
-        from: 'Voice AI Dash <no-reply@updates.voiceaidash.com>',
+        from: 'Voice AI Dash <no-reply@notifications.voiceaidash.app>',
         to: email,
         subject: 'Reset your password',
         html: emailHtml,

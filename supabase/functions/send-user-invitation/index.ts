@@ -333,7 +333,7 @@ Deno.serve(async (req: Request) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Voice AI Dash <no-reply@updates.voiceaidash.com>',
+          from: 'Voice AI Dash <no-reply@notifications.voiceaidash.app>',
           to: [userEmail],
           subject: 'Complete Your Voice AI Dash Account Setup',
           html: htmlContent,

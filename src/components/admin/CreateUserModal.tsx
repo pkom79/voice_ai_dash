@@ -26,6 +26,7 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [invitationLink, setInvitationLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   const formatPhoneNumber = (value: string) => {
     const phoneNumber = value.replace(/\D/g, '');
@@ -101,6 +102,7 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred');
+      setShowErrorModal(true);
     } finally {
       setLoading(false);
     }
@@ -116,6 +118,26 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {showErrorModal && error && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 px-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Action needed</h3>
+                <p className="mt-2 text-sm text-gray-700">{error}</p>
+              </div>
+              <button
+                onClick={() => setShowErrorModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Close error"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-2">
