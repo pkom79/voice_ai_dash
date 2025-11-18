@@ -281,6 +281,37 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[SYNC] OAuth connection found - location: ${oauthData.location_id}`);
 
+    // Load user agents and their phone numbers to attach phone_number_id to calls
+    const { data: userAgents, error: userAgentsError } = await supabase
+      .from('user_agents')
+      .select('agent_id')
+      .eq('user_id', userId);
+
+    if (userAgentsError) {
+      console.error('[SYNC] Failed to load user agents:', userAgentsError);
+    }
+
+    const agentIdsForUser = (userAgents || []).map((ua: any) => ua.agent_id);
+
+    let agentPhoneMap: Record<string, { id: string; phone_number: string }[]> = {};
+    if (agentIdsForUser.length > 0) {
+      const { data: agentPhones } = await supabase
+        .from('agent_phone_numbers')
+        .select('agent_id, phone_numbers:phone_number_id(id, phone_number)')
+        .in('agent_id', agentIdsForUser);
+
+      if (agentPhones) {
+        agentPhones.forEach((ap: any) => {
+          if (!ap.phone_numbers) return;
+          if (!agentPhoneMap[ap.agent_id]) agentPhoneMap[ap.agent_id] = [];
+          agentPhoneMap[ap.agent_id].push({
+            id: ap.phone_numbers.id,
+            phone_number: ap.phone_numbers.phone_number,
+          });
+        });
+      }
+    }
+
     const { data: billingAccount, error: billingError } = await supabase
       .from("billing_accounts")
       .select("inbound_rate_cents, outbound_rate_cents, inbound_plan, calls_reset_at")
@@ -559,6 +590,25 @@ Deno.serve(async (req: Request) => {
           agentUuid = agentData?.id || null;
         }
 
+        // Map actions from executedCallActions
+        let actionTriggered: string | null = null;
+        if (Array.isArray(rawCall.executedCallActions) && rawCall.executedCallActions.length > 0) {
+          const actions = rawCall.executedCallActions
+            .map((a: any) => a.actionType || a.actionName || '')
+            .filter((a: string) => a && a.length > 0);
+          if (actions.length > 0) {
+            actionTriggered = Array.from(new Set(actions)).join(',');
+          }
+        }
+
+        // Attach phone_number_id if matching agent's numbers
+        let phoneNumberId: string | null = null;
+        if (agentUuid && agentPhoneMap[agentUuid]) {
+          const nums = agentPhoneMap[agentUuid];
+          const match = nums.find((n) => n.phone_number === fromNumber || n.phone_number === toNumberSafe);
+          if (match) phoneNumberId = match.id;
+        }
+
         const rawFirst =
           rawCall.extractedData?.name ||
           rawCall.extractedData?.Name ||
@@ -620,6 +670,8 @@ Deno.serve(async (req: Request) => {
           location_id: oauthData.location_id,
           is_test_call: rawCall.trialCall || false,
           summary: rawCall.summary || null,
+          action_triggered: actionTriggered,
+          phone_number_id: phoneNumberId,
         };
 
         if (existingCall) {
