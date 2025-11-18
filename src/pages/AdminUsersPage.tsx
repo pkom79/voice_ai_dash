@@ -572,25 +572,6 @@ export function AdminUsersPage() {
                       >
                         View Details
                       </button>
-                      {user.hasConnection && (
-                        <button
-                          onClick={() => handleSyncCalls(user.id)}
-                          disabled={syncingUser === user.id}
-                          className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {syncingUser === user.id ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Syncing...
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="h-4 w-4" />
-                              Sync Calls
-                            </>
-                          )}
-                        </button>
-                      )}
                       <button
                         onClick={() => {
                           setConfirmModal({

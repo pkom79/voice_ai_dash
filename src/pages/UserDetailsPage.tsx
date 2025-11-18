@@ -958,11 +958,14 @@ export function UserDetailsPage() {
         adminUserId: currentUser?.id
       });
 
-      const { data, error } = await supabase.functions.invoke('sync-highlevel-calls', {
+      const response = await fetch('/api/sync-highlevel-calls', {
+        method: 'POST',
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+          'Content-Type': 'application/json',
         },
-        body: {
+        body: JSON.stringify({
           userId: userId,
           startDate: startDateISO,
           endDate: endDateISO,
@@ -970,10 +973,13 @@ export function UserDetailsPage() {
           adminOverride: adminOverride,
           adminUserId: currentUser?.id,
           syncType: 'admin_historical'
-        }
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to sync calls');
+      }
 
       showSuccess('Call sync initiated successfully');
       setShowResyncModal(false);
