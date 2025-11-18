@@ -820,7 +820,10 @@ export function UserDetailsPage() {
     }
 
     if (endDate) {
-      const endTime = endDate.getTime();
+      // Make end date inclusive through end-of-day
+      const endOfDay = new Date(endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      const endTime = endOfDay.getTime();
       filtered = filtered.filter(c => new Date(c.call_started_at).getTime() <= endTime);
     }
 

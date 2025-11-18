@@ -559,10 +559,23 @@ Deno.serve(async (req: Request) => {
           agentUuid = agentData?.id || null;
         }
 
+        const contactNameRaw =
+          rawCall.contact_name ||
+          rawCall.contactName ||
+          (rawCall.extractedData?.name
+            ? `${rawCall.extractedData.name} ${rawCall.extractedData.lastName || rawCall.extractedData['Last Name'] || ''}`.trim()
+            : null) ||
+          (rawCall.contactId ? `Contact ${rawCall.contactId}` : null);
+        const contactNameFormatted =
+          contactNameRaw && contactNameRaw.trim().length > 0
+            ? contactNameRaw.replace(/\s+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+            : 'Unknown';
+
         const callData = {
           highlevel_call_id: rawCall.id,
           user_id: userId,
           agent_id: agentUuid,
+          contact_name: contactNameFormatted,
           from_number: fromNumber,
           to_number: toNumberSafe,
           direction: direction,
