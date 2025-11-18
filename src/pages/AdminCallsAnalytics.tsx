@@ -526,7 +526,7 @@ export function AdminCallsAnalytics() {
 
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-gray-600">
-            Showing {filteredCalls.length} of {calls.length} calls
+
           </p>
           <button
             onClick={exportToCSV}

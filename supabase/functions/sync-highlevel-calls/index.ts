@@ -294,6 +294,7 @@ Deno.serve(async (req: Request) => {
     const agentIdsForUser = (userAgents || []).map((ua: any) => ua.agent_id);
 
     let agentPhoneMap: Record<string, { id: string; phone_number: string }[]> = {};
+    const normalizeNumber = (num: string) => num.replace(/[^0-9]/g, '').replace(/^1(?=\d{10}$)/, '');
     if (agentIdsForUser.length > 0) {
       const { data: agentPhones } = await supabase
         .from('agent_phone_numbers')
@@ -605,7 +606,12 @@ Deno.serve(async (req: Request) => {
         let phoneNumberId: string | null = null;
         if (agentUuid && agentPhoneMap[agentUuid]) {
           const nums = agentPhoneMap[agentUuid];
-          const match = nums.find((n) => n.phone_number === fromNumber || n.phone_number === toNumberSafe);
+          const fromNorm = fromNumber ? normalizeNumber(fromNumber) : '';
+          const toNorm = toNumberSafe ? normalizeNumber(toNumberSafe) : '';
+          const match = nums.find((n) => {
+            const norm = normalizeNumber(n.phone_number);
+            return norm === fromNorm || norm === toNorm;
+          });
           if (match) phoneNumberId = match.id;
         }
 
@@ -662,7 +668,7 @@ Deno.serve(async (req: Request) => {
           duration_seconds: durationSeconds,
           call_started_at: rawCall.createdAt ? new Date(rawCall.createdAt).toISOString() : null,
           call_ended_at: rawCall.ended_at ? new Date(rawCall.ended_at).toISOString() : null,
-          recording_url: rawCall.recording_url || rawCall.recordingUrl || null,
+          recording_url: rawCall.recording_url || rawCall.recordingUrl || (rawCall.recordings?.[0]?.url ?? null),
           transcript: rawCall.transcript || null,
           cost: cost,
           display_cost: displayCost,
