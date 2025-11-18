@@ -2261,10 +2261,12 @@ export function UserDetailsPage() {
                   <div>
                     <p className="text-sm text-gray-600">Total Cost (Paid Only)</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      ${getFilteredCalls()
-                        .filter(c => c.display_cost !== 'INCLUDED')
-                        .reduce((sum, c) => sum + c.cost, 0)
-                        .toFixed(2)}
+                      {billingData?.inbound_plan === 'inbound_unlimited'
+                        ? 'N/A'
+                        : `$${getFilteredCalls()
+                            .filter(c => c.display_cost !== 'INCLUDED')
+                            .reduce((sum, c) => sum + c.cost, 0)
+                            .toFixed(2)}`}
                     </p>
                   </div>
                   <DollarSign className="h-8 w-8 text-purple-600" />
@@ -2402,12 +2404,12 @@ export function UserDetailsPage() {
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                              {call.display_cost === 'INCLUDED' ? (
+                              {billingData?.inbound_plan === 'inbound_unlimited' || call.display_cost === 'INCLUDED' ? (
                                 <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
                                   INCLUDED
                                 </span>
                               ) : (
-                                <span className="text-gray-900">${call.cost.toFixed(2)}</span>
+                                <span className="text-gray-900">${(call.cost || 0).toFixed(2)}</span>
                               )}
                             </td>
                           </tr>
