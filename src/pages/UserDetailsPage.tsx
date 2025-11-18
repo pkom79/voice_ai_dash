@@ -526,19 +526,18 @@ export function UserDetailsPage() {
         throw new Error('No active session');
       }
 
-      // Call the fetch-available-agents edge function
-      const response = await fetch(
-        `${supabase.supabaseUrl}/functions/v1/fetch-available-agents`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ userId }),
-        }
-      );
+      const functionUrl = `${window.location.origin}/api/fetch-available-agents`;
+
+      // Call the fetch-available-agents edge function via same-origin rewrite to avoid CORS
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
