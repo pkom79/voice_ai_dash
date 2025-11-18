@@ -489,7 +489,7 @@ Deno.serve(async (req: Request) => {
       try {
         const fromNumber = rawCall.from_number || rawCall.fromNumber || '';
         const toNumber = rawCall.to_number || rawCall.toNumber || '';
-        const direction = rawCall.direction || '';
+        const direction = rawCall.direction || 'inbound';
 
         if (!fromNumber || fromNumber === 'null' || fromNumber === 'undefined') {
           skippedCount++;
