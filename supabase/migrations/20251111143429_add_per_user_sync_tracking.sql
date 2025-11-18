@@ -45,6 +45,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS sync_status_service_global_idx
 DROP POLICY IF EXISTS "Users can view sync status" ON sync_status;
 DROP POLICY IF EXISTS "Admins can insert sync status" ON sync_status;
 DROP POLICY IF EXISTS "Admins can update sync status" ON sync_status;
+DROP POLICY IF EXISTS "Users can view own and global sync status" ON sync_status;
+DROP POLICY IF EXISTS "Users can insert own sync status" ON sync_status;
+DROP POLICY IF EXISTS "Users can update own sync status" ON sync_status;
+DROP POLICY IF EXISTS "Admins can delete sync status" ON sync_status;
 
 -- Allow users to view their own sync status and global sync status
 CREATE POLICY "Users can view own and global sync status"

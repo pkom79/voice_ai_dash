@@ -214,10 +214,12 @@ DECLARE
 BEGIN
   -- Get billing account and user preferences
   SELECT ba.*, u.notification_preferences
-  INTO v_billing_account, v_user_prefs
+  INTO v_billing_account
   FROM billing_accounts ba
   JOIN users u ON u.id = ba.user_id
   WHERE ba.user_id = p_user_id;
+
+  v_user_prefs := v_billing_account.notification_preferences;
 
   -- Check if billing account exists
   IF NOT FOUND THEN

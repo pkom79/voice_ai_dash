@@ -107,6 +107,11 @@ ALTER TABLE scheduled_job_runs ENABLE ROW LEVEL SECURITY;
 -- RLS POLICIES
 -- ======================
 
+DROP POLICY IF EXISTS "Admins can view all token refresh logs" ON token_refresh_logs;
+DROP POLICY IF EXISTS "Service role can insert token refresh logs" ON token_refresh_logs;
+DROP POLICY IF EXISTS "Admins can view all scheduled job runs" ON scheduled_job_runs;
+DROP POLICY IF EXISTS "Service role can manage scheduled job runs" ON scheduled_job_runs;
+
 -- token_refresh_logs policies
 CREATE POLICY "Admins can view all token refresh logs"
   ON token_refresh_logs FOR SELECT

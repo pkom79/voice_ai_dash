@@ -156,33 +156,40 @@ DO $$
 DECLARE
   user_record RECORD;
 BEGIN
-  FOR user_record IN
-    SELECT id, email,
-           notification_low_balance_enabled,
-           notification_insufficient_balance_enabled,
-           notification_service_interruption_enabled,
-           notification_weekly_summary_enabled
-    FROM users
-    WHERE id NOT IN (SELECT user_id FROM user_notification_emails WHERE is_primary = true)
-  LOOP
-    INSERT INTO user_notification_emails (
-      user_id,
-      email,
-      is_primary,
-      low_balance_enabled,
-      insufficient_balance_enabled,
-      service_interruption_enabled,
-      weekly_summary_enabled
-    ) VALUES (
-      user_record.id,
-      user_record.email,
-      true,
-      COALESCE(user_record.notification_low_balance_enabled, true),
-      COALESCE(user_record.notification_insufficient_balance_enabled, true),
-      COALESCE(user_record.notification_service_interruption_enabled, true),
-      COALESCE(user_record.notification_weekly_summary_enabled, true)
-    );
-  END LOOP;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'notification_low_balance_enabled'
+  ) THEN
+    FOR user_record IN
+      SELECT u.id,
+             COALESCE(au.email, '') AS email,
+             u.notification_low_balance_enabled,
+             u.notification_insufficient_balance_enabled,
+             u.notification_service_interruption_enabled,
+             u.notification_weekly_summary_enabled
+      FROM users u
+      LEFT JOIN auth.users au ON au.id = u.id
+      WHERE u.id NOT IN (SELECT user_id FROM user_notification_emails WHERE is_primary = true)
+    LOOP
+      INSERT INTO user_notification_emails (
+        user_id,
+        email,
+        is_primary,
+        low_balance_enabled,
+        insufficient_balance_enabled,
+        service_interruption_enabled,
+        weekly_summary_enabled
+      ) VALUES (
+        user_record.id,
+        user_record.email,
+        true,
+        COALESCE(user_record.notification_low_balance_enabled, true),
+        COALESCE(user_record.notification_insufficient_balance_enabled, true),
+        COALESCE(user_record.notification_service_interruption_enabled, true),
+        COALESCE(user_record.notification_weekly_summary_enabled, true)
+      );
+    END LOOP;
+  END IF;
 END $$;
 
 -- Function to update updated_at timestamp

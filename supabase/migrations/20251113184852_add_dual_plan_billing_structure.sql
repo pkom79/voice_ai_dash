@@ -224,6 +224,8 @@ GRANT EXECUTE ON FUNCTION user_has_ppu_plan(uuid) TO authenticated;
 -- DATA VALIDATION
 -- ======================
 
+ALTER TABLE billing_accounts DROP CONSTRAINT IF EXISTS check_has_plan;
+
 -- Add constraint to ensure at least one plan is selected (unless complimentary)
 ALTER TABLE billing_accounts
   ADD CONSTRAINT check_has_plan

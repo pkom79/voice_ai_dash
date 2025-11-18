@@ -75,6 +75,8 @@ CREATE TRIGGER check_admin_oauth_connection
 DROP POLICY IF EXISTS "Admins can manage API keys" ON api_keys;
 DROP POLICY IF EXISTS "Only admins can manage API keys" ON api_keys;
 DROP POLICY IF EXISTS "Only admins can insert api_keys" ON api_keys;
+DROP POLICY IF EXISTS "Admins can insert api_keys for client users only" ON api_keys;
+DROP POLICY IF EXISTS "Admins can update api_keys for client users only" ON api_keys;
 
 -- Create new INSERT policy with admin OAuth prevention
 CREATE POLICY "Admins can insert api_keys for client users only"

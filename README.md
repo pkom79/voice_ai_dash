@@ -1363,7 +1363,7 @@ return parseFloat((minutes * costPerMinute).toFixed(4));
 
 #### Supabase
 ```env
-VITE_SUPABASE_URL=https://puuozbogbfeuaewyywte.supabase.co
+VITE_SUPABASE_URL=https://pjlrcchptrkymevoiolu.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
@@ -1384,8 +1384,11 @@ VITE_HIGHLEVEL_API_URL=https://services.leadconnectorhq.com
 ### Supabase CLI setup
 - Install the Supabase CLI (2.x) locally if you haven't already.
 - Authenticate with your personal access token: `supabase login`.
-- Link this repo to the Supabase project: `supabase link --project-ref puuozbogbfeuaewyywte`.
+- Link this repo to the Supabase project: `supabase link --project-ref pjlrcchptrkymevoiolu`.
 - With the link in place, use `supabase db push`/`db pull` for migrations and `supabase functions deploy <name>` for edge functions.
+
+### Hosting
+- Frontend is deployed on Vercel. Make sure the Vercel project has the latest environment variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, HighLevel OAuth URLs, etc.) and is pointed at the current Supabase project (`pjlrcchptrkymevoiolu`). Trigger a redeploy after updating env vars to pick up changes.
 
 ### Security Considerations
 

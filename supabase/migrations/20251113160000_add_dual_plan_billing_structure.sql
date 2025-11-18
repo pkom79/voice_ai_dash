@@ -72,6 +72,9 @@ WHERE inbound_plan IS NULL;
 -- Add comment to old billing_plan column
 COMMENT ON COLUMN billing_accounts.billing_plan IS 'DEPRECATED: Use inbound_plan and outbound_plan instead. Kept for backward compatibility.';
 
+-- Ensure constraint can be recreated safely
+ALTER TABLE billing_accounts DROP CONSTRAINT IF EXISTS check_has_plan;
+
 -- ======================
 -- ALTER users TABLE
 -- ======================

@@ -81,7 +81,7 @@ CREATE POLICY "Users can view their own sync logs"
 CREATE POLICY "Service role can insert sync logs"
   ON call_sync_logs FOR INSERT
   TO authenticated
-  USING (true);
+  WITH CHECK (true);
 
 CREATE POLICY "Service role can update sync logs"
   ON call_sync_logs FOR UPDATE

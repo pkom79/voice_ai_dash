@@ -113,6 +113,18 @@ ALTER TABLE user_invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE active_sessions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for user_invitations
+DROP POLICY IF EXISTS "Admins can view all invitations" ON user_invitations;
+DROP POLICY IF EXISTS "Admins can create invitations" ON user_invitations;
+DROP POLICY IF EXISTS "Admins can update invitations" ON user_invitations;
+DROP POLICY IF EXISTS "Admins can delete invitations" ON user_invitations;
+
+-- RLS Policies for active_sessions
+DROP POLICY IF EXISTS "Admins can view all sessions" ON active_sessions;
+DROP POLICY IF EXISTS "Admins can terminate sessions" ON active_sessions;
+DROP POLICY IF EXISTS "Users can view own sessions" ON active_sessions;
+DROP POLICY IF EXISTS "System can insert sessions" ON active_sessions;
+DROP POLICY IF EXISTS "System can update sessions" ON active_sessions;
+DROP POLICY IF EXISTS "System can delete sessions" ON active_sessions;
 
 -- Admins can view all invitations
 CREATE POLICY "Admins can view all invitations"

@@ -26,7 +26,7 @@ jobs:
 
       - name: Check Low Balance Alerts
         env:
-          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_URL: https://pjlrcchptrkymevoiolu.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           echo "Starting low balance alert check..."

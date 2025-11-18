@@ -44,6 +44,11 @@ CREATE INDEX IF NOT EXISTS idx_call_sync_logs_user_started ON call_sync_logs(use
 ALTER TABLE call_sync_logs ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for SELECT
+DROP POLICY IF EXISTS "Admins can view all sync logs" ON call_sync_logs;
+DROP POLICY IF EXISTS "Users can view their own sync logs" ON call_sync_logs;
+DROP POLICY IF EXISTS "Allow insert for authenticated users" ON call_sync_logs;
+DROP POLICY IF EXISTS "Allow update for authenticated users" ON call_sync_logs;
+
 CREATE POLICY "Admins can view all sync logs"
   ON call_sync_logs FOR SELECT
   TO authenticated

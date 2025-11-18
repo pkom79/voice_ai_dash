@@ -155,6 +155,11 @@ ALTER TABLE billing_invoices ENABLE ROW LEVEL SECURITY;
 -- RLS POLICIES FOR usage_logs
 -- ======================
 
+DROP POLICY IF EXISTS "Users can view own usage logs" ON usage_logs;
+DROP POLICY IF EXISTS "Admins can insert usage logs" ON usage_logs;
+DROP POLICY IF EXISTS "Admins can update usage logs" ON usage_logs;
+DROP POLICY IF EXISTS "Admins can delete usage logs" ON usage_logs;
+
 CREATE POLICY "Users can view own usage logs"
   ON usage_logs FOR SELECT
   TO authenticated
@@ -183,6 +188,10 @@ CREATE POLICY "Admins can delete usage logs"
 -- RLS POLICIES FOR wallet_transactions
 -- ======================
 
+DROP POLICY IF EXISTS "Users can view own wallet transactions" ON wallet_transactions;
+DROP POLICY IF EXISTS "Admins can insert wallet transactions" ON wallet_transactions;
+DROP POLICY IF EXISTS "Admins can update wallet transactions" ON wallet_transactions;
+
 CREATE POLICY "Users can view own wallet transactions"
   ON wallet_transactions FOR SELECT
   TO authenticated
@@ -206,6 +215,9 @@ CREATE POLICY "Admins can update wallet transactions"
 -- RLS POLICIES FOR billing_invoices
 -- ======================
 
+DROP POLICY IF EXISTS "Users can view own invoices" ON billing_invoices;
+DROP POLICY IF EXISTS "Admins can manage invoices" ON billing_invoices;
+
 CREATE POLICY "Users can view own invoices"
   ON billing_invoices FOR SELECT
   TO authenticated
@@ -225,6 +237,7 @@ CREATE POLICY "Admins can manage invoices"
 -- ======================
 
 -- Trigger for billing_invoices updated_at
+DROP TRIGGER IF EXISTS update_billing_invoices_updated_at ON billing_invoices;
 CREATE TRIGGER update_billing_invoices_updated_at
   BEFORE UPDATE ON billing_invoices
   FOR EACH ROW
