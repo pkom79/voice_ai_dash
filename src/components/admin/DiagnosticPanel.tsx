@@ -84,7 +84,12 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
     setDiagnosticResult(null);
 
     try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diagnostic-call-comparison`;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('You must be signed in to run diagnostics');
+      }
+
+      const apiUrl = `/api/diagnostic-call-comparison`;
 
       const body: any = {
         userId,
@@ -97,7 +102,8 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY as string,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
@@ -130,7 +136,12 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
     setRawDumpResult(null);
 
     try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diagnostic-call-comparison`;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('You must be signed in to run diagnostics');
+      }
+
+      const apiUrl = `/api/diagnostic-call-comparison`;
 
       const body: any = {
         userId,
@@ -143,7 +154,8 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY as string,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
