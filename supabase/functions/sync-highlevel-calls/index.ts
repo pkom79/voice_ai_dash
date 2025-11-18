@@ -77,6 +77,20 @@ Deno.serve(async (req: Request) => {
       }
     );
 
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      console.error("[SYNC] Missing authorization header");
+      return new Response(
+        JSON.stringify({ error: "Missing or invalid authorization" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const bearer = authHeader.replace("Bearer ", "");
+
     console.log("[SYNC] Parsing request body");
     const requestBody = await req.json();
     console.log("[SYNC] Request body:", JSON.stringify(requestBody));
@@ -115,6 +129,57 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[SYNC] Parameters validated - userId: ${userId}, syncType: ${syncType}, adminOverride: ${adminOverride}`);
 
+    let isAdmin = false;
+    let callerId: string | null = null;
+
+    if (bearer === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+      isAdmin = true;
+    } else {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(bearer);
+      if (userError || !user) {
+        console.error("[SYNC] Unauthorized user");
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      callerId = user.id;
+
+      const { data: callerRecord, error: roleError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (roleError) {
+        console.error("[SYNC] Failed to fetch caller role:", roleError);
+        return new Response(
+          JSON.stringify({ error: "Failed to verify caller permissions" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      isAdmin = callerRecord?.role === "admin";
+
+      if (!isAdmin && callerId !== userId) {
+        console.error("[SYNC] Forbidden: caller cannot sync another user");
+        return new Response(
+          JSON.stringify({ error: "Forbidden" }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }
+
     const syncLogger: SyncLogger = {
       logId: crypto.randomUUID(),
       startTime: syncStartTime,
@@ -132,8 +197,8 @@ Deno.serve(async (req: Request) => {
         sync_type: syncType,
         sync_status: 'in_progress',
         timezone_used: timezone,
-        admin_override: adminOverride,
-        admin_user_id: adminUserId || null,
+        admin_override: adminOverride && isAdmin,
+        admin_user_id: (adminOverride && isAdmin ? (adminUserId || callerId) : null),
         api_params: {
           startDate: startDate || null,
           endDate: endDate || null,
@@ -233,7 +298,7 @@ Deno.serve(async (req: Request) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
           },
           body: JSON.stringify({ userId }),
         }

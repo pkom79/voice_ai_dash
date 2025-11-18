@@ -58,6 +58,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setLastSyncMessage('Syncing...');
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Authentication required to sync');
+      }
+
       // Check if user has an OAuth connection before attempting sync
       const { data: connection } = await supabase
         .from('api_keys')
@@ -72,7 +77,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       }
 
       // Sync calls first
-      const callSyncResult = await highLevelService.syncCalls(profile.id);
+      const callSyncResult = await highLevelService.syncCalls(profile.id, { syncType: isAuto ? 'auto' : 'manual' });
 
       // Then sync phone numbers for the user's agents
       const phoneNumberResult = await highLevelService.syncPhoneNumbersForUser(profile.id);

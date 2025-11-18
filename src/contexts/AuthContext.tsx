@@ -74,6 +74,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const triggerAutoSync = async (userId: string) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.log('No session token available, skipping auto-sync');
+        return;
+      }
+
       // Check if user has an OAuth connection before attempting sync
       const { data: connection } = await supabase
         .from('api_keys')
@@ -88,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      await highLevelService.syncCalls(userId);
+      await highLevelService.syncCalls(userId, { syncType: 'auto' });
 
       await supabase.from('sync_status').upsert(
         {

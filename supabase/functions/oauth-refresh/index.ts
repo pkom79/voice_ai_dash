@@ -16,6 +16,14 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Missing or invalid authorization" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { userId } = await req.json();
 
     if (!userId) {
@@ -33,6 +41,51 @@ Deno.serve(async (req: Request) => {
         autoRefreshToken: false,
       },
     });
+
+    const bearer = authHeader.replace("Bearer ", "");
+
+    let isServiceRoleCall = false;
+    let requesterId: string | null = null;
+    let requesterRole: string | null = null;
+
+    if (bearer === supabaseKey) {
+      isServiceRoleCall = true;
+    } else {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(bearer);
+
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      requesterId = user.id;
+
+      const { data: requester, error: roleError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (roleError) {
+        console.error("Failed to fetch requester role:", roleError);
+        return new Response(
+          JSON.stringify({ error: "Failed to verify permissions" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      requesterRole = requester?.role || null;
+
+      const isAdmin = requesterRole === "admin";
+      if (userId !== requesterId && !isAdmin) {
+        return new Response(
+          JSON.stringify({ error: "Forbidden" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     // Get user's OAuth token data
     const { data: tokenData, error: fetchError } = await supabase
@@ -67,7 +120,7 @@ Deno.serve(async (req: Request) => {
     console.log("Refreshing HighLevel OAuth token for user:", userId);
 
     // Get redirect URI from environment
-    const redirectUri = Deno.env.get("HIGHLEVEL_REDIRECT_URI") || "https://voiceaidash.com/oauth/callback";
+    const redirectUri = Deno.env.get("HIGHLEVEL_REDIRECT_URI") || "https://voiceaidash.app/oauth/callback";
 
     const refreshResponse = await fetch(tokenUrl, {
       method: "POST",

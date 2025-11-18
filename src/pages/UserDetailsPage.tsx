@@ -913,6 +913,12 @@ export function UserDetailsPage() {
   const handleResyncCalls = async () => {
     if (!userId) return;
 
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      showError('You must be signed in to sync calls.');
+      return;
+    }
+
     // Validate date range
     if (!resyncRangeStart) {
       showError('Please select a start date');
@@ -953,6 +959,9 @@ export function UserDetailsPage() {
       });
 
       const { data, error } = await supabase.functions.invoke('sync-highlevel-calls', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: {
           userId: userId,
           startDate: startDateISO,

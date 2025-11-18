@@ -3,7 +3,6 @@ import { activityLogger } from './activityLogger';
 
 interface OAuthConfig {
   clientId: string;
-  clientSecret: string;
   redirectUri: string;
   authUrl: string;
   tokenUrl: string;
@@ -24,7 +23,7 @@ class OAuthService {
   private config: OAuthConfig;
 
   constructor() {
-    const redirectUri = import.meta.env.VITE_HIGHLEVEL_REDIRECT_URI || '';
+    const redirectUri = import.meta.env.VITE_HIGHLEVEL_REDIRECT_URI || 'https://voiceaidash.app/oauth/callback';
     const currentOrigin = window.location.origin;
     const effectiveRedirectUri = redirectUri.includes('voiceaidash.com') && currentOrigin.includes('localhost')
       ? `${currentOrigin}/oauth/callback`
@@ -32,7 +31,6 @@ class OAuthService {
 
     this.config = {
       clientId: import.meta.env.VITE_HIGHLEVEL_CLIENT_ID || '',
-      clientSecret: import.meta.env.VITE_HIGHLEVEL_CLIENT_SECRET || '',
       redirectUri: effectiveRedirectUri,
       authUrl: import.meta.env.VITE_HIGHLEVEL_AUTH_URL || '',
       tokenUrl: import.meta.env.VITE_HIGHLEVEL_TOKEN_URL || '',
@@ -117,59 +115,40 @@ class OAuthService {
 
   async exchangeCodeForTokens(code: string, userId: string): Promise<boolean> {
     try {
-      console.log('[OAuth Debug] Exchanging code for tokens:', {
-        userId,
-        redirectUri: this.config.redirectUri,
-        code: `${code.substring(0, 10)}...`,
-        tokenUrl: this.config.tokenUrl,
-      });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Authentication required to finish connection');
+      }
 
-      const params = new URLSearchParams({
-        client_id: this.config.clientId,
-        client_secret: this.config.clientSecret,
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: this.config.redirectUri,
-      });
-
-      const response = await fetch(this.config.tokenUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params.toString(),
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/oauth-exchange`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ code }),
+        }
+      );
 
       if (!response.ok) {
-        const errorData = await response.text();
-        console.error('[OAuth Error] Token exchange failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData,
-          redirectUriUsed: this.config.redirectUri,
-        });
-        throw new Error(`Failed to exchange code for tokens: ${response.statusText} - ${errorData}`);
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = (errorData as any)?.error || response.statusText;
+        console.error('[OAuth Error] Token exchange failed:', errorData);
+        throw new Error(`Failed to exchange code for tokens: ${errorMessage}`);
       }
 
-      const tokens: TokenResponse = await response.json();
-      console.log('Token response received:', { ...tokens, access_token: '[REDACTED]', refresh_token: '[REDACTED]' });
-
-      await this.saveTokens(userId, tokens);
-
-      // Fetch and store location name if locationId is available
-      if (tokens.locationId) {
-        await this.fetchAndStoreLocationName(userId, tokens.locationId, tokens.access_token);
-      }
+      const exchangeResult = await response.json();
 
       // Log successful connection
       await activityLogger.logConnectionEvent({
         userId,
         eventType: 'connected',
-        locationId: tokens.locationId,
-        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+        locationId: exchangeResult.location_id,
+        tokenExpiresAt: exchangeResult.expires_at,
         metadata: {
-          scope: tokens.scope,
-          tokenType: tokens.token_type,
+          scope: 'highlevel',
         },
       });
 
@@ -181,8 +160,8 @@ class OAuthService {
         description: 'Successfully connected to HighLevel via OAuth',
         severity: 'info',
         metadata: {
-          locationId: tokens.locationId,
-          companyId: tokens.companyId,
+          locationId: exchangeResult.location_id,
+          companyId: exchangeResult.company_id,
         },
       });
 
@@ -249,66 +228,40 @@ class OAuthService {
 
   async refreshAccessToken(userId: string): Promise<boolean> {
     try {
-      const { data: tokenData, error: fetchError } = await supabase
-        .from('api_keys')
-        .select('refresh_token, location_id')
-        .eq('user_id', userId)
-        .eq('service', 'highlevel')
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (fetchError || !tokenData?.refresh_token) {
-        console.error('No refresh token found for user');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.error('No session available to refresh token');
         return false;
       }
 
-      console.log('Refreshing access token for user:', userId);
-
-      const response = await fetch(this.config.tokenUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: this.config.clientId,
-          client_secret: this.config.clientSecret,
-          grant_type: 'refresh_token',
-          refresh_token: tokenData.refresh_token,
-        }).toString(),
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/oauth-refresh`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId }),
+        }
+      );
 
       if (!response.ok) {
-        const errorData = await response.text();
+        const errorData = await response.json().catch(() => ({}));
         console.error('Token refresh failed:', errorData);
-
-        // Mark connection as inactive on permanent refresh failure
         await this.markConnectionExpired(userId);
         return false;
       }
 
-      const tokens: TokenResponse = await response.json();
-      console.log('Token refreshed successfully');
-
-      // If a new refresh token is provided, use it; otherwise keep the old one
-      if (!tokens.refresh_token) {
-        tokens.refresh_token = tokenData.refresh_token;
-      }
-
-      // Preserve location_id if not in response
-      if (!tokens.locationId && tokenData.location_id) {
-        tokens.locationId = tokenData.location_id;
-      }
-
-      await this.saveTokens(userId, tokens);
+      const tokens = await response.json();
 
       // Log successful token refresh
       await activityLogger.logConnectionEvent({
         userId,
         eventType: 'token_refreshed',
-        locationId: tokenData.location_id,
         tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
         metadata: {
-          previousExpiry: tokenData.token_expires_at,
+          previousExpiry: tokens.previous_expiry || null,
         },
       });
 

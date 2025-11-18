@@ -1363,23 +1363,29 @@ return parseFloat((minutes * costPerMinute).toFixed(4));
 
 #### Supabase
 ```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_URL=https://puuozbogbfeuaewyywte.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
 #### HighLevel OAuth
 ```env
 VITE_HIGHLEVEL_CLIENT_ID=your-client-id
-VITE_HIGHLEVEL_CLIENT_SECRET=your-client-secret
-VITE_HIGHLEVEL_AUTH_URL=https://marketplace.gohighlevel.com/oauth/chooselocation
-VITE_HIGHLEVEL_TOKEN_URL=https://services.leadconnectorhq.com/oauth/token
-VITE_HIGHLEVEL_REDIRECT_URI=https://yourdomain.com/oauth/callback
+# Client secret stays server-side; do not expose in Vite
+VITE_HIGHLEVEL_AUTH_URL=https://voiceaidash.app/api/oauth/authorize
+VITE_HIGHLEVEL_TOKEN_URL=https://voiceaidash.app/api/oauth/token
+VITE_HIGHLEVEL_REDIRECT_URI=https://voiceaidash.app/oauth/callback
 ```
 
 #### HighLevel API
 ```env
 VITE_HIGHLEVEL_API_URL=https://services.leadconnectorhq.com
 ```
+
+### Supabase CLI setup
+- Install the Supabase CLI (2.x) locally if you haven't already.
+- Authenticate with your personal access token: `supabase login`.
+- Link this repo to the Supabase project: `supabase link --project-ref puuozbogbfeuaewyywte`.
+- With the link in place, use `supabase db push`/`db pull` for migrations and `supabase functions deploy <name>` for edge functions.
 
 ### Security Considerations
 
@@ -2835,4 +2841,3 @@ The billing page uses a responsive grid system that:
 - **Returns**: Summary of processed accounts
 
 ---
-

@@ -52,21 +52,42 @@ class HighLevelService {
     };
   }
 
-  async syncCalls(userId: string, startDate?: Date, endDate?: Date) {
+  async syncCalls(
+    userId: string,
+    options?: {
+      startDate?: Date;
+      endDate?: Date;
+      adminOverride?: boolean;
+      adminUserId?: string;
+      syncType?: 'manual' | 'auto' | 'admin_historical';
+      timezone?: string;
+    }
+  ) {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Authentication required to sync calls');
+      }
+
       // Use edge function to fetch calls (avoids CORS issues)
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-highlevel-calls`;
 
-      const requestBody: any = { userId };
-      if (startDate) requestBody.startDate = startDate.toISOString();
-      if (endDate) requestBody.endDate = endDate.toISOString();
+      const requestBody: any = {
+        userId,
+        syncType: options?.syncType || 'manual',
+      };
+      if (options?.startDate) requestBody.startDate = options.startDate.toISOString();
+      if (options?.endDate) requestBody.endDate = options.endDate.toISOString();
+      if (options?.adminOverride) requestBody.adminOverride = true;
+      if (options?.adminUserId) requestBody.adminUserId = options.adminUserId;
+      if (options?.timezone) requestBody.timezone = options.timezone;
 
       console.log('Calling sync function:', apiUrl, requestBody);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestBody),

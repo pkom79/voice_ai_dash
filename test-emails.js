@@ -1,5 +1,9 @@
 const SUPABASE_URL = 'https://puuozbogbfeuaewyywte.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1dW96Ym9nYmZldWFld3l5d3RlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Mjc5Njc0NSwiZXhwIjoyMDc4MzcyNzQ1fQ.WnWiYPEm1lBgRqJqnJ1kvK0FZjrOLx5DL-7TxQvTUuU';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_SERVICE_KEY) {
+  throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to run this script');
+}
 
 const testEmail = 'pkom79@gmail.com';
 
