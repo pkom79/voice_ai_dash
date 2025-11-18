@@ -74,6 +74,14 @@ Deno.serve(async (req: Request) => {
       userId = authCode.user_id;
     }
 
+    if (!userId) {
+      console.error("Exchange failed: userId unresolved", { code, state });
+      return new Response(
+        JSON.stringify({ error: "invalid_request", details: "could not resolve user from state or code" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const clientId = Deno.env.get("HIGHLEVEL_CLIENT_ID");
     const clientSecret = Deno.env.get("HIGHLEVEL_CLIENT_SECRET");
     const tokenUrl = Deno.env.get("HIGHLEVEL_TOKEN_URL") || "https://services.leadconnectorhq.com/oauth/token";
@@ -118,7 +126,7 @@ Deno.serve(async (req: Request) => {
     await supabase
       .from("api_keys")
       .delete()
-      .eq("user_id", stateRecord.user_id)
+      .eq("user_id", userId)
       .eq("service", "highlevel");
 
     const { error: insertError } = await supabase
@@ -126,7 +134,7 @@ Deno.serve(async (req: Request) => {
       .insert({
         name: "HighLevel OAuth Connection",
         service: "highlevel",
-        user_id: stateRecord.user_id,
+        user_id: userId,
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         token_expires_at: expiresAt,
