@@ -456,7 +456,7 @@ Deno.serve(async (req: Request) => {
       }
 
       const data = await response.json();
-      const calls = data.calls || [];
+      const calls = data.callLogs || data.calls || [];
 
       syncLogger.apiPages.push({
         chunk: `${chunkIndex + 1}/${chunks.length}`,
@@ -558,16 +558,38 @@ Deno.serve(async (req: Request) => {
         };
 
         if (existingCall) {
-          await supabase
+          const { error: updateError } = await supabase
             .from("calls")
             .update(callData)
             .eq("highlevel_call_id", rawCall.id);
-          updatedCount++;
+
+          if (updateError) {
+            skippedCount++;
+            syncLogger.skipReasons['update_error'] = (syncLogger.skipReasons['update_error'] || 0) + 1;
+            syncLogger.skippedCalls.push({
+              id: rawCall.id,
+              reason: 'update_error',
+              details: updateError.message,
+            });
+          } else {
+            updatedCount++;
+          }
         } else {
-          await supabase
+          const { error: insertError } = await supabase
             .from("calls")
             .insert(callData);
-          insertedCount++;
+
+          if (insertError) {
+            skippedCount++;
+            syncLogger.skipReasons['insert_error'] = (syncLogger.skipReasons['insert_error'] || 0) + 1;
+            syncLogger.skippedCalls.push({
+              id: rawCall.id,
+              reason: 'insert_error',
+              details: insertError.message,
+            });
+          } else {
+            insertedCount++;
+          }
         }
       } catch (error) {
         console.error(`Error processing call ${rawCall.id}:`, error);
