@@ -503,6 +503,18 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
+        if (!toNumber || toNumber === 'null' || toNumber === 'undefined') {
+          skippedCount++;
+          syncLogger.skipReasons['no_to_number'] = (syncLogger.skipReasons['no_to_number'] || 0) + 1;
+          syncLogger.skippedCalls.push({
+            id: rawCall.id,
+            reason: 'no_to_number',
+            from_number: fromNumber,
+            direction,
+          });
+          continue;
+        }
+
         if (rawCall.is_test_call === true) {
           skippedCount++;
           syncLogger.skipReasons['is_test_call'] = (syncLogger.skipReasons['is_test_call'] || 0) + 1;
@@ -604,7 +616,7 @@ Deno.serve(async (req: Request) => {
     syncLogger.logs.push(`[COMPLETE] Inserted: ${insertedCount}, Updated: ${updatedCount}, Skipped: ${skippedCount}, Duration: ${syncDuration}ms`);
 
     if (syncLogId) {
-      await supabase
+      const { error: logUpdateError } = await supabase
         .from('call_sync_logs')
         .update({
           sync_status: 'completed',
@@ -625,6 +637,10 @@ Deno.serve(async (req: Request) => {
           skipped_calls: syncLogger.skippedCalls.slice(0, 50),
         })
         .eq('id', syncLogId);
+
+      if (logUpdateError) {
+        console.error('[SYNC] Failed to finalize sync log:', logUpdateError);
+      }
     }
 
     return new Response(
