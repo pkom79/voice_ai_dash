@@ -194,7 +194,21 @@ export function AdminCallsAnalytics() {
             .in('id', uniquePhoneIds)
             .eq('is_active', true);
 
-          if (phoneNumbersData) setAllPhoneNumbers(phoneNumbersData);
+          if (phoneNumbersData) {
+            // Merge assigned phone numbers with call-derived numbers
+            const existing = new Map<string, PhoneNumber>();
+            phoneNumbersData.forEach((p) => existing.set(p.id, p));
+            if (callsResult.data) {
+              callsResult.data.forEach((c) => {
+                [c.from_number, c.to_number].forEach((num) => {
+                  if (num && !existing.has(`num:${num}`)) {
+                    existing.set(`num:${num}`, { id: `num:${num}`, phone_number: num, label: num });
+                  }
+                });
+              });
+            }
+            setAllPhoneNumbers(Array.from(existing.values()));
+          }
         } else {
           setAllPhoneNumbers([]);
         }
@@ -230,6 +244,7 @@ export function AdminCallsAnalytics() {
   };
 
   const getAvailablePhoneNumbers = () => {
+    // Always allow call-derived numbers (id starts with num:) and assigned numbers
     if (selectedAgentId === 'all') {
       if (selectedUserId === 'all') {
         return allPhoneNumbers;
