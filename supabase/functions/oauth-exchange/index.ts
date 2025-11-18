@@ -30,33 +30,48 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    if (!state) {
-      return new Response(
-        JSON.stringify({ error: "state is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    let userId: string | null = null;
 
-    // Look up the state to identify the user
-    const { data: stateRecord, error: stateError } = await supabase
-      .from("oauth_states")
-      .select("user_id, admin_id, expires_at")
-      .eq("state", state)
-      .maybeSingle();
+    if (state) {
+      const { data: stateRecord, error: stateError } = await supabase
+        .from("oauth_states")
+        .select("user_id, admin_id, expires_at")
+        .eq("state", state)
+        .maybeSingle();
 
-    if (stateError || !stateRecord) {
-      console.error("Invalid state during exchange:", stateError);
-      return new Response(
-        JSON.stringify({ error: "invalid_state" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+      if (stateError || !stateRecord) {
+        console.error("Invalid state during exchange:", stateError);
+        return new Response(
+          JSON.stringify({ error: "invalid_state" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-    if (stateRecord.expires_at && new Date(stateRecord.expires_at) < new Date()) {
-      return new Response(
-        JSON.stringify({ error: "state_expired" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (stateRecord.expires_at && new Date(stateRecord.expires_at) < new Date()) {
+        return new Response(
+          JSON.stringify({ error: "state_expired" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      userId = stateRecord.user_id;
+    } else {
+      // Fallback to code lookup if state not provided
+      const { data: authCode, error: codeError } = await supabase
+        .from("oauth_authorization_codes")
+        .select("user_id")
+        .eq("code", code)
+        .maybeSingle();
+
+      if (codeError || !authCode) {
+        console.error("Invalid auth code and no state provided:", codeError);
+        return new Response(
+          JSON.stringify({ error: "invalid_code" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      userId = authCode.user_id;
     }
 
     const clientId = Deno.env.get("HIGHLEVEL_CLIENT_ID");

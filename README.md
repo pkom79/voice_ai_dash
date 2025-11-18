@@ -1373,7 +1373,7 @@ VITE_HIGHLEVEL_CLIENT_ID=your-client-id
 # Client secret stays server-side; do not expose in Vite
 VITE_HIGHLEVEL_AUTH_URL=https://voiceaidash.app/api/oauth/authorize
 VITE_HIGHLEVEL_TOKEN_URL=https://voiceaidash.app/api/oauth/token
-VITE_HIGHLEVEL_REDIRECT_URI=https://voiceaidash.app/oauth/callback
+VITE_HIGHLEVEL_REDIRECT_URI=https://www.voiceaidash.app/oauth/callback
 ```
 
 #### HighLevel API
