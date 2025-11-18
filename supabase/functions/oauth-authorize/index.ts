@@ -22,6 +22,7 @@ Deno.serve(async (req: Request) => {
     const state = url.searchParams.get("state");
     const redirectUri = url.searchParams.get("redirect_uri");
     const responseType = url.searchParams.get("response_type");
+    const tokenFromQuery = url.searchParams.get("access_token");
 
     if (!clientId || !redirectUri || responseType !== "code") {
       return new Response(
@@ -35,7 +36,9 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : tokenFromQuery;
+
+    if (!bearerToken) {
       const loginUrl = `${supabaseUrl}/auth/v1/authorize?redirect_to=${encodeURIComponent(req.url)}`;
       return new Response(null, {
         status: 302,
@@ -46,8 +49,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: userError } = await supabase.auth.getUser(bearerToken);
 
     if (userError || !user) {
       return new Response(

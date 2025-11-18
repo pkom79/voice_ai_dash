@@ -51,6 +51,9 @@ class OAuthService {
 
     await this.saveState(state, userId, adminId);
 
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+
     const params = new URLSearchParams({
       client_id: this.config.clientId,
       redirect_uri: this.config.redirectUri,
@@ -58,6 +61,10 @@ class OAuthService {
       state,
       scope: 'voice-ai-agents.readonly voice-ai-agents.write voice-ai-dashboard.readonly voice-ai-agent-goals.readonly voice-ai-agent-goals.write contacts.readonly locations.readonly conversations.readonly conversations/message.readonly phonenumbers.read numberpools.read',
     });
+
+    if (accessToken) {
+      params.set('access_token', accessToken);
+    }
 
     const authUrl = `${this.config.authUrl}?${params.toString()}`;
 
