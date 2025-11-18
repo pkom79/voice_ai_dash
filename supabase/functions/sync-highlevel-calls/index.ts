@@ -687,6 +687,35 @@ Deno.serve(async (req: Request) => {
           phone_number_id: phoneNumberId,
         };
 
+        // If recording is still missing, try fetching call detail to retrieve recording link
+        if (!callData.recording_url) {
+          try {
+            const detailUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs/${rawCall.id}`;
+            const detailResponse = await fetch(detailUrl, {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Version: "2021-07-28",
+              },
+            });
+            if (detailResponse.ok) {
+              const detail = await detailResponse.json();
+              const recordingUrl =
+                detail.recording_url ||
+                detail.recordingUrl ||
+                detail.call_recording_url ||
+                detail.callRecordingUrl ||
+                detail.recording_link ||
+                detail.recordingLink ||
+                (detail.recordings?.[0]?.url ?? null);
+              if (recordingUrl) {
+                callData.recording_url = recordingUrl;
+              }
+            }
+          } catch (e) {
+            console.error("[SYNC] Failed to fetch call detail for recording:", e);
+          }
+        }
+
         if (existingCall) {
           const { error: updateError } = await supabase
             .from("calls")
