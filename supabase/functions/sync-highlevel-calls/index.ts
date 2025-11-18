@@ -546,7 +546,6 @@ Deno.serve(async (req: Request) => {
           highlevel_call_id: rawCall.id,
           user_id: userId,
           agent_id: agentUuid,
-          contact_id: rawCall.contact_id || rawCall.contactId,
           from_number: fromNumber,
           to_number: toNumberSafe,
           direction: direction,
