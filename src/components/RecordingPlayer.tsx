@@ -7,6 +7,7 @@ interface RecordingPlayerProps {
   messageId: string;
   locationId: string;
   userId: string;
+  recordingUrl?: string | null;
   contactName: string;
   duration: number;
   callDate: string;
@@ -16,24 +17,26 @@ export default function RecordingPlayer({
   messageId,
   locationId,
   userId,
+  recordingUrl,
   contactName,
   duration,
   callDate,
 }: RecordingPlayerProps) {
-  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [recordingObjectUrl, setRecordingObjectUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadRecording();
+  }, [messageId, locationId, userId, recordingUrl]);
 
-    // Cleanup object URL when component unmounts
+  useEffect(() => {
     return () => {
-      if (recordingUrl) {
-        URL.revokeObjectURL(recordingUrl);
+      if (recordingObjectUrl) {
+        URL.revokeObjectURL(recordingObjectUrl);
       }
     };
-  }, [messageId, locationId, userId]);
+  }, [recordingObjectUrl]);
 
   const loadRecording = async () => {
     setLoading(true);
@@ -49,33 +52,68 @@ export default function RecordingPlayer({
         return;
       }
 
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-call-recording?messageId=${messageId}&locationId=${locationId}&userId=${userId}`;
+      const attemptEdgeRecording = async () => {
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-call-recording?messageId=${messageId}&locationId=${locationId}&userId=${userId}`;
 
-      // Fetch the recording with authorization header
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
 
-      if (!response.ok) {
-        // Try to parse error message
-        const contentType = response.headers.get('content-type');
-        if (contentType?.includes('application/json')) {
-          const errorData = await response.json();
-          setError(errorData.message || errorData.error || 'Recording not available');
-        } else {
-          setError('Recording not available. It may still be processing or was not recorded.');
+        if (!response.ok) {
+          const contentType = response.headers.get('content-type');
+          const errorData = contentType?.includes('application/json')
+            ? await response.json().catch(() => ({}))
+            : {};
+          throw new Error(errorData.message || errorData.error || response.statusText);
         }
+
+        return response.blob();
+      };
+
+      const attemptDirectUrl = async () => {
+        if (!recordingUrl) return null;
+        const response = await fetch(recordingUrl, {
+          headers: {
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          },
+        });
+
+        if (!response.ok) {
+          const message = await response.text().catch(() => '');
+          throw new Error(message || 'Recording not available');
+        }
+        return response.blob();
+      };
+
+      let blob: Blob | null = null;
+
+      // Prefer edge proxy when identifiers are present to avoid CORS issues
+      if (messageId && locationId) {
+        try {
+          blob = await attemptEdgeRecording();
+        } catch (edgeError) {
+          console.warn('Edge recording fetch failed, trying direct URL if available:', edgeError);
+          if (!recordingUrl) {
+            throw edgeError;
+          }
+        }
+      }
+
+      if (!blob) {
+        blob = await attemptDirectUrl();
+      }
+
+      if (!blob) {
+        setError('Recording not available. It may still be processing or was not recorded.');
         setLoading(false);
         return;
       }
 
-      // Convert response to blob and create object URL
-      const audioBlob = await response.blob();
-      const objectUrl = URL.createObjectURL(audioBlob);
-      setRecordingUrl(objectUrl);
+      const objectUrl = URL.createObjectURL(blob);
+      setRecordingObjectUrl(objectUrl);
     } catch (err) {
       console.error('Error loading recording:', err);
       setError('Failed to load recording. Please try again later.');
@@ -126,7 +164,7 @@ export default function RecordingPlayer({
         </div>
       )}
 
-      {!loading && !error && recordingUrl && (
+      {!loading && !error && recordingObjectUrl && (
         <>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-xs text-blue-800">
@@ -136,7 +174,7 @@ export default function RecordingPlayer({
           <audio
             controls
             className="w-full"
-            src={recordingUrl}
+            src={recordingObjectUrl}
             preload="metadata"
             onError={() => {
               setError('Failed to load audio. The recording may have been removed or is temporarily unavailable.');
@@ -147,7 +185,7 @@ export default function RecordingPlayer({
         </>
       )}
 
-      {!loading && !error && !recordingUrl && (
+      {!loading && !error && !recordingObjectUrl && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
           <p className="text-sm text-gray-600 text-center">
             Unable to load recording information.

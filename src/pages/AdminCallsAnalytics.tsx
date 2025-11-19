@@ -22,7 +22,7 @@ import { NotificationModal } from '../components/NotificationModal';
 import { useNotification } from '../hooks/useNotification';
 import DateRangePicker from '../components/DateRangePicker';
 import RecordingPlayer from '../components/RecordingPlayer';
-import { formatContactName } from '../utils/formatting';
+import { formatContactName, formatPhoneNumber } from '../utils/formatting';
 
 interface Call {
   id: string;
@@ -67,6 +67,7 @@ interface Agent {
 interface PhoneNumber {
   id: string;
   phone_number: string;
+  normalized: string;
   label?: string;
 }
 
@@ -96,6 +97,11 @@ export function AdminCallsAnalytics() {
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [showModal, setShowModal] = useState<'summary' | 'transcript' | 'notes' | 'recording' | null>(null);
   const [billingPlans, setBillingPlans] = useState<Record<string, string>>({});
+
+  const normalizeNumber = (value?: string | null) => {
+    const digits = (value || '').replace(/[^0-9]/g, '');
+    return digits.replace(/^1(?=\d{10}$)/, '');
+  };
 
   useEffect(() => {
     loadData();
@@ -197,12 +203,25 @@ export function AdminCallsAnalytics() {
           if (phoneNumbersData) {
             // Merge assigned phone numbers with call-derived numbers
             const existing = new Map<string, PhoneNumber>();
-            phoneNumbersData.forEach((p) => existing.set(p.id, p));
+            phoneNumbersData.forEach((p) =>
+              existing.set(p.id, {
+                id: p.id,
+                phone_number: p.phone_number,
+                normalized: normalizeNumber(p.phone_number),
+                label: formatPhoneNumber(p.phone_number),
+              })
+            );
             if (callsResult.data) {
               callsResult.data.forEach((c) => {
                 [c.from_number, c.to_number].forEach((num) => {
-                  if (num && !existing.has(`num:${num}`)) {
-                    existing.set(`num:${num}`, { id: `num:${num}`, phone_number: num, label: num });
+                  const normalized = normalizeNumber(num);
+                  if (num && !existing.has(`num:${normalized}`)) {
+                    existing.set(`num:${normalized}`, {
+                      id: `num:${normalized}`,
+                      phone_number: num,
+                      normalized,
+                      label: formatPhoneNumber(num),
+                    });
                   }
                 });
               });
@@ -218,8 +237,14 @@ export function AdminCallsAnalytics() {
           const unique = new Map<string, PhoneNumber>();
           callsResult.data.forEach((c) => {
             [c.from_number, c.to_number].forEach((num) => {
-              if (num && !unique.has(num)) {
-                unique.set(num, { id: `num:${num}`, phone_number: num, label: num });
+              const normalized = normalizeNumber(num);
+              if (num && !unique.has(normalized)) {
+                unique.set(normalized, {
+                  id: `num:${normalized}`,
+                  phone_number: num,
+                  normalized,
+                  label: formatPhoneNumber(num),
+                });
               }
             });
           });
@@ -295,12 +320,16 @@ export function AdminCallsAnalytics() {
     }
 
     if (selectedPhoneNumberId !== 'all') {
-      if (selectedPhoneNumberId.startsWith('num:')) {
-        const num = selectedPhoneNumberId.replace(/^num:/, '');
-        filtered = filtered.filter((call) => call.from_number === num || call.to_number === num);
-      } else {
-        filtered = filtered.filter((call) => call.phone_number_id === selectedPhoneNumberId);
-      }
+      const selectedPhone = allPhoneNumbers.find((p) => p.id === selectedPhoneNumberId);
+      const normalizedSelection = selectedPhone?.normalized || '';
+
+      filtered = filtered.filter((call) => {
+        const matchesAssignment = call.phone_number_id === selectedPhoneNumberId;
+        const matchesNumber =
+          normalizedSelection &&
+          (normalizeNumber(call.from_number) === normalizedSelection || normalizeNumber(call.to_number) === normalizedSelection);
+        return matchesAssignment || matchesNumber;
+      });
     }
 
     filtered = filtered.filter((call) => call.direction === direction);
@@ -470,21 +499,19 @@ export function AdminCallsAnalytics() {
           <div className="flex">
             <button
               onClick={() => setDirection('inbound')}
-              className={`px-6 py-2 rounded-l-lg border transition-colors ${
-                direction === 'inbound'
+              className={`px-6 py-2 rounded-l-lg border transition-colors ${direction === 'inbound'
                   ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
+                }`}
             >
               Inbound
             </button>
             <button
               onClick={() => setDirection('outbound')}
-              className={`px-6 py-2 rounded-r-lg border-t border-r border-b transition-colors ${
-                direction === 'outbound'
+              className={`px-6 py-2 rounded-r-lg border-t border-r border-b transition-colors ${direction === 'outbound'
                   ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
+                }`}
             >
               Outbound
             </button>
@@ -551,7 +578,7 @@ export function AdminCallsAnalytics() {
               <option value="all">All Phone Numbers</option>
               {getAvailablePhoneNumbers().map((phone) => (
                 <option key={phone.id} value={phone.id}>
-                  {phone.phone_number}
+                  {phone.label || formatPhoneNumber(phone.phone_number)}
                 </option>
               ))}
             </select>
@@ -720,11 +747,10 @@ export function AdminCallsAnalytics() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          call.direction === 'inbound'
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${call.direction === 'inbound'
                             ? 'bg-blue-100 text-blue-800'
                             : 'bg-green-100 text-green-800'
-                        }`}
+                          }`}
                       >
                         {call.direction.toUpperCase()}
                       </span>
@@ -843,19 +869,63 @@ export function AdminCallsAnalytics() {
             <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
               {showModal === 'summary' && <p className="text-gray-700">{selectedCall.summary}</p>}
               {showModal === 'transcript' && (
-                <pre className="text-sm text-gray-700 whitespace-pre-wrap">
-                  {selectedCall.transcript}
-                </pre>
+                <div className="space-y-3">
+                  {(selectedCall.transcript || '')
+                    .split('\n')
+                    .map((line, index) => line.trim() ? { line: line.trim(), index } : null)
+                    .filter((item): item is { line: string; index: number } => item !== null)
+                    .map(({ line, index }) => {
+                      const lower = line.toLowerCase();
+                      const isBot = lower.startsWith('bot:');
+                      const isHuman = lower.startsWith('human:');
+                      const content = isBot || isHuman ? line.substring(line.indexOf(':') + 1).trim() : line;
+
+                      return (
+                        <div
+                          key={index}
+                          className={isHuman ? 'flex justify-end' : 'flex justify-start'}
+                        >
+                          <div
+                            className={
+                              'max-w-[80%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap ' +
+                              (isHuman
+                                ? 'bg-gray-200 text-gray-900'
+                                : 'bg-[#2563eb] text-white')
+                            }
+                          >
+                            {content}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               )}
-              {showModal === 'recording' && selectedCall.message_id && selectedCall.location_id && selectedCall.user_id && (
-                <RecordingPlayer
-                  messageId={selectedCall.message_id}
-                  locationId={selectedCall.location_id}
-                  userId={selectedCall.user_id}
-                  contactName={formatContactName(selectedCall.contact_name)}
-                  duration={selectedCall.duration_seconds}
-                  callDate={selectedCall.call_started_at}
-                />
+              {showModal === 'recording' && (
+                selectedCall.message_id && selectedCall.location_id && selectedCall.user_id ? (
+                  <RecordingPlayer
+                    messageId={selectedCall.message_id}
+                    locationId={selectedCall.location_id}
+                    userId={selectedCall.user_id}
+                    recordingUrl={selectedCall.recording_url}
+                    contactName={formatContactName(selectedCall.contact_name)}
+                    duration={selectedCall.duration_seconds}
+                    callDate={selectedCall.call_started_at}
+                  />
+                ) : selectedCall.recording_url ? (
+                  <RecordingPlayer
+                    messageId={selectedCall.message_id || ''}
+                    locationId={selectedCall.location_id || ''}
+                    userId={selectedCall.user_id || ''}
+                    recordingUrl={selectedCall.recording_url}
+                    contactName={formatContactName(selectedCall.contact_name)}
+                    duration={selectedCall.duration_seconds}
+                    callDate={selectedCall.call_started_at}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-600">
+                    Recording details are not available for this call.
+                  </p>
+                )
               )}
               {showModal === 'notes' && (
                 <div>

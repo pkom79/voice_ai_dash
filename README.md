@@ -1663,6 +1663,21 @@ const [activeTab, setActiveTab] = useState<'tab1' | 'tab2'>('tab1');
 
 ---
 
+### Debugging Playbook (Diagnostics First)
+
+- When non-trivial errors occur (DB/RLS/API), add **server-side diagnostics first** in the relevant Edge Function or service instead of guessing:
+  - Log status codes, truncated response bodies, and key IDs (user, location, agent, call) – never tokens or secrets.
+  - Prefer structured logs or records that can be correlated later (e.g., include a short error code or tag).
+- Use existing observability tables instead of ad-hoc logging tables:
+  - `user_activity_logs` – user actions and system events.
+  - `user_connection_events` – OAuth/connection lifecycle.
+  - `user_integration_errors` – external API/DB failures with `error_source`, `error_code`, and safely truncated `request_data`/`response_data`.
+- Keep client-facing messages generic and friendly; show detailed diagnostics only in admin-only UIs or logs.
+- Avoid manual DB edits or one-off data fixes for production issues; codify permanent solutions via migrations, sync flows, or admin tools.
+- If a “simple” fix doesn’t work the first time, pause and instrument the failing path so future decisions are based on real data.
+
+---
+
 ## UI/UX Enhancements (v1.5.0 - November 11, 2025)
 
 ### Header and Filter Layout Improvements
@@ -1861,6 +1876,21 @@ const [activeTab, setActiveTab] = useState<'tab1' | 'tab2'>('tab1');
 - `supabase/migrations/20251111040000_add_message_id_for_recordings.sql` - Database schema
 - `src/pages/CallsPage.tsx` - Recording player UI
 - `src/pages/AdminCallsAnalytics.tsx` - Admin recording access
+
+**Troubleshooting Checklist**:
+1. **Re-sync Calls** – Run a manual sync (admin override if needed) so calls receive `message_id` values. Verify with:
+   ```sql
+   select count(*) filter (where message_id is not null) as calls_with_message_id
+   from calls
+   where user_id = '<USER_ID>';
+   ```
+2. **Deploy Edge Functions** – Both `sync-highlevel-calls` (for fallback detail fetches) and `get-call-recording` must be deployed to Supabase. Example CLI command:
+   ```bash
+   supabase functions deploy get-call-recording --project-ref <PROJECT_REF>
+   ```
+   If `get-call-recording` is missing, the browser shows a CORS failure during OPTIONS because Supabase returns `{"code":"NOT_FOUND"}`.
+3. **Confirm HighLevel OAuth** – Ensure the user has an active HighLevel connection (`api_keys.service = 'highlevel'`) so the edge function can fetch the WAV blob with their token.
+4. **Review Logs** – Check `call_sync_logs.api_response_summary->'logs'` for `[DETAIL-DEBUG]` notes if message IDs or recordings are still missing after a sync.
 
 ### ✅ Enhanced UI/UX
 - **Contact Name Formatting** - Auto-converts names to proper title case (John Doe instead of JOHN DOE)

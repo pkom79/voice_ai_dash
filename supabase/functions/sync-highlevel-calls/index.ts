@@ -679,7 +679,12 @@ Deno.serve(async (req: Request) => {
           transcript: rawCall.transcript || null,
           cost: cost,
           display_cost: displayCost,
-          message_id: rawCall.message_id || null,
+          message_id:
+            rawCall.message_id ||
+            rawCall.messageId ||
+            rawCall.conversation_message_id ||
+            rawCall.conversationMessageId ||
+            null,
           location_id: oauthData.location_id,
           is_test_call: rawCall.trialCall || false,
           summary: rawCall.summary || null,
@@ -687,8 +692,8 @@ Deno.serve(async (req: Request) => {
           phone_number_id: phoneNumberId,
         };
 
-        // If recording is still missing, try fetching call detail to retrieve recording link
-        if (!callData.recording_url) {
+        // If key media identifiers are missing, fetch call detail to retrieve recording link and message id
+        if (!callData.recording_url || !callData.message_id) {
           try {
             const detailUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs/${rawCall.id}`;
             const detailResponse = await fetch(detailUrl, {
@@ -707,8 +712,31 @@ Deno.serve(async (req: Request) => {
                 detail.recording_link ||
                 detail.recordingLink ||
                 (detail.recordings?.[0]?.url ?? null);
+              const detailMessageId =
+                detail.message_id ||
+                detail.messageId ||
+                detail.conversation_message_id ||
+                detail.conversationMessageId ||
+                detail.message?.id ||
+                detail.message?.messageId ||
+                detail.call?.messageId ||
+                detail.conversation?.messageId ||
+                null;
               if (recordingUrl) {
                 callData.recording_url = recordingUrl;
+              }
+              if (detailMessageId && !callData.message_id) {
+                callData.message_id = detailMessageId;
+              }
+
+              // Debug logging to help map missing fields in production without exposing payloads
+              if (!callData.recording_url || !callData.message_id) {
+                const detailKeys = Object.keys(detail || {});
+                const nestedMessageKeys = detail?.message ? Object.keys(detail.message) : [];
+                const nestedCallKeys = detail?.call ? Object.keys(detail.call) : [];
+                syncLogger.logs.push(
+                  `[DETAIL-DEBUG] ${rawCall.id} missing=${!callData.recording_url ? 'recording' : ''}${!callData.recording_url && !callData.message_id ? '+' : ''}${!callData.message_id ? 'messageId' : ''}; keys=${detailKeys.join(',').slice(0,500)}; messageKeys=${nestedMessageKeys.join(',')}; callKeys=${nestedCallKeys.join(',')}`
+                );
               }
             }
           } catch (e) {

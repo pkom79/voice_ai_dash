@@ -41,8 +41,10 @@ interface Call {
   tags: string[];
   call_started_at: string;
   agent_id: string | null;
+  phone_number_id: string | null;
   message_id: string | null;
   location_id: string | null;
+  display_cost?: string | null;
   agents?: {
     name: string;
     highlevel_agent_id: string;
@@ -69,7 +71,7 @@ export function CallsPage() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [availableAgents, setAvailableAgents] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState<string>('all');
-  const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<Array<{ id: string; phoneNumber: string }>>([]);
+  const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<Array<{ id: string; phoneNumber: string; normalized: string }>>([]);
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [showModal, setShowModal] = useState<'summary' | 'transcript' | 'recording' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -103,6 +105,11 @@ export function CallsPage() {
   useEffect(() => {
     filterCalls();
   }, [calls, direction, searchQuery, selectedAgent, selectedPhoneNumber, dateRange, sortField, sortDirection, availableAgents, availablePhoneNumbers]);
+
+  const normalizeNumber = (value?: string | null) => {
+    const digits = (value || '').replace(/[^0-9]/g, '');
+    return digits.replace(/^1(?=\d{10}$)/, '');
+  };
 
   const loadViewingUserName = async (userId: string) => {
     try {
@@ -272,8 +279,9 @@ export function CallsPage() {
       const phoneNumbers = (data || [])
         .filter((item: any) => item.phone_numbers)
         .map((item: any) => ({
-          id: item.phone_numbers.phone_number,
-          phoneNumber: item.phone_numbers.phone_number
+          id: item.phone_numbers.id,
+          phoneNumber: item.phone_numbers.phone_number,
+          normalized: normalizeNumber(item.phone_numbers.phone_number),
         }))
         .filter((phone, index, self) =>
           index === self.findIndex(p => p.id === phone.id)
@@ -300,9 +308,17 @@ export function CallsPage() {
     }
 
     if (selectedPhoneNumber !== 'all') {
-      filtered = filtered.filter(
-        (call) => call.from_number === selectedPhoneNumber || call.to_number === selectedPhoneNumber
-      );
+      const selectedPhone = availablePhoneNumbers.find((p) => p.id === selectedPhoneNumber);
+      const normalizedSelection = selectedPhone?.normalized || '';
+
+      filtered = filtered.filter((call) => {
+        const matchesAssignment = call.phone_number_id === selectedPhoneNumber;
+        const matchesRawNumber =
+          normalizedSelection &&
+          (normalizeNumber(call.from_number) === normalizedSelection || normalizeNumber(call.to_number) === normalizedSelection);
+
+        return matchesAssignment || matchesRawNumber;
+      });
     }
 
     if (dateRange.start) {
@@ -464,17 +480,15 @@ export function CallsPage() {
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
             <button
               onClick={() => setDirection('inbound')}
-              className={`px-4 py-2 text-sm rounded-md transition-colors ${
-                direction === 'inbound' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
-              }`}
+              className={`px-4 py-2 text-sm rounded-md transition-colors ${direction === 'inbound' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
+                }`}
             >
               Inbound
             </button>
             <button
               onClick={() => setDirection('outbound')}
-              className={`px-4 py-2 text-sm rounded-md transition-colors ${
-                direction === 'outbound' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
-              }`}
+              className={`px-4 py-2 text-sm rounded-md transition-colors ${direction === 'outbound' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
+                }`}
             >
               Outbound
             </button>
@@ -491,8 +505,8 @@ export function CallsPage() {
                 {dateRange.start && dateRange.end
                   ? `${format(dateRange.start, 'MMM d, yyyy')} - ${format(dateRange.end, 'MMM d, yyyy')}`
                   : dateRange.start
-                  ? format(dateRange.start, 'MMM d, yyyy')
-                  : 'All Time'}
+                    ? format(dateRange.start, 'MMM d, yyyy')
+                    : 'All Time'}
               </span>
             </button>
             {(dateRange.start || dateRange.end) && (
@@ -684,7 +698,7 @@ export function CallsPage() {
                             <MessageSquare className="h-5 w-5" />
                           </button>
                         )}
-                        {(call.message_id && call.location_id) && (
+                        {(call.recording_url || (call.message_id && call.location_id)) && (
                           <button
                             onClick={() => {
                               setSelectedCall(call);
@@ -784,19 +798,63 @@ export function CallsPage() {
             <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
               {showModal === 'summary' && <p className="text-gray-700 dark:text-gray-300">{selectedCall.summary}</p>}
               {showModal === 'transcript' && (
-                <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                  {selectedCall.transcript}
-                </pre>
+                <div className="space-y-3">
+                  {(selectedCall.transcript || '')
+                    .split('\n')
+                    .map((line, index) => line.trim() ? { line: line.trim(), index } : null)
+                    .filter((item): item is { line: string; index: number } => item !== null)
+                    .map(({ line, index }) => {
+                      const lower = line.toLowerCase();
+                      const isBot = lower.startsWith('bot:');
+                      const isHuman = lower.startsWith('human:');
+                      const content = isBot || isHuman ? line.substring(line.indexOf(':') + 1).trim() : line;
+
+                      return (
+                        <div
+                          key={index}
+                          className={isHuman ? 'flex justify-end' : 'flex justify-start'}
+                        >
+                          <div
+                            className={
+                              'max-w-[80%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap ' +
+                              (isHuman
+                                ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100'
+                                : 'bg-[#2563eb] text-white dark:bg-[#2563eb]')
+                            }
+                          >
+                            {content}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               )}
-              {showModal === 'recording' && selectedCall.message_id && selectedCall.location_id && effectiveUserId && (
-                <RecordingPlayer
-                  messageId={selectedCall.message_id}
-                  locationId={selectedCall.location_id}
-                  userId={effectiveUserId}
-                  contactName={formatContactName(selectedCall.contact_name)}
-                  duration={selectedCall.duration_seconds}
-                  callDate={selectedCall.call_started_at}
-                />
+              {showModal === 'recording' && (
+                selectedCall.message_id && selectedCall.location_id && effectiveUserId ? (
+                  <RecordingPlayer
+                    messageId={selectedCall.message_id}
+                    locationId={selectedCall.location_id}
+                    userId={effectiveUserId}
+                    recordingUrl={selectedCall.recording_url}
+                    contactName={formatContactName(selectedCall.contact_name)}
+                    duration={selectedCall.duration_seconds}
+                    callDate={selectedCall.call_started_at}
+                  />
+                ) : selectedCall.recording_url ? (
+                  <RecordingPlayer
+                    messageId={selectedCall.message_id || ''}
+                    locationId={selectedCall.location_id || ''}
+                    userId={effectiveUserId || profile?.id || ''}
+                    recordingUrl={selectedCall.recording_url}
+                    contactName={formatContactName(selectedCall.contact_name)}
+                    duration={selectedCall.duration_seconds}
+                    callDate={selectedCall.call_started_at}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-600">
+                    Recording details are not available for this call.
+                  </p>
+                )
               )}
             </div>
           </div>
