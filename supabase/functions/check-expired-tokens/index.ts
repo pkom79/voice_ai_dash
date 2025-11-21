@@ -291,7 +291,6 @@ Deno.serve(async (req: Request) => {
 
         // Strategy 2: Inter-function call (Fallback)
         console.log(`Attempting to send email to ${adminEmail} via send-email function...`);
-        console.log(`Using Auth Key Prefix: ${supabaseServiceKey.substring(0, 10)}...`);
         
         const emailResponse = await fetch(
           `${supabaseUrl}/functions/v1/send-email`,
