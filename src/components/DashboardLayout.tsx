@@ -253,9 +253,9 @@ export function DashboardLayout() {
         </main>
       </div>
 
-      <SupportModal 
-        isOpen={showSupportModal} 
-        onClose={() => setShowSupportModal(false)} 
+      <SupportModal
+        isOpen={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
       />
     </div>
   );
