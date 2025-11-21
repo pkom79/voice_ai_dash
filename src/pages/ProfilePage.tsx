@@ -10,6 +10,7 @@ export function ProfilePage() {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const isAdmin = profile?.role === 'admin';
+  const [didSeedAdminEmail, setDidSeedAdminEmail] = useState(false);
   const [billingPlan, setBillingPlan] = useState<{ inbound_plan: string | null; outbound_plan: string | null } | null>(null);
   const [notificationEmails, setNotificationEmails] = useState<Array<{
     id: string;
@@ -120,7 +121,42 @@ export function ProfilePage() {
         .order('is_primary', { ascending: false });
 
       if (error) throw error;
-      setNotificationEmails(data || []);
+      const rows = data || [];
+
+      // Auto-create a primary admin notification email if missing
+      if (isAdmin && rows.length === 0 && user?.email && !didSeedAdminEmail) {
+        setDidSeedAdminEmail(true);
+        const insertPayload: Record<string, any> = {
+          user_id: profile?.id,
+          email: user.email,
+          is_primary: true,
+          low_balance_enabled: false,
+          insufficient_balance_enabled: false,
+          service_interruption_enabled: false,
+          weekly_summary_enabled: false,
+          daily_summary_enabled: false,
+          admin_user_accepted_invite: true,
+          admin_token_expired: true,
+          admin_hl_disconnected: true,
+          admin_payment_failed: true,
+        };
+        const { error: insertError } = await supabase
+          .from('user_notification_emails')
+          .insert(insertPayload);
+        if (insertError) {
+          console.error('Error seeding admin notification email:', insertError);
+        } else {
+          const { data: seededEmails } = await supabase
+            .from('user_notification_emails')
+            .select('*')
+            .eq('user_id', profile?.id)
+            .order('is_primary', { ascending: false });
+          setNotificationEmails(seededEmails || []);
+          return;
+        }
+      }
+
+      setNotificationEmails(rows);
     } catch (err) {
       console.error('Error loading notification emails:', err);
     }
