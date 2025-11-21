@@ -16,7 +16,6 @@ import {
   Moon,
   RefreshCw,
   BarChart3,
-  ShieldCheck,
 } from 'lucide-react';
 import logoLight from '../assets/Voice AI Dash Logo with Text.png';
 import logoDark from '../assets/Voice AI Dash Logo with Text Dark.png';
@@ -134,8 +133,7 @@ export function DashboardLayout() {
                   {profile?.first_name} {profile?.last_name}
                 </p>
                 {profile?.role === 'admin' ? (
-                  <span className="mt-1 inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold uppercase bg-red-600 text-white rounded-full tracking-wide shadow-sm">
-                    <ShieldCheck className="h-3.5 w-3.5" />
+                  <span className="mt-1 inline-flex items-center px-2.5 py-1 text-[11px] font-semibold uppercase bg-red-600 text-white rounded-full tracking-wide shadow-sm">
                     Admin
                   </span>
                 ) : (
