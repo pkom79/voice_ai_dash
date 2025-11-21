@@ -28,10 +28,10 @@ Deno.serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    
+
     // Try to get the key from the environment, or fallback to the incoming request header
     let supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY");
-    
+
     const authHeader = req.headers.get("Authorization");
     if (!supabaseServiceKey && authHeader && authHeader.startsWith("Bearer ")) {
       supabaseServiceKey = authHeader.replace("Bearer ", "");
@@ -206,8 +206,8 @@ Deno.serve(async (req: Request) => {
 
     const recentlyNotifiedUserIds = new Set(recentNotifications?.map((n: any) => n.user_id) || []);
 
-    const issuesToNotify = force 
-      ? issues 
+    const issuesToNotify = force
+      ? issues
       : issues.filter(issue => !recentlyNotifiedUserIds.has(issue.user_id));
 
     if (issuesToNotify.length === 0) {
@@ -291,7 +291,7 @@ Deno.serve(async (req: Request) => {
 
         // Strategy 2: Inter-function call (Fallback)
         console.log(`Attempting to send email to ${adminEmail} via send-email function...`);
-        
+
         const emailResponse = await fetch(
           `${supabaseUrl}/functions/v1/send-email`,
           {
@@ -316,9 +316,9 @@ Deno.serve(async (req: Request) => {
         } else {
           const errorText = await emailResponse.text();
           console.error(`Failed to send email to ${adminEmail}. Status: ${emailResponse.status}. Response: ${errorText}`);
-          emailErrors.push({ 
-            email: adminEmail, 
-            status: emailResponse.status, 
+          emailErrors.push({
+            email: adminEmail,
+            status: emailResponse.status,
             error: errorText,
             key_prefix: supabaseServiceKey.substring(0, 5) + '...'
           });
