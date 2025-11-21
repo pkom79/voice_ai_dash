@@ -3205,7 +3205,7 @@ export function UserDetailsPage() {
                   )}
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  {resyncRangeStart 
+                  {resyncRangeStart
                     ? `Times: 00:00:00 to 23:59:59 in ${getFullTimezoneDisplay(locationTimezone || 'America/New_York')}`
                     : "Will fetch calls starting from the most recent call in the database."}
                 </p>

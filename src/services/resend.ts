@@ -15,7 +15,7 @@ export async function sendEmail(
   subject: string,
   html: string,
   userId: string,
-  emailType: 'low_balance_alert' | 'insufficient_balance_alert' | 'weekly_summary' | 'service_interruption_warning',
+  emailType: 'low_balance_alert' | 'insufficient_balance_alert' | 'weekly_summary' | 'service_interruption_warning' | 'support_message',
   templateData: EmailTemplateData = {}
 ): Promise<EmailResult> {
   try {

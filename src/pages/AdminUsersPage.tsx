@@ -669,8 +669,8 @@ export function AdminUsersPage() {
                       <div
                         key={agent.id}
                         className={`p-4 border rounded-lg transition-colors ${isAssigned
-                            ? 'bg-green-50 border-green-300'
-                            : 'bg-white border-gray-200 hover:border-blue-300'
+                          ? 'bg-green-50 border-green-300'
+                          : 'bg-white border-gray-200 hover:border-blue-300'
                           }`}
                       >
                         <div className="flex items-center justify-between">

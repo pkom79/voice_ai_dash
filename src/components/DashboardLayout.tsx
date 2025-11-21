@@ -17,15 +17,18 @@ import {
   Moon,
   RefreshCw,
   BarChart3,
+  LifeBuoy,
 } from 'lucide-react';
 import logoLight from '../assets/Voice AI Dash Logo with Text.png';
 import logoDark from '../assets/Voice AI Dash Logo with Text Dark.png';
+import { SupportModal } from './SupportModal';
 
 export function DashboardLayout() {
   const { profile, signOut } = useAuth();
   const { isSyncing, syncData, getLastSyncDisplay } = useSync();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
   const [systemHealth, setSystemHealth] = useState<'healthy' | 'unhealthy' | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
@@ -40,19 +43,19 @@ export function DashboardLayout() {
           const hasUnhealthy = connections.some((conn: any) => {
             // Only check established connections
             if (!conn.connection_id) return false;
-            
+
             const isConnected = conn.is_active;
             const isTokenHealthy = conn.token_expires_at && new Date(conn.token_expires_at) > new Date();
-            
+
             return !isConnected || !isTokenHealthy;
           });
-          
+
           setSystemHealth(hasUnhealthy ? 'unhealthy' : 'healthy');
         } catch (error) {
           console.error('Error checking system health:', error);
         }
       };
-      
+
       checkSystemHealth();
     }
   }, [profile]);
@@ -88,9 +91,9 @@ export function DashboardLayout() {
   const adminNavigation = [
     { name: 'Call Analytics', href: '/admin/calls', icon: BarChart3 },
     { name: 'Users', href: '/admin/users', icon: Users },
-    { 
-      name: 'System', 
-      href: '/admin/system', 
+    {
+      name: 'System',
+      href: '/admin/system',
       icon: Settings,
       status: systemHealth
     },
@@ -141,22 +144,36 @@ export function DashboardLayout() {
                   key={item.name}
                   to={item.href}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive
-                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   onClick={() => setSidebarOpen(false)}
                 >
                   <item.icon className="h-5 w-5" />
                   <span className="font-medium flex-1">{item.name}</span>
                   {(item as any).status && (
-                    <div 
-                      className={`h-2.5 w-2.5 rounded-full ${(item as any).status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`} 
+                    <div
+                      className={`h-2.5 w-2.5 rounded-full ${(item as any).status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}
                       title={(item as any).status === 'healthy' ? 'All systems operational' : 'System attention needed'}
                     />
                   )}
                 </Link>
               );
             })}
+
+            {/* Support Button for Clients */}
+            {profile?.role !== 'admin' && (
+              <button
+                onClick={() => {
+                  setShowSupportModal(true);
+                  setSidebarOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <LifeBuoy className="h-5 w-5" />
+                <span className="font-medium">Support</span>
+              </button>
+            )}
           </nav>
 
           {/* User section */}
@@ -196,37 +213,34 @@ export function DashboardLayout() {
       <div className="lg:pl-64">
         {/* Header */}
         <header className="sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between px-4 sm:px-6" style={{ height: '80px' }}>
+          <div className="flex items-center justify-between px-4 py-3 lg:px-8">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              className="lg:hidden text-gray-500 hover:text-gray-700"
             >
               <Menu className="h-6 w-6" />
             </button>
 
-            <div className="flex-1 lg:flex-none" />
-
-            <div className="flex items-center gap-3 sm:gap-4">
-              {profile?.role !== 'admin' && (
-                <div className="flex flex-col items-center">
-                  <button
-                    onClick={syncData}
-                    disabled={isSyncing}
-                    className="flex items-center justify-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Sync data"
-                  >
-                    <RefreshCw className={`h-5 w-5 ${isSyncing ? 'animate-spin' : ''}`} />
-                    <span className="hidden sm:inline">Sync</span>
-                  </button>
-                  <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 whitespace-nowrap">
-                    {getLastSyncDisplay()}
-                  </span>
-                </div>
-              )}
+            <div className="flex items-center gap-4 ml-auto">
+              {/* Sync Status */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
+                  Last synced: {getLastSyncDisplay()}
+                </span>
+                <button
+                  onClick={() => syncData()}
+                  disabled={isSyncing}
+                  className={`p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors ${isSyncing ? 'animate-spin' : ''
+                    }`}
+                  title="Sync Data"
+                >
+                  <RefreshCw className="h-5 w-5" />
+                </button>
+              </div>
 
               <button
                 onClick={toggleTheme}
-                className="p-2.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               >
                 {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
               </button>
@@ -234,11 +248,15 @@ export function DashboardLayout() {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="p-4 sm:p-6">
+        <main className="p-4 lg:p-8">
           <Outlet />
         </main>
       </div>
+
+      <SupportModal 
+        isOpen={showSupportModal} 
+        onClose={() => setShowSupportModal(false)} 
+      />
     </div>
   );
 }

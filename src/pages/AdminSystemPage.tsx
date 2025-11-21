@@ -7,7 +7,7 @@ import DateRangePicker from '../components/DateRangePicker';
 
 export function AdminSystemPage() {
   const [activeTab, setActiveTab] = useState<'audit' | 'connections'>('audit');
-  
+
   // Audit Logs State
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(true);
@@ -84,7 +84,7 @@ export function AdminSystemPage() {
   const loadUsers = async () => {
     try {
       const { data, error } = await supabase.rpc('get_admin_user_list');
-      
+
       if (error) throw error;
       setUsers(data || []);
     } catch (error) {
@@ -104,11 +104,11 @@ export function AdminSystemPage() {
     }
   };
 
-  const filteredConnections = connections.filter(c => 
+  const filteredConnections = connections.filter(c =>
     `${c.first_name} ${c.last_name} ${c.email}`.toLowerCase().includes(connectionSearch.toLowerCase())
   );
 
-  const filteredAuditUsers = users.filter(u => 
+  const filteredAuditUsers = users.filter(u =>
     `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(auditUserSearch.toLowerCase())
   );
 
@@ -128,11 +128,10 @@ export function AdminSystemPage() {
           <nav className="flex -mb-px">
             <button
               onClick={() => setActiveTab('audit')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'audit'
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'audit'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
@@ -141,11 +140,10 @@ export function AdminSystemPage() {
             </button>
             <button
               onClick={() => setActiveTab('connections')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'connections'
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'connections'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2">
                 <Link2 className="h-4 w-4" />
@@ -183,18 +181,18 @@ export function AdminSystemPage() {
 
                 <div className="flex-1 min-w-[200px] relative" ref={auditUserDropdownRef}>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Target User</label>
-                  <div 
+                  <div
                     className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 bg-white cursor-pointer flex items-center justify-between"
                     onClick={() => setShowAuditUserDropdown(!showAuditUserDropdown)}
                   >
                     <span className={!selectedAuditUser ? 'text-gray-500' : 'text-gray-900'}>
-                      {selectedAuditUser 
+                      {selectedAuditUser
                         ? `${selectedAuditUser.first_name} ${selectedAuditUser.last_name}`
                         : 'All Users'}
                     </span>
                     <ChevronDown className="h-4 w-4 text-gray-400" />
                   </div>
-                  
+
                   {showAuditUserDropdown && (
                     <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
                       <div className="p-2 sticky top-0 bg-white border-b border-gray-100">
@@ -318,8 +316,8 @@ export function AdminSystemPage() {
                     ) : (
                       auditLogs.map((log: any) => (
                         <>
-                          <tr 
-                            key={log.id} 
+                          <tr
+                            key={log.id}
                             className={`hover:bg-gray-50 cursor-pointer ${expandedLogId === log.id ? 'bg-gray-50' : ''}`}
                             onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
                           >
@@ -424,7 +422,7 @@ export function AdminSystemPage() {
                       filteredConnections.map((conn: any) => {
                         const isConnected = conn.has_connection;
                         const isTokenHealthy = conn.token_status === 'valid';
-                        
+
                         return (
                           <tr key={conn.user_id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap">

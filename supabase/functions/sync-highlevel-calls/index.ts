@@ -817,7 +817,7 @@ Deno.serve(async (req: Request) => {
       .from('deleted_calls')
       .select('highlevel_call_id')
       .eq('user_id', userId);
-    
+
     const deletedCallIds = new Set((deletedCallsData || []).map(d => d.highlevel_call_id));
     if (deletedCallIds.size > 0) {
       syncLogger.logs.push(`[FILTER] Found ${deletedCallIds.size} deleted calls to exclude`);

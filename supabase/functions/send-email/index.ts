@@ -11,7 +11,7 @@ interface EmailRequest {
   subject: string;
   html: string;
   userId: string;
-  emailType: 'low_balance_alert' | 'insufficient_balance_alert' | 'weekly_summary' | 'daily_summary' | 'service_interruption_warning' | 'test_notification';
+  emailType: 'low_balance_alert' | 'insufficient_balance_alert' | 'weekly_summary' | 'daily_summary' | 'service_interruption_warning' | 'test_notification' | 'support_message';
 }
 
 Deno.serve(async (req: Request) => {

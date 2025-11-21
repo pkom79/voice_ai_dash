@@ -77,11 +77,10 @@ export function AdminConfigPage() {
           <nav className="flex -mb-px">
             <button
               onClick={() => setActiveTab('connections')}
-              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'connections'
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'connections'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
@@ -90,11 +89,10 @@ export function AdminConfigPage() {
             </button>
             <button
               onClick={() => setActiveTab('sync')}
-              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'sync'
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'sync'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />
@@ -103,11 +101,10 @@ export function AdminConfigPage() {
             </button>
             <button
               onClick={() => setActiveTab('audit')}
-              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'audit'
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'audit'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
