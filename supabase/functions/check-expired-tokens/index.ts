@@ -258,10 +258,41 @@ Deno.serve(async (req: Request) => {
     // Send emails
     let emailsSent = 0;
     const emailErrors: any[] = [];
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
 
     for (const adminEmail of adminEmails) {
       try {
-        console.log(`Attempting to send email to ${adminEmail}...`);
+        // Strategy 1: Direct Resend API call (Preferred/Faster)
+        if (resendApiKey) {
+          console.log(`Sending email to ${adminEmail} via direct Resend API...`);
+          const resendResponse = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resendApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'Voice AI Dash <no-reply@notifications.voiceaidash.app>',
+              to: [adminEmail],
+              subject: `Connection Health Alert - ${issuesToNotify.length} User(s) Need Attention`,
+              html: emailHtml,
+            }),
+          });
+
+          if (resendResponse.ok) {
+            console.log(`Email sent successfully to ${adminEmail} (Direct)`);
+            emailsSent++;
+            continue; // Skip fallback
+          } else {
+            const errorText = await resendResponse.text();
+            console.error(`Direct Resend failed: ${errorText}. Falling back to send-email function...`);
+          }
+        }
+
+        // Strategy 2: Inter-function call (Fallback)
+        console.log(`Attempting to send email to ${adminEmail} via send-email function...`);
+        console.log(`Using Auth Key Prefix: ${supabaseServiceKey.substring(0, 10)}...`);
+        
         const emailResponse = await fetch(
           `${supabaseUrl}/functions/v1/send-email`,
           {
@@ -281,7 +312,7 @@ Deno.serve(async (req: Request) => {
         );
 
         if (emailResponse.ok) {
-          console.log(`Email sent successfully to ${adminEmail}`);
+          console.log(`Email sent successfully to ${adminEmail} (Function)`);
           emailsSent++;
         } else {
           const errorText = await emailResponse.text();
@@ -290,10 +321,7 @@ Deno.serve(async (req: Request) => {
             email: adminEmail, 
             status: emailResponse.status, 
             error: errorText,
-            headers_sent: {
-              has_auth: !!supabaseServiceKey,
-              content_type: 'application/json'
-            }
+            key_prefix: supabaseServiceKey.substring(0, 5) + '...'
           });
         }
       } catch (error) {
