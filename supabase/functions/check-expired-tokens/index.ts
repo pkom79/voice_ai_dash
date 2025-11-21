@@ -28,10 +28,18 @@ Deno.serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY");
+    
+    // Try to get the key from the environment, or fallback to the incoming request header
+    let supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY");
+    
+    const authHeader = req.headers.get("Authorization");
+    if (!supabaseServiceKey && authHeader && authHeader.startsWith("Bearer ")) {
+      supabaseServiceKey = authHeader.replace("Bearer ", "");
+      console.log("Using Service Key from Authorization header");
+    }
 
     if (!supabaseServiceKey) {
-      console.error("FATAL: Service Role Key is missing in environment variables");
+      console.error("FATAL: Service Role Key is missing in environment variables and request headers");
       throw new Error("Service Role Key missing");
     }
 
