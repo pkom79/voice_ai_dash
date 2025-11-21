@@ -9,6 +9,7 @@ export function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const isAdmin = profile?.role === 'admin';
   const [billingPlan, setBillingPlan] = useState<{ inbound_plan: string | null; outbound_plan: string | null } | null>(null);
   const [notificationEmails, setNotificationEmails] = useState<Array<{
     id: string;
@@ -19,6 +20,10 @@ export function ProfilePage() {
     service_interruption_enabled: boolean;
     weekly_summary_enabled: boolean;
     daily_summary_enabled: boolean;
+    admin_user_accepted_invite?: boolean;
+    admin_token_expired?: boolean;
+    admin_hl_disconnected?: boolean;
+    admin_payment_failed?: boolean;
   }>>([]);
   const [newEmailAddress, setNewEmailAddress] = useState('');
   const [addingEmail, setAddingEmail] = useState(false);
@@ -81,11 +86,11 @@ export function ProfilePage() {
         phone_number: profile.phone_number || '',
       });
 
-      // Only load billing and notifications for client users, not admins
       if (profile.role !== 'admin') {
         loadBillingPlan();
-        loadNotificationEmails();
       }
+
+      loadNotificationEmails();
     }
   }, [profile]);
 
@@ -158,15 +163,24 @@ export function ProfilePage() {
 
     try {
       for (const email of notificationEmails) {
+        const updatePayload: Record<string, any> = {
+          low_balance_enabled: email.low_balance_enabled,
+          insufficient_balance_enabled: email.insufficient_balance_enabled,
+          service_interruption_enabled: email.service_interruption_enabled,
+          weekly_summary_enabled: email.weekly_summary_enabled,
+          daily_summary_enabled: email.daily_summary_enabled,
+        };
+
+        if (isAdmin) {
+          updatePayload.admin_user_accepted_invite = !!email.admin_user_accepted_invite;
+          updatePayload.admin_token_expired = !!email.admin_token_expired;
+          updatePayload.admin_hl_disconnected = !!email.admin_hl_disconnected;
+          updatePayload.admin_payment_failed = !!email.admin_payment_failed;
+        }
+
         const { error: updateError } = await supabase
           .from('user_notification_emails')
-          .update({
-            low_balance_enabled: email.low_balance_enabled,
-            insufficient_balance_enabled: email.insufficient_balance_enabled,
-            service_interruption_enabled: email.service_interruption_enabled,
-            weekly_summary_enabled: email.weekly_summary_enabled,
-            daily_summary_enabled: email.daily_summary_enabled,
-          })
+          .update(updatePayload)
           .eq('id', email.id);
 
         if (updateError) throw updateError;
@@ -196,18 +210,27 @@ export function ProfilePage() {
     setError('');
 
     try {
+      const insertPayload: Record<string, any> = {
+        user_id: profile?.id,
+        email: newEmailAddress,
+        is_primary: false,
+        low_balance_enabled: !isAdmin,
+        insufficient_balance_enabled: !isAdmin,
+        service_interruption_enabled: !isAdmin,
+        weekly_summary_enabled: !isAdmin,
+        daily_summary_enabled: !isAdmin,
+      };
+
+      if (isAdmin) {
+        insertPayload.admin_user_accepted_invite = true;
+        insertPayload.admin_token_expired = true;
+        insertPayload.admin_hl_disconnected = true;
+        insertPayload.admin_payment_failed = true;
+      }
+
       const { error: insertError } = await supabase
         .from('user_notification_emails')
-        .insert({
-          user_id: profile?.id,
-          email: newEmailAddress,
-          is_primary: false,
-          low_balance_enabled: true,
-          insufficient_balance_enabled: true,
-          service_interruption_enabled: true,
-          weekly_summary_enabled: true,
-          daily_summary_enabled: true,
-        });
+        .insert(insertPayload);
 
       if (insertError) throw insertError;
 
@@ -346,20 +369,18 @@ export function ProfilePage() {
                 Profile
               </div>
             </button>
-            {profile?.role !== 'admin' && (
-              <button
-                onClick={() => setActiveTab('notifications')}
-                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'notifications'
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
-                  }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Bell className="h-4 w-4" />
-                  Notifications
-                </div>
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'notifications'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                {isAdmin ? 'Admin Notifications' : 'Notifications'}
+              </div>
+            </button>
             <button
               onClick={() => setActiveTab('security')}
               className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'security'
@@ -493,12 +514,13 @@ export function ProfilePage() {
           )}
 
           {/* Notifications Tab */}
-          {activeTab === 'notifications' && profile?.role !== 'admin' && (
+          {activeTab === 'notifications' && (
             <form onSubmit={handleUpdateNotifications} className="space-y-6">
               <div className="space-y-6">
-                {/* Add New Email Section */}
                 <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Add Notification Email</h3>
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                    {isAdmin ? 'Admin notification emails' : 'Add Notification Email'}
+                  </h3>
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <input
@@ -520,11 +542,10 @@ export function ProfilePage() {
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    Add additional email addresses to receive different types of notifications
+                    Add additional email addresses to receive {isAdmin ? 'admin system' : 'account'} alerts.
                   </p>
                 </div>
 
-                {/* Notification Emails List */}
                 <div className="space-y-4">
                   {notificationEmails.map((email) => (
                     <div
@@ -568,59 +589,102 @@ export function ProfilePage() {
                       </div>
 
                       <div className="space-y-2 ml-6">
-                        {hasPPUPlan && (
+                        {isAdmin ? (
                           <>
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
                                 type="checkbox"
-                                checked={email.low_balance_enabled}
-                                onChange={(e) => updateEmailPreference(email.id, 'low_balance_enabled', e.target.checked)}
+                                checked={!!email.admin_user_accepted_invite}
+                                onChange={(e) => updateEmailPreference(email.id, 'admin_user_accepted_invite', e.target.checked)}
                                 className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                               />
-                              <span className="text-sm text-gray-700 dark:text-gray-300">Low Balance Alerts</span>
+                              <span className="text-sm text-gray-700 dark:text-gray-300">User accepted invite</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!!email.admin_token_expired}
+                                onChange={(e) => updateEmailPreference(email.id, 'admin_token_expired', e.target.checked)}
+                                className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">Token expired</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!!email.admin_hl_disconnected}
+                                onChange={(e) => updateEmailPreference(email.id, 'admin_hl_disconnected', e.target.checked)}
+                                className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">HL disconnected</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!!email.admin_payment_failed}
+                                onChange={(e) => updateEmailPreference(email.id, 'admin_payment_failed', e.target.checked)}
+                                className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">Payment failed</span>
+                            </label>
+                          </>
+                        ) : (
+                          <>
+                            {hasPPUPlan && (
+                              <>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={email.low_balance_enabled}
+                                    onChange={(e) => updateEmailPreference(email.id, 'low_balance_enabled', e.target.checked)}
+                                    className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                                  />
+                                  <span className="text-sm text-gray-700 dark:text-gray-300">Low Balance Alerts</span>
+                                </label>
+
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={email.insufficient_balance_enabled}
+                                    onChange={(e) => updateEmailPreference(email.id, 'insufficient_balance_enabled', e.target.checked)}
+                                    className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                                  />
+                                  <span className="text-sm text-gray-700 dark:text-gray-300">Insufficient Balance Alerts</span>
+                                </label>
+                              </>
+                            )}
+
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={email.service_interruption_enabled}
+                                onChange={(e) => updateEmailPreference(email.id, 'service_interruption_enabled', e.target.checked)}
+                                className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">Service Interruption Warnings</span>
                             </label>
 
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
                                 type="checkbox"
-                                checked={email.insufficient_balance_enabled}
-                                onChange={(e) => updateEmailPreference(email.id, 'insufficient_balance_enabled', e.target.checked)}
+                                checked={email.weekly_summary_enabled}
+                                onChange={(e) => updateEmailPreference(email.id, 'weekly_summary_enabled', e.target.checked)}
                                 className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                               />
-                              <span className="text-sm text-gray-700 dark:text-gray-300">Insufficient Balance Alerts</span>
+                              <span className="text-sm text-gray-700 dark:text-gray-300">Weekly Summary Reports</span>
+                            </label>
+
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={email.daily_summary_enabled}
+                                onChange={(e) => updateEmailPreference(email.id, 'daily_summary_enabled', e.target.checked)}
+                                className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">Daily Activity Summaries</span>
                             </label>
                           </>
                         )}
-
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={email.service_interruption_enabled}
-                            onChange={(e) => updateEmailPreference(email.id, 'service_interruption_enabled', e.target.checked)}
-                            className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">Service Interruption Warnings</span>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={email.weekly_summary_enabled}
-                            onChange={(e) => updateEmailPreference(email.id, 'weekly_summary_enabled', e.target.checked)}
-                            className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">Weekly Summary Reports</span>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={email.daily_summary_enabled}
-                            onChange={(e) => updateEmailPreference(email.id, 'daily_summary_enabled', e.target.checked)}
-                            className="h-4 w-4 text-blue-600 bg-white focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">Daily Activity Summaries</span>
-                        </label>
                       </div>
                     </div>
                   ))}

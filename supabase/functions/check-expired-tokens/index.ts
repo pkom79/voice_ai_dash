@@ -102,7 +102,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Get admin emails
+    // Get admin emails that opted in to token-expired alerts
     const { data: admins, error: adminsError } = await supabase
       .from("users")
       .select("id")
@@ -126,20 +126,17 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Get admin email addresses
-    const adminEmails: string[] = [];
-    for (const admin of admins) {
-      const { data: emails } = await supabase
-        .from("user_notification_emails")
-        .select("email")
-        .eq("user_id", admin.id)
-        .eq("is_primary", true)
-        .maybeSingle();
+    const adminIds = admins.map((a: any) => a.id);
+    const { data: adminEmailRows } = await supabase
+      .from("user_notification_emails")
+      .select("email")
+      .in("user_id", adminIds)
+      .eq("admin_token_expired", true)
+      .eq("is_primary", true);
 
-      if (emails?.email) {
-        adminEmails.push(emails.email);
-      }
-    }
+    const adminEmails: string[] = (adminEmailRows || [])
+      .map((row: any) => row.email)
+      .filter(Boolean);
 
     if (adminEmails.length === 0) {
       console.error("No admin email addresses found");
@@ -242,6 +239,8 @@ Deno.serve(async (req: Request) => {
               to: adminEmail,
               subject: `HighLevel Token Expiration Alert - ${tokensToNotify.length} User(s) Need Reconnection`,
               html: emailHtml,
+              userId: tokensToNotify[0]?.user_id ?? "",
+              emailType: "admin_token_expired",
             }),
           }
         );

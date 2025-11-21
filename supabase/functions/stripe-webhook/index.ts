@@ -477,6 +477,65 @@ async function handlePaymentFailed(event: any): Promise<void> {
   });
 
   console.log(`Payment failed for user ${userId}. Grace period set until ${graceUntil.toISOString()}`);
+
+  // Notify admins who opted in
+  try {
+    const { data: admins, error: adminError } = await supabase
+      .from('users')
+      .select('id, first_name, last_name, business_name')
+      .eq('role', 'admin')
+      .eq('is_active', true);
+
+    if (adminError || !admins || admins.length === 0) {
+      console.warn('No admins found for payment_failed notification', adminError);
+      return;
+    }
+
+    const adminIds = admins.map((a: any) => a.id);
+    const { data: adminEmailRows } = await supabase
+      .from('user_notification_emails')
+      .select('email')
+      .in('user_id', adminIds)
+      .eq('admin_payment_failed', true)
+      .eq('is_primary', true);
+
+    const adminEmails = (adminEmailRows || []).map((row: any) => row.email).filter(Boolean);
+    if (adminEmails.length === 0) {
+      console.warn('No admin emails opted into payment_failed notifications');
+      return;
+    }
+
+    const amount = invoice.amount_due ? (invoice.amount_due / 100).toFixed(2) : '0.00';
+    const html = `
+      <h2>Payment Failed</h2>
+      <p>A subscription payment failed for user <strong>${userId}</strong>.</p>
+      <ul>
+        <li><strong>Invoice ID:</strong> ${invoice.id}</li>
+        <li><strong>Amount Due:</strong> $${amount}</li>
+        <li><strong>Grace Until:</strong> ${graceUntil.toISOString()}</li>
+      </ul>
+      <p>Please review the account in the admin dashboard.</p>
+    `;
+
+    for (const email of adminEmails) {
+      await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({
+          to: email,
+          subject: 'Payment Failed',
+          html,
+          userId,
+          emailType: 'admin_payment_failed',
+        }),
+      });
+    }
+  } catch (notifyError) {
+    console.error('Failed to send payment_failed admin notifications:', notifyError);
+  }
 }
 
 async function handleSubscriptionUpdated(event: any): Promise<void> {

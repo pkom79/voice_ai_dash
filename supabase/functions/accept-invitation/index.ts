@@ -120,6 +120,60 @@ Deno.serve(async (req: Request) => {
       })
       .eq("id", invitation.id);
 
+    // Notify admins who opted into invite-accepted alerts
+    try {
+      const adminIdsQuery = await supabaseAdmin
+        .from("users")
+        .select("id, first_name, last_name, business_name")
+        .eq("role", "admin")
+        .eq("is_active", true);
+
+      const adminIds = (adminIdsQuery.data || []).map((a) => a.id);
+      if (adminIds.length > 0) {
+        const { data: adminEmails } = await supabaseAdmin
+          .from("user_notification_emails")
+          .select("email")
+          .in("user_id", adminIds)
+          .eq("admin_user_accepted_invite", true);
+
+        const recipients = (adminEmails || []).map((e: any) => e.email).filter(Boolean);
+
+        if (recipients.length > 0) {
+          const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+          const serviceRoleKey =
+            Deno.env.get("SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+          const html = `
+            <h2>✅ Invitation Accepted</h2>
+            <p>A user has accepted their invitation.</p>
+            <ul>
+              <li><strong>Email:</strong> ${invitation.email}</li>
+              <li><strong>User ID:</strong> ${invitation.user_id}</li>
+            </ul>
+          `;
+
+          for (const email of recipients) {
+            await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${serviceRoleKey}`,
+              },
+              body: JSON.stringify({
+                to: email,
+                subject: "Invitation Accepted",
+                html,
+                userId: invitation.user_id,
+                emailType: "admin_user_accepted_invite",
+              }),
+            });
+          }
+        }
+      }
+    } catch (notifyError) {
+      console.error("Failed to send invite-accepted admin notification:", notifyError);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

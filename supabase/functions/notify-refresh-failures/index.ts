@@ -72,7 +72,35 @@ Deno.serve(async (req: Request) => {
       throw new Error('No admin users available for notification');
     }
 
-    console.log(`Notifying ${admins.length} admin(s)`);
+    const adminIds = admins.map((a) => a.id);
+    const { data: adminEmailRows } = await supabase
+      .from('user_notification_emails')
+      .select('email')
+      .in('user_id', adminIds)
+      .eq('admin_hl_disconnected', true)
+      .eq('is_primary', true);
+
+    const adminEmails = (adminEmailRows || []).map((row: any) => row.email).filter(Boolean);
+
+    if (adminEmails.length === 0) {
+      console.log('No admin emails opted in for HL disconnected notifications');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          failuresFound: failedUsers.length,
+          notificationSent: false,
+          emailsSent: 0,
+          emailResults: [],
+          failedUsers,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log(`Notifying ${adminEmails.length} admin email(s)`);
 
     let jobRunDetails = null;
     if (jobRunId) {
@@ -185,40 +213,42 @@ Deno.serve(async (req: Request) => {
 </html>
     `;
 
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      console.error('RESEND_API_KEY not configured');
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured');
       throw new Error('Email service not configured');
     }
 
-    const emailPromises = admins.map(async (admin) => {
+    const emailPromises = adminEmails.map(async (adminEmail) => {
       try {
-        const emailResponse = await fetch("https://api.resend.com/emails", {
+        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${resendApiKey}`,
+            "Authorization": `Bearer ${serviceRoleKey}`,
           },
           body: JSON.stringify({
-            from: "Voice AI Dashboard <notifications@notifications.voiceaidash.app>",
-            to: admin.email,
+            to: adminEmail,
             subject: emailSubject,
             html: emailHtml,
+            userId: failedUsers[0]?.userId ?? '',
+            emailType: 'admin_hl_disconnected',
           }),
         });
 
         if (!emailResponse.ok) {
           const errorText = await emailResponse.text();
-          console.error(`Failed to send email to ${admin.email}:`, errorText);
-          return { adminEmail: admin.email, success: false, error: errorText };
+          console.error(`Failed to send email to ${adminEmail}:`, errorText);
+          return { adminEmail, success: false, error: errorText };
         }
 
-        console.log(`Successfully sent notification email to ${admin.email}`);
-        return { adminEmail: admin.email, success: true };
+        console.log(`Successfully sent notification email to ${adminEmail}`);
+        return { adminEmail, success: true };
       } catch (error) {
-        console.error(`Exception sending email to ${admin.email}:`, error);
+        console.error(`Exception sending email to ${adminEmail}:`, error);
         return {
-          adminEmail: admin.email,
+          adminEmail,
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
         };
@@ -228,7 +258,7 @@ Deno.serve(async (req: Request) => {
     const emailResults = await Promise.all(emailPromises);
     const successfulEmails = emailResults.filter(r => r.success).length;
 
-    console.log(`Sent ${successfulEmails}/${admins.length} notification emails`);
+    console.log(`Sent ${successfulEmails}/${adminEmails.length} notification emails`);
 
     return new Response(
       JSON.stringify({
