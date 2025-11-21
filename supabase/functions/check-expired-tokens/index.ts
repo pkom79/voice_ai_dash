@@ -28,13 +28,21 @@ Deno.serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY");
+
+    if (!supabaseServiceKey) {
+      console.error("FATAL: Service Role Key is missing in environment variables");
+      throw new Error("Service Role Key missing");
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse request body for force flag
     const { force = false } = await req.json().catch(() => ({}));
 
     console.log(`Checking for connection health issues... (Force: ${force})`);
+    console.log(`Using Supabase URL: ${supabaseUrl}`);
+    console.log(`Service Key present: ${!!supabaseServiceKey}`);
 
     const now = new Date().toISOString();
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -245,23 +253,40 @@ Deno.serve(async (req: Request) => {
 
     for (const adminEmail of adminEmails) {
       try {
-        const { data, error } = await supabase.functions.invoke('send-email', {
-          body: {
-            to: adminEmail,
-            subject: `Connection Health Alert - ${issuesToNotify.length} User(s) Need Attention`,
-            html: emailHtml,
-            userId: issuesToNotify[0]?.user_id ?? "",
-            emailType: "admin_token_expired",
+        console.log(`Attempting to send email to ${adminEmail}...`);
+        const emailResponse = await fetch(
+          `${supabaseUrl}/functions/v1/send-email`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({
+              to: adminEmail,
+              subject: `Connection Health Alert - ${issuesToNotify.length} User(s) Need Attention`,
+              html: emailHtml,
+              userId: issuesToNotify[0]?.user_id ?? "",
+              emailType: "admin_token_expired",
+            }),
           }
-        });
+        );
 
-        if (error) {
-          console.error(`Failed to send email to ${adminEmail}:`, error);
-          // Log content as fallback
-          console.log(`[FALLBACK LOG] Email Content for ${adminEmail}:`, emailHtml);
-          emailErrors.push({ email: adminEmail, error });
-        } else {
+        if (emailResponse.ok) {
+          console.log(`Email sent successfully to ${adminEmail}`);
           emailsSent++;
+        } else {
+          const errorText = await emailResponse.text();
+          console.error(`Failed to send email to ${adminEmail}. Status: ${emailResponse.status}. Response: ${errorText}`);
+          emailErrors.push({ 
+            email: adminEmail, 
+            status: emailResponse.status, 
+            error: errorText,
+            headers_sent: {
+              has_auth: !!supabaseServiceKey,
+              content_type: 'application/json'
+            }
+          });
         }
       } catch (error) {
         console.error(`Error sending email to ${adminEmail}:`, error);
