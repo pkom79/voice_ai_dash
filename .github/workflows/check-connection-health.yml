@@ -1,0 +1,50 @@
+name: Check Connection Health
+
+# Runs every hour to check for expired tokens and connection issues
+on:
+  schedule:
+    # Run at minute 15 of every hour to avoid congestion at the top of the hour
+    - cron: '15 * * * *'
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  check-health:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check for expired tokens and connection errors
+        env:
+          SUPABASE_URL: https://pjlrcchptrkymevoiolu.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "Starting connection health check..."
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+
+          RESPONSE=$(curl -X POST "$SUPABASE_URL/functions/v1/check-expired-tokens" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -d "{}" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            -s)
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS/d')
+
+          echo "Response from edge function:"
+          echo "$BODY" | jq '.' || echo "$BODY"
+          echo ""
+
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            EXPIRED_COUNT=$(echo "$BODY" | jq -r '.expiredCount // 0')
+            NOTIFIED_COUNT=$(echo "$BODY" | jq -r '.notifiedCount // 0')
+            
+            echo "✅ Health check completed successfully"
+            echo "   Expired tokens found: $EXPIRED_COUNT"
+            echo "   Notifications sent: $NOTIFIED_COUNT"
+          else
+            echo "❌ Health check failed with HTTP status: $HTTP_STATUS"
+            echo "Response: $BODY"
+            exit 1
+          fi

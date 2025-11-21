@@ -7,13 +7,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-interface ExpiredToken {
+interface ConnectionIssue {
   user_id: string;
   first_name: string;
   last_name: string;
   business_name: string | null;
-  token_expires_at: string;
   location_name: string | null;
+  issue_type: 'expired_token' | 'integration_error';
+  details: string;
+  timestamp: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -29,10 +31,13 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Checking for expired tokens...");
+    console.log("Checking for connection health issues...");
 
-    // Find all connections with expired tokens that are still marked as active
     const now = new Date().toISOString();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const issues: ConnectionIssue[] = [];
+
+    // 1. Check for expired tokens
     const { data: expiredConnections, error: queryError } = await supabase
       .from("api_keys")
       .select(`
@@ -53,77 +58,97 @@ Deno.serve(async (req: Request) => {
 
     if (queryError) {
       console.error("Error querying expired tokens:", queryError);
-      throw queryError;
+    } else if (expiredConnections && expiredConnections.length > 0) {
+      console.log(`Found ${expiredConnections.length} expired connections`);
+      
+      // Mark inactive connections as expired
+      const connectionsToMarkExpired = expiredConnections.filter((c: any) => !c.is_active);
+      if (connectionsToMarkExpired.length > 0) {
+        const idsToUpdate = connectionsToMarkExpired.map((c: any) => c.id);
+        const { error: updateError } = await supabase
+          .from("api_keys")
+          .update({ expired_at: now })
+          .in("id", idsToUpdate)
+          .is("expired_at", null);
+
+        if (updateError) console.error("Error marking connections as expired:", updateError);
+      }
+
+      expiredConnections.forEach((conn: any) => {
+        issues.push({
+          user_id: conn.user_id,
+          first_name: conn.users.first_name,
+          last_name: conn.users.last_name,
+          business_name: conn.users.business_name,
+          location_name: conn.location_name,
+          issue_type: 'expired_token',
+          details: `Token expired on ${new Date(conn.token_expires_at).toLocaleString()}`,
+          timestamp: conn.token_expires_at
+        });
+      });
     }
 
-    console.log(`Found ${expiredConnections?.length || 0} expired/expiring connections`);
+    // 2. Check for recent integration errors (last 24h, unresolved)
+    const { data: errorConnections, error: errorQueryError } = await supabase
+      .from("user_integration_errors")
+      .select(`
+        user_id,
+        error_message,
+        created_at,
+        users!inner(
+          first_name,
+          last_name,
+          business_name
+        )
+      `)
+      .eq("error_source", "highlevel")
+      .eq("resolved", false)
+      .gte("created_at", oneDayAgo)
+      .order("created_at", { ascending: false });
 
-    if (!expiredConnections || expiredConnections.length === 0) {
+    if (errorQueryError) {
+      console.error("Error querying integration errors:", errorQueryError);
+    } else if (errorConnections && errorConnections.length > 0) {
+      console.log(`Found ${errorConnections.length} recent integration errors`);
+      
+      errorConnections.forEach((err: any) => {
+        if (!issues.find(i => i.user_id === err.user_id && i.issue_type === 'expired_token')) {
+           if (!issues.find(i => i.user_id === err.user_id && i.issue_type === 'integration_error')) {
+             issues.push({
+              user_id: err.user_id,
+              first_name: err.users.first_name,
+              last_name: err.users.last_name,
+              business_name: err.users.business_name,
+              location_name: "Unknown (Error Log)",
+              issue_type: 'integration_error',
+              details: `Error: ${err.error_message}`,
+              timestamp: err.created_at
+            });
+           }
+        }
+      });
+    }
+
+    if (issues.length === 0) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: "No expired tokens found",
-          expiredCount: 0,
+          message: "No connection issues found",
+          issueCount: 0,
         }),
-        {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const expiredTokens: ExpiredToken[] = expiredConnections.map((conn: any) => ({
-      user_id: conn.user_id,
-      first_name: conn.users.first_name,
-      last_name: conn.users.last_name,
-      business_name: conn.users.business_name,
-      token_expires_at: conn.token_expires_at,
-      location_name: conn.location_name,
-    }));
-
-    // Mark inactive connections as expired
-    const connectionsToMarkExpired = expiredConnections.filter((c: any) => !c.is_active);
-    if (connectionsToMarkExpired.length > 0) {
-      const idsToUpdate = connectionsToMarkExpired.map((c: any) => c.id);
-      const { error: updateError } = await supabase
-        .from("api_keys")
-        .update({
-          expired_at: now,
-        })
-        .in("id", idsToUpdate)
-        .is("expired_at", null);
-
-      if (updateError) {
-        console.error("Error marking connections as expired:", updateError);
-      } else {
-        console.log(`Marked ${idsToUpdate.length} connections as expired`);
-      }
-    }
-
-    // Get admin emails that opted in to token-expired alerts
-    const { data: admins, error: adminsError } = await supabase
+    // Get admin emails
+    const { data: admins } = await supabase
       .from("users")
       .select("id")
       .eq("role", "admin")
       .eq("is_active", true);
 
-    if (adminsError || !admins || admins.length === 0) {
-      console.error("No admin users found:", adminsError);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "No admin users found to notify",
-        }),
-        {
-          status: 500,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+    if (!admins || admins.length === 0) {
+      throw new Error("No admin users found");
     }
 
     const adminIds = admins.map((a: any) => a.id);
@@ -134,84 +159,57 @@ Deno.serve(async (req: Request) => {
       .eq("admin_token_expired", true)
       .eq("is_primary", true);
 
-    const adminEmails: string[] = (adminEmailRows || [])
-      .map((row: any) => row.email)
-      .filter(Boolean);
+    const adminEmails: string[] = (adminEmailRows || []).map((row: any) => row.email).filter(Boolean);
 
     if (adminEmails.length === 0) {
-      console.error("No admin email addresses found");
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "No admin email addresses found",
-        }),
-        {
-          status: 500,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      throw new Error("No admin email addresses found");
     }
 
-    // Check if we've already sent a notification recently (within last 24 hours)
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Check recent notifications
     const { data: recentNotifications } = await supabase
       .from("admin_notifications")
       .select("user_id")
       .eq("notification_type", "token_expired")
       .gte("sent_at", oneDayAgo);
 
-    const recentlyNotifiedUserIds = new Set(
-      recentNotifications?.map((n: any) => n.user_id) || []
-    );
+    const recentlyNotifiedUserIds = new Set(recentNotifications?.map((n: any) => n.user_id) || []);
 
-    // Filter out users we've already notified recently
-    const tokensToNotify = expiredTokens.filter(
-      (token) => !recentlyNotifiedUserIds.has(token.user_id)
-    );
+    const issuesToNotify = issues.filter(issue => !recentlyNotifiedUserIds.has(issue.user_id));
 
-    if (tokensToNotify.length === 0) {
-      console.log("All expired tokens were already notified recently");
+    if (issuesToNotify.length === 0) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: "All expired tokens already notified recently",
-          expiredCount: expiredTokens.length,
+          message: "All issues already notified recently",
+          issueCount: issues.length,
           notifiedCount: 0,
         }),
-        {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Build email content
     const emailHtml = `
-      <h2>HighLevel Token Expiration Alert</h2>
-      <p>The following user(s) have expired HighLevel connection tokens that need to be reconnected:</p>
+      <h2>HighLevel Connection Health Alert</h2>
+      <p>The following user(s) have connection issues (expired tokens or integration errors) that need attention:</p>
       <table border="1" cellpadding="10" cellspacing="0" style="border-collapse: collapse; width: 100%;">
         <thead>
           <tr style="background-color: #f3f4f6;">
             <th>User</th>
             <th>Business Name</th>
-            <th>Location</th>
-            <th>Expired On</th>
+            <th>Issue Type</th>
+            <th>Details</th>
           </tr>
         </thead>
         <tbody>
-          ${tokensToNotify
+          ${issuesToNotify
         .map(
-          (token) => `
+          (issue) => `
             <tr>
-              <td>${token.first_name} ${token.last_name}</td>
-              <td>${token.business_name || "N/A"}</td>
-              <td>${token.location_name || "Unknown"}</td>
-              <td>${new Date(token.token_expires_at).toLocaleString()}</td>
+              <td>${issue.first_name} ${issue.last_name}</td>
+              <td>${issue.business_name || "N/A"}</td>
+              <td><span style="padding: 4px 8px; border-radius: 4px; background-color: ${issue.issue_type === 'expired_token' ? '#fee2e2; color: #991b1b' : '#fef3c7; color: #92400e'}">${issue.issue_type === 'expired_token' ? 'Expired Token' : 'Integration Error'}</span></td>
+              <td>${issue.details}</td>
             </tr>
           `
         )
@@ -219,11 +217,11 @@ Deno.serve(async (req: Request) => {
         </tbody>
       </table>
       <p style="margin-top: 20px;">
-        <strong>Action Required:</strong> Please log in to the admin panel and reconnect these users to restore their HighLevel access.
+        <strong>Action Required:</strong> Please check the admin panel to resolve these issues.
       </p>
     `;
 
-    // Send email to each admin
+    // Send emails
     let emailsSent = 0;
     for (const adminEmail of adminEmails) {
       try {
@@ -237,80 +235,55 @@ Deno.serve(async (req: Request) => {
             },
             body: JSON.stringify({
               to: adminEmail,
-              subject: `HighLevel Token Expiration Alert - ${tokensToNotify.length} User(s) Need Reconnection`,
+              subject: `Connection Health Alert - ${issuesToNotify.length} User(s) Need Attention`,
               html: emailHtml,
-              userId: tokensToNotify[0]?.user_id ?? "",
+              userId: issuesToNotify[0]?.user_id ?? "",
               emailType: "admin_token_expired",
             }),
           }
         );
 
-        if (emailResponse.ok) {
-          emailsSent++;
-          console.log(`Notification sent to: ${adminEmail}`);
-        } else {
-          console.error(
-            `Failed to send email to ${adminEmail}:`,
-            await emailResponse.text()
-          );
-        }
+        if (emailResponse.ok) emailsSent++;
       } catch (error) {
         console.error(`Error sending email to ${adminEmail}:`, error);
       }
     }
 
-    // Record notifications in database
-    const notificationRecords = tokensToNotify.flatMap((token) =>
+    // Record notifications
+    const notificationRecords = issuesToNotify.flatMap((issue) =>
       adminEmails.map((email) => ({
         notification_type: "token_expired",
-        user_id: token.user_id,
+        user_id: issue.user_id,
         recipient_email: email,
-        subject: `HighLevel Token Expiration Alert - ${tokensToNotify.length} User(s) Need Reconnection`,
+        subject: `Connection Health Alert - ${issuesToNotify.length} User(s) Need Attention`,
         metadata: {
-          business_name: token.business_name,
-          location_name: token.location_name,
-          token_expires_at: token.token_expires_at,
+          business_name: issue.business_name,
+          issue_type: issue.issue_type,
+          details: issue.details,
         },
       }))
     );
 
-    const { error: insertError } = await supabase
-      .from("admin_notifications")
-      .insert(notificationRecords);
-
-    if (insertError) {
-      console.error("Error recording notifications:", insertError);
-    }
+    await supabase.from("admin_notifications").insert(notificationRecords);
 
     return new Response(
       JSON.stringify({
         success: true,
-        expiredCount: expiredTokens.length,
-        notifiedCount: tokensToNotify.length,
+        issueCount: issues.length,
+        notifiedCount: issuesToNotify.length,
         emailsSent,
       }),
-      {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (error) {
     console.error("Error in check-expired-tokens function:", error);
-
     return new Response(
       JSON.stringify({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
