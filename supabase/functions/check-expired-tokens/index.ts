@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
       console.error("Error querying problematic connections:", queryError);
     } else if (problematicConnections && problematicConnections.length > 0) {
       console.log(`Found ${problematicConnections.length} problematic connections`);
-      
+
       // Mark inactive connections as expired if not already
       const connectionsToMarkExpired = problematicConnections.filter((c: any) => !c.is_active && !c.expired_at);
       if (connectionsToMarkExpired.length > 0) {
@@ -236,6 +236,8 @@ Deno.serve(async (req: Request) => {
 
     // Send emails
     let emailsSent = 0;
+    const emailErrors: any[] = [];
+
     for (const adminEmail of adminEmails) {
       try {
         const emailResponse = await fetch(
@@ -256,9 +258,16 @@ Deno.serve(async (req: Request) => {
           }
         );
 
-        if (emailResponse.ok) emailsSent++;
+        if (emailResponse.ok) {
+          emailsSent++;
+        } else {
+          const errorText = await emailResponse.text();
+          console.error(`Failed to send email to ${adminEmail}:`, errorText);
+          emailErrors.push({ email: adminEmail, status: emailResponse.status, error: errorText });
+        }
       } catch (error) {
         console.error(`Error sending email to ${adminEmail}:`, error);
+        emailErrors.push({ email: adminEmail, error: error instanceof Error ? error.message : String(error) });
       }
     }
 
@@ -285,6 +294,7 @@ Deno.serve(async (req: Request) => {
         issueCount: issues.length,
         notifiedCount: issuesToNotify.length,
         emailsSent,
+        emailErrors: emailErrors.length > 0 ? emailErrors : undefined,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
