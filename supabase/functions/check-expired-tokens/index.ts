@@ -13,7 +13,7 @@ interface ConnectionIssue {
   last_name: string;
   business_name: string | null;
   location_name: string | null;
-  issue_type: 'expired_token' | 'integration_error';
+  issue_type: 'expired_token' | 'integration_error' | 'disconnected' | 'broken';
   details: string;
   timestamp: string;
 }
@@ -37,8 +37,8 @@ Deno.serve(async (req: Request) => {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const issues: ConnectionIssue[] = [];
 
-    // 1. Check for expired tokens
-    const { data: expiredConnections, error: queryError } = await supabase
+    // 1. Check for expired tokens, disconnected users, or broken states
+    const { data: problematicConnections, error: queryError } = await supabase
       .from("api_keys")
       .select(`
         id,
@@ -46,6 +46,7 @@ Deno.serve(async (req: Request) => {
         token_expires_at,
         location_name,
         is_active,
+        access_token,
         users!api_keys_user_id_fkey!inner(
           first_name,
           last_name,
@@ -53,16 +54,16 @@ Deno.serve(async (req: Request) => {
         )
       `)
       .eq("service", "highlevel")
-      .lt("token_expires_at", now)
+      .or(`token_expires_at.lt.${now},is_active.eq.false,access_token.is.null`)
       .order("token_expires_at", { ascending: true });
 
     if (queryError) {
-      console.error("Error querying expired tokens:", queryError);
-    } else if (expiredConnections && expiredConnections.length > 0) {
-      console.log(`Found ${expiredConnections.length} expired connections`);
+      console.error("Error querying problematic connections:", queryError);
+    } else if (problematicConnections && problematicConnections.length > 0) {
+      console.log(`Found ${problematicConnections.length} problematic connections`);
       
-      // Mark inactive connections as expired
-      const connectionsToMarkExpired = expiredConnections.filter((c: any) => !c.is_active);
+      // Mark inactive connections as expired if not already
+      const connectionsToMarkExpired = problematicConnections.filter((c: any) => !c.is_active && !c.expired_at);
       if (connectionsToMarkExpired.length > 0) {
         const idsToUpdate = connectionsToMarkExpired.map((c: any) => c.id);
         const { error: updateError } = await supabase
@@ -74,21 +75,33 @@ Deno.serve(async (req: Request) => {
         if (updateError) console.error("Error marking connections as expired:", updateError);
       }
 
-      expiredConnections.forEach((conn: any) => {
+      problematicConnections.forEach((conn: any) => {
+        let issueType: 'expired_token' | 'disconnected' | 'broken' = 'expired_token';
+        let details = '';
+
+        if (!conn.is_active) {
+          issueType = 'disconnected';
+          details = 'Connection is marked as inactive';
+        } else if (!conn.access_token) {
+          issueType = 'broken';
+          details = 'Access token is missing';
+        } else {
+          issueType = 'expired_token';
+          details = `Token expired on ${new Date(conn.token_expires_at).toLocaleString()}`;
+        }
+
         issues.push({
           user_id: conn.user_id,
           first_name: conn.users.first_name,
           last_name: conn.users.last_name,
           business_name: conn.users.business_name,
           location_name: conn.location_name,
-          issue_type: 'expired_token',
-          details: `Token expired on ${new Date(conn.token_expires_at).toLocaleString()}`,
-          timestamp: conn.token_expires_at
+          issue_type: issueType as any,
+          details: details,
+          timestamp: conn.token_expires_at || now
         });
       });
-    }
-
-    // 2. Check for recent integration errors (last 24h, unresolved)
+    }    // 2. Check for recent integration errors (last 24h, unresolved)
     const { data: errorConnections, error: errorQueryError } = await supabase
       .from("user_integration_errors")
       .select(`
@@ -110,11 +123,11 @@ Deno.serve(async (req: Request) => {
       console.error("Error querying integration errors:", errorQueryError);
     } else if (errorConnections && errorConnections.length > 0) {
       console.log(`Found ${errorConnections.length} recent integration errors`);
-      
+
       errorConnections.forEach((err: any) => {
         if (!issues.find(i => i.user_id === err.user_id && i.issue_type === 'expired_token')) {
-           if (!issues.find(i => i.user_id === err.user_id && i.issue_type === 'integration_error')) {
-             issues.push({
+          if (!issues.find(i => i.user_id === err.user_id && i.issue_type === 'integration_error')) {
+            issues.push({
               user_id: err.user_id,
               first_name: err.users.first_name,
               last_name: err.users.last_name,
@@ -124,7 +137,7 @@ Deno.serve(async (req: Request) => {
               details: `Error: ${err.error_message}`,
               timestamp: err.created_at
             });
-           }
+          }
         }
       });
     }
