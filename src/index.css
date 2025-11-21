@@ -63,3 +63,53 @@
     outline-offset: 2px;
   }
 }
+
+/* Global dark theme overrides */
+@layer base {
+  .dark body {
+    background-color: #0f172a;
+    color: #e5e7eb;
+  }
+
+  /* Common backgrounds */
+  .dark .bg-white { background-color: #0f172a; }
+  .dark .bg-gray-50 { background-color: #111827; }
+  .dark .bg-gray-100 { background-color: #1f2937; }
+  .dark .bg-gray-200 { background-color: #1f2937; }
+  .dark .bg-gray-300 { background-color: #334155; }
+
+  /* Text colors */
+  .dark .text-gray-900 { color: #e5e7eb; }
+  .dark .text-gray-800 { color: #e2e8f0; }
+  .dark .text-gray-700 { color: #cbd5e1; }
+  .dark .text-gray-600 { color: #cbd5e1; }
+  .dark .text-gray-500 { color: #94a3b8; }
+
+  /* Borders */
+  .dark .border-gray-100 { border-color: #1f2937; }
+  .dark .border-gray-200 { border-color: #1f2937; }
+  .dark .border-gray-300 { border-color: #334155; }
+
+  /* Form controls */
+  .dark input,
+  .dark textarea,
+  .dark select {
+    background-color: #0b1322;
+    color: #e5e7eb;
+    border-color: #334155;
+  }
+
+  .dark input::placeholder,
+  .dark textarea::placeholder,
+  .dark select::placeholder {
+    color: #94a3b8;
+  }
+
+  .dark input:focus,
+  .dark textarea:focus,
+  .dark select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+  }
+}
