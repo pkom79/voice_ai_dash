@@ -31,7 +31,10 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Checking for connection health issues...");
+    // Parse request body for force flag
+    const { force = false } = await req.json().catch(() => ({}));
+
+    console.log(`Checking for connection health issues... (Force: ${force})`);
 
     const now = new Date().toISOString();
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -187,7 +190,9 @@ Deno.serve(async (req: Request) => {
 
     const recentlyNotifiedUserIds = new Set(recentNotifications?.map((n: any) => n.user_id) || []);
 
-    const issuesToNotify = issues.filter(issue => !recentlyNotifiedUserIds.has(issue.user_id));
+    const issuesToNotify = force 
+      ? issues 
+      : issues.filter(issue => !recentlyNotifiedUserIds.has(issue.user_id));
 
     if (issuesToNotify.length === 0) {
       return new Response(
