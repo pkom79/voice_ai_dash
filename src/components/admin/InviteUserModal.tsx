@@ -13,8 +13,8 @@ export function InviteUserModal({ onClose, onSuccess }: InviteUserModalProps) {
   const [role, setRole] = useState<'client' | 'admin'>('client');
   const [inboundPlan, setInboundPlan] = useState<string | null>(null);
   const [outboundPlan, setOutboundPlan] = useState<string | null>(null);
-  const [inboundRate, setInboundRate] = useState('500');
-  const [outboundRate, setOutboundRate] = useState('500');
+  const [inboundRate, setInboundRate] = useState('100');
+  const [outboundRate, setOutboundRate] = useState('100');
   const [expiresInDays, setExpiresInDays] = useState(7);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

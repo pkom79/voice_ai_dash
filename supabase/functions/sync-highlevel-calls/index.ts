@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +26,369 @@ interface SyncLogger {
   apiPages: any[];
 }
 
+type EdgeSupabaseClient = SupabaseClient<any, any, any>;
+
+const HIGHLEVEL_BASE_URL = Deno.env.get("HIGHLEVEL_API_URL") || "https://services.leadconnectorhq.com";
+type AgentPhoneNumbers = Record<string, { id: string; phone_number: string }[]>;
+
+const normalizePhoneNumberValue = (value?: string | null): string => {
+  if (!value) return "";
+  const digits = value.replace(/[^0-9]/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return digits.slice(1);
+  }
+  return digits;
+};
+
+const extractPhoneNumberValue = (entry: any): string | null => {
+  if (!entry) return null;
+  if (typeof entry === "string") return entry;
+  return (
+    entry.phone_number ||
+    entry.phoneNumber ||
+    entry.number ||
+    entry.value ||
+    entry.rawValue ||
+    null
+  );
+};
+
+const buildPhoneMetadataMap = (phoneEntries: any[]): Map<string, any> => {
+  const map = new Map<string, any>();
+  for (const entry of phoneEntries) {
+    const value = extractPhoneNumberValue(entry);
+    if (!value) continue;
+    const normalized = normalizePhoneNumberValue(value);
+    if (!normalized) continue;
+    if (!map.has(normalized)) {
+      map.set(normalized, entry);
+    }
+  }
+  return map;
+};
+
+const deriveIsActiveFromMetadata = (metadata?: any): boolean | undefined => {
+  if (!metadata) return undefined;
+  if (typeof metadata.isActive === "boolean") return metadata.isActive;
+  if (typeof metadata.active === "boolean") return metadata.active;
+  if (typeof metadata.status === "string") {
+    return metadata.status.toLowerCase() !== "inactive";
+  }
+  return undefined;
+};
+
+const deriveLabelFromMetadata = (metadata?: any): string | undefined => {
+  if (!metadata) return undefined;
+  return (
+    metadata.label ||
+    metadata.friendlyName ||
+    metadata.name ||
+    metadata.displayName ||
+    metadata.description ||
+    metadata.tagline
+  );
+};
+
+const getHeaders = (accessToken: string): HeadersInit => ({
+  "Authorization": `Bearer ${accessToken}`,
+  "Content-Type": "application/json",
+  "Version": "2021-07-28",
+});
+
+async function fetchLocationPhoneNumbers(accessToken: string, locationId: string): Promise<any[]> {
+  const url = `${HIGHLEVEL_BASE_URL}/phone-system/numbers/location/${locationId}`;
+  const response = await fetch(url, { headers: getHeaders(accessToken) });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch phone numbers (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.numbers)) return data.numbers;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+async function fetchNumberPools(accessToken: string, locationId: string): Promise<any[]> {
+  const url = `${HIGHLEVEL_BASE_URL}/phone-system/number-pools?locationId=${locationId}`;
+  const response = await fetch(url, { headers: getHeaders(accessToken) });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch number pools (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.pools)) return data.pools;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+async function fetchAgentDetailsFromHighLevel(
+  accessToken: string,
+  agentHighLevelId: string,
+  locationId: string
+): Promise<any> {
+  const url = `${HIGHLEVEL_BASE_URL}/voice-ai/agents/${agentHighLevelId}?locationId=${locationId}`;
+  const response = await fetch(url, { headers: getHeaders(accessToken) });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch agent ${agentHighLevelId}: ${response.status} ${errorText}`);
+  }
+
+  return response.json();
+}
+
+async function fetchAgentPhoneAssignments(
+  supabase: EdgeSupabaseClient,
+  agentIds: string[]
+): Promise<AgentPhoneNumbers> {
+  if (!agentIds || agentIds.length === 0) {
+    return {};
+  }
+
+  const { data: agentPhones } = await supabase
+    .from("agent_phone_numbers")
+    .select("agent_id, phone_numbers:phone_number_id(id, phone_number)")
+    .in("agent_id", agentIds);
+
+  const map: AgentPhoneNumbers = {};
+
+  (agentPhones || []).forEach((ap: any) => {
+    if (!ap.phone_numbers) return;
+    if (!map[ap.agent_id]) map[ap.agent_id] = [];
+    map[ap.agent_id].push({
+      id: ap.phone_numbers.id,
+      phone_number: ap.phone_numbers.phone_number,
+    });
+  });
+
+  return map;
+}
+
+async function getOrCreatePhoneNumberRecord(
+  supabase: EdgeSupabaseClient,
+  phoneNumber: string,
+  metadata?: any
+): Promise<{ id: string; phone_number: string } | null> {
+  if (!phoneNumber) return null;
+  const trimmed = phoneNumber.trim();
+  if (!trimmed) return null;
+
+  const label = deriveLabelFromMetadata(metadata);
+  const isActive = deriveIsActiveFromMetadata(metadata);
+
+  const { data: existing, error: selectError } = await supabase
+    .from("phone_numbers")
+    .select("id, phone_number, label, is_active")
+    .eq("phone_number", trimmed)
+    .maybeSingle();
+
+  if (selectError && selectError.code !== "PGRST116") {
+    console.error("[PHONE] Failed to load phone number record:", selectError);
+    return null;
+  }
+
+  if (existing) {
+    const updatePayload: Record<string, any> = {};
+    if (label && existing.label !== label) {
+      updatePayload.label = label;
+    }
+    if (typeof isActive === "boolean" && existing.is_active !== isActive) {
+      updatePayload.is_active = isActive;
+    }
+    if (Object.keys(updatePayload).length > 0) {
+      const { error: updateError } = await supabase
+        .from("phone_numbers")
+        .update(updatePayload)
+        .eq("id", existing.id);
+      if (updateError) {
+        console.error("[PHONE] Failed to update phone metadata:", updateError);
+      }
+    }
+    return existing;
+  }
+
+  const insertPayload: Record<string, any> = {
+    phone_number: trimmed,
+    is_active: typeof isActive === "boolean" ? isActive : true,
+  };
+  if (label) {
+    insertPayload.label = label;
+  }
+
+  const { data: newRecord, error: insertError } = await supabase
+    .from("phone_numbers")
+    .insert(insertPayload)
+    .select()
+    .single();
+
+  if (insertError) {
+    console.error("[PHONE] Failed to create phone number record:", insertError);
+    return null;
+  }
+
+  return newRecord;
+}
+
+async function linkPhoneToAgentRecord(
+  supabase: EdgeSupabaseClient,
+  agentId: string,
+  phoneNumberId: string,
+  source: "direct" | "pool"
+) {
+  const { error } = await supabase
+    .from("agent_phone_numbers")
+    .upsert(
+      {
+        agent_id: agentId,
+        phone_number_id: phoneNumberId,
+        assignment_source: source,
+      },
+      { onConflict: "agent_id,phone_number_id" }
+    );
+
+  if (error) {
+    console.error("[PHONE] Failed to link phone to agent:", error);
+  }
+}
+
+async function linkPhoneToUserRecord(
+  supabase: EdgeSupabaseClient,
+  userId: string,
+  phoneNumberId: string
+) {
+  const { error } = await supabase
+    .from("user_phone_numbers")
+    .upsert(
+      {
+        user_id: userId,
+        phone_number_id: phoneNumberId,
+      },
+      { onConflict: "user_id,phone_number_id" }
+    );
+
+  if (error) {
+    console.error("[PHONE] Failed to link phone to user:", error);
+  }
+}
+
+async function syncAgentPhoneAssignments({
+  supabase,
+  userId,
+  accessToken,
+  locationId,
+  agents,
+  syncLogger,
+}: {
+  supabase: EdgeSupabaseClient;
+  userId: string;
+  accessToken: string;
+  locationId: string;
+  agents: { id: string; highlevel_agent_id: string }[];
+  syncLogger: SyncLogger;
+}): Promise<{ processedAgents: number; linkedPhones: number }> {
+  if (!locationId || agents.length === 0) {
+    return { processedAgents: 0, linkedPhones: 0 };
+  }
+
+  let phoneMetadataMap = new Map<string, any>();
+  try {
+    const locationPhones = await fetchLocationPhoneNumbers(accessToken, locationId);
+    phoneMetadataMap = buildPhoneMetadataMap(locationPhones);
+    syncLogger.logs.push(`[PHONE] Retrieved ${locationPhones.length} phone numbers for location ${locationId}`);
+  } catch (error) {
+    console.error("[PHONE] Failed to fetch location phone numbers:", error);
+    syncLogger.logs.push("[PHONE][WARN] Could not fetch location phone numbers");
+  }
+
+  let numberPools: any[] = [];
+  try {
+    numberPools = await fetchNumberPools(accessToken, locationId);
+    syncLogger.logs.push(`[PHONE] Retrieved ${numberPools.length} number pools`);
+  } catch (error) {
+    console.warn("[PHONE] Number pools unavailable:", error);
+    syncLogger.logs.push("[PHONE][WARN] Number pools unavailable for this location");
+  }
+
+  let processedAgents = 0;
+  let linkedPhones = 0;
+
+  for (const agent of agents) {
+    processedAgents++;
+    if (!agent.highlevel_agent_id) continue;
+
+    try {
+      const agentDetails = await fetchAgentDetailsFromHighLevel(
+        accessToken,
+        agent.highlevel_agent_id,
+        locationId
+      );
+
+      const agentUpdate: Record<string, any> = {};
+      const directPhone =
+        agentDetails?.inboundNumber ||
+        agentDetails?.phoneNumber ||
+        agentDetails?.inbound_phone_number ||
+        null;
+
+      const poolId = agentDetails?.numberPoolId || agentDetails?.number_pool_id || null;
+
+      if (directPhone) {
+        agentUpdate.inbound_phone_number = directPhone;
+      }
+      if (poolId) {
+        agentUpdate.highlevel_number_pool_id = poolId;
+      }
+
+      if (Object.keys(agentUpdate).length > 0) {
+        const { error: updateError } = await supabase
+          .from("agents")
+          .update(agentUpdate)
+          .eq("id", agent.id);
+        if (updateError) {
+          console.error("[PHONE] Failed to update agent record:", updateError);
+        }
+      }
+
+      if (directPhone) {
+        const metadata = phoneMetadataMap.get(normalizePhoneNumberValue(directPhone));
+        const phoneRecord = await getOrCreatePhoneNumberRecord(supabase, directPhone, metadata);
+        if (phoneRecord) {
+          await linkPhoneToAgentRecord(supabase, agent.id, phoneRecord.id, "direct");
+          await linkPhoneToUserRecord(supabase, userId, phoneRecord.id);
+          linkedPhones++;
+        }
+      }
+
+      if (poolId) {
+        const pool = numberPools.find((p) => p.id === poolId);
+        if (pool && Array.isArray(pool.phoneNumbers)) {
+          for (const poolPhone of pool.phoneNumbers) {
+            const poolNumber = extractPhoneNumberValue(poolPhone);
+            if (!poolNumber) continue;
+            const metadata = phoneMetadataMap.get(normalizePhoneNumberValue(poolNumber));
+            const phoneRecord = await getOrCreatePhoneNumberRecord(supabase, poolNumber, metadata);
+            if (phoneRecord) {
+              await linkPhoneToAgentRecord(supabase, agent.id, phoneRecord.id, "pool");
+              await linkPhoneToUserRecord(supabase, userId, phoneRecord.id);
+              linkedPhones++;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`[PHONE] Failed to sync phones for agent ${agent.highlevel_agent_id}:`, error);
+      syncLogger.logs.push(
+        `[PHONE][ERROR] Agent ${agent.highlevel_agent_id} sync failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+  }
+
+  return { processedAgents, linkedPhones };
+}
+
 function calculateCallCost(
   durationSeconds: number,
   direction: string,
@@ -35,7 +398,7 @@ function calculateCallCost(
     return { cost: 0, displayCost: null };
   }
 
-  if (direction === 'inbound' && billingAccount.inbound_plan === 'unlimited') {
+  if (direction === 'inbound' && billingAccount.inbound_plan === 'inbound_unlimited') {
     return { cost: 0, displayCost: 'INCLUDED' };
   }
 
@@ -46,6 +409,10 @@ function calculateCallCost(
     rateCents = billingAccount.inbound_rate_cents;
   } else if (direction === 'outbound' && billingAccount.outbound_rate_cents) {
     rateCents = billingAccount.outbound_rate_cents;
+  }
+
+  if (!rateCents) {
+    rateCents = 100;
   }
 
   const cost = (durationMinutes * rateCents) / 100;
@@ -223,7 +590,7 @@ Deno.serve(async (req: Request) => {
     console.log(`[SYNC] Looking up OAuth connection for user ${userId}`);
     const { data: oauthData, error: oauthError } = await supabase
       .from("api_keys")
-      .select("access_token, refresh_token, token_expires_at, location_id")
+      .select("id, access_token, refresh_token, token_expires_at, location_id")
       .eq("user_id", userId)
       .eq("service", "highlevel")
       .eq("is_active", true)
@@ -284,7 +651,7 @@ Deno.serve(async (req: Request) => {
     // Load user agents and their phone numbers to attach phone_number_id to calls
     const { data: userAgents, error: userAgentsError } = await supabase
       .from('user_agents')
-      .select('agent_id')
+      .select('agent_id, agents:agent_id(id, highlevel_agent_id)')
       .eq('user_id', userId);
 
     if (userAgentsError) {
@@ -292,26 +659,16 @@ Deno.serve(async (req: Request) => {
     }
 
     const agentIdsForUser = (userAgents || []).map((ua: any) => ua.agent_id);
-
-    let agentPhoneMap: Record<string, { id: string; phone_number: string }[]> = {};
+    const agentsWithHighLevelIds = (userAgents || [])
+      .map((ua: any) => ua.agents)
+      .filter((agent: any) => agent?.id && agent?.highlevel_agent_id)
+      .map((agent: any) => ({
+        id: agent.id,
+        highlevel_agent_id: agent.highlevel_agent_id,
+      }));
     const normalizeNumber = (num: string) => num.replace(/[^0-9]/g, '').replace(/^1(?=\d{10}$)/, '');
-    if (agentIdsForUser.length > 0) {
-      const { data: agentPhones } = await supabase
-        .from('agent_phone_numbers')
-        .select('agent_id, phone_numbers:phone_number_id(id, phone_number)')
-        .in('agent_id', agentIdsForUser);
 
-      if (agentPhones) {
-        agentPhones.forEach((ap: any) => {
-          if (!ap.phone_numbers) return;
-          if (!agentPhoneMap[ap.agent_id]) agentPhoneMap[ap.agent_id] = [];
-          agentPhoneMap[ap.agent_id].push({
-            id: ap.phone_numbers.id,
-            phone_number: ap.phone_numbers.phone_number,
-          });
-        });
-      }
-    }
+    let agentPhoneMap = await fetchAgentPhoneAssignments(supabase, agentIdsForUser);
 
     const { data: billingAccount, error: billingError } = await supabase
       .from("billing_accounts")
@@ -367,8 +724,51 @@ Deno.serve(async (req: Request) => {
       accessToken = refreshData.access_token;
     }
 
+    if (accessToken && oauthData.location_id && agentsWithHighLevelIds.length > 0) {
+      try {
+        const phoneSyncStats = await syncAgentPhoneAssignments({
+          supabase,
+          userId,
+          accessToken,
+          locationId: oauthData.location_id,
+          agents: agentsWithHighLevelIds,
+          syncLogger,
+        });
+        syncLogger.logs.push(
+          `[PHONE] Synced ${phoneSyncStats.linkedPhones} phone assignments across ${phoneSyncStats.processedAgents} agents`
+        );
+        agentPhoneMap = await fetchAgentPhoneAssignments(supabase, agentIdsForUser);
+      } catch (error) {
+        console.error("[PHONE] Failed to sync agent phone assignments:", error);
+        syncLogger.logs.push(
+          `[PHONE][ERROR] ${error instanceof Error ? error.message : "Unknown error syncing phone numbers"}`
+        );
+      }
+    } else if (agentIdsForUser.length > 0 && !oauthData.location_id) {
+      syncLogger.logs.push("[PHONE][WARN] Skipped phone sync: no location_id on OAuth connection");
+    }
+
     let effectiveStartDate = startDate;
     let originalResetDate: string | null = null;
+
+    // If no start date provided and not admin override, try to find the latest call
+    if (!effectiveStartDate && !adminOverride) {
+      const { data: latestCall } = await supabase
+        .from('calls')
+        .select('call_started_at')
+        .eq('user_id', userId)
+        .order('call_started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestCall?.call_started_at) {
+        // Add 1 second to avoid fetching the same call again (though upsert handles it)
+        const latestDate = new Date(latestCall.call_started_at);
+        latestDate.setSeconds(latestDate.getSeconds() + 1);
+        effectiveStartDate = latestDate.toISOString();
+        syncLogger.logs.push(`[AUTO-INCREMENTAL] Found latest call at ${latestCall.call_started_at}. Setting start date to ${effectiveStartDate}`);
+      }
+    }
 
     if (adminOverride) {
       effectiveStartDate = startDate;
@@ -411,6 +811,17 @@ Deno.serve(async (req: Request) => {
 
     const rangeStartDate = effectiveStartDate ? new Date(effectiveStartDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const rangeEndDate = new Date(effectiveEndDate);
+
+    // Fetch deleted calls to exclude them
+    const { data: deletedCallsData } = await supabase
+      .from('deleted_calls')
+      .select('highlevel_call_id')
+      .eq('user_id', userId);
+    
+    const deletedCallIds = new Set((deletedCallsData || []).map(d => d.highlevel_call_id));
+    if (deletedCallIds.size > 0) {
+      syncLogger.logs.push(`[FILTER] Found ${deletedCallIds.size} deleted calls to exclude`);
+    }
 
     const chunks: Array<{ start: string; end: string }> = [];
     let currentDate = new Date(rangeStartDate);
@@ -489,7 +900,7 @@ Deno.serve(async (req: Request) => {
           return new Response(
             JSON.stringify({ error: errorMsg, details: errorText }),
             {
-              status: 500,
+              status: response.status,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             }
           );
@@ -514,6 +925,14 @@ Deno.serve(async (req: Request) => {
             callsById.set(call.id, call);
             allRawCalls.push(call);
           }
+        }
+
+        // Update last_used_at for this API key after a successful page fetch
+        if (oauthData.id) {
+          await supabase
+            .from('api_keys')
+            .update({ last_used_at: new Date().toISOString() })
+            .eq('id', oauthData.id);
         }
 
         if (calls.length < pageSize) {
@@ -552,9 +971,14 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
+        const destinationNumber = rawCall.destinationNumber || rawCall.destination_number || rawCall.dialedNumber;
+        const destinationNumberSafe =
+          destinationNumber && destinationNumber !== 'null' && destinationNumber !== 'undefined'
+            ? destinationNumber
+            : '';
         const toNumberSafe = toNumber && toNumber !== 'null' && toNumber !== 'undefined'
           ? toNumber
-          : 'unknown';
+          : destinationNumberSafe || 'unknown';
 
         if (rawCall.is_test_call === true) {
           skippedCount++;
@@ -564,6 +988,16 @@ Deno.serve(async (req: Request) => {
             reason: 'is_test_call_flag',
             from_number: fromNumber,
             to_number: toNumber,
+          });
+          continue;
+        }
+
+        if (!adminOverride && deletedCallIds.has(rawCall.id)) {
+          skippedCount++;
+          syncLogger.skipReasons['deleted_call'] = (syncLogger.skipReasons['deleted_call'] || 0) + 1;
+          syncLogger.skippedCalls.push({
+            id: rawCall.id,
+            reason: 'previously_deleted',
           });
           continue;
         }
@@ -604,15 +1038,22 @@ Deno.serve(async (req: Request) => {
 
         // Attach phone_number_id if matching agent's numbers
         let phoneNumberId: string | null = null;
-        if (agentUuid && agentPhoneMap[agentUuid]) {
-          const nums = agentPhoneMap[agentUuid];
-          const fromNorm = fromNumber ? normalizeNumber(fromNumber) : '';
-          const toNorm = toNumberSafe ? normalizeNumber(toNumberSafe) : '';
-          const match = nums.find((n) => {
-            const norm = normalizeNumber(n.phone_number);
-            return norm === fromNorm || norm === toNorm;
-          });
-          if (match) phoneNumberId = match.id;
+        if (agentUuid) {
+          const agentNumbers = agentPhoneMap[agentUuid] || [];
+          if (agentNumbers.length > 0) {
+            const fromNorm = fromNumber ? normalizeNumber(fromNumber) : '';
+            const toNorm = toNumberSafe ? normalizeNumber(toNumberSafe) : '';
+            const destNorm = destinationNumber ? normalizeNumber(destinationNumber) : '';
+            const match = agentNumbers.find((n) => {
+              const norm = normalizeNumber(n.phone_number);
+              return norm === fromNorm || norm === toNorm || norm === destNorm;
+            });
+            if (match) phoneNumberId = match.id;
+          }
+
+          if (!phoneNumberId && agentNumbers.length === 1) {
+            phoneNumberId = agentNumbers[0].id;
+          }
         }
 
         const rawFirst =
@@ -735,7 +1176,7 @@ Deno.serve(async (req: Request) => {
                 const nestedMessageKeys = detail?.message ? Object.keys(detail.message) : [];
                 const nestedCallKeys = detail?.call ? Object.keys(detail.call) : [];
                 syncLogger.logs.push(
-                  `[DETAIL-DEBUG] ${rawCall.id} missing=${!callData.recording_url ? 'recording' : ''}${!callData.recording_url && !callData.message_id ? '+' : ''}${!callData.message_id ? 'messageId' : ''}; keys=${detailKeys.join(',').slice(0,500)}; messageKeys=${nestedMessageKeys.join(',')}; callKeys=${nestedCallKeys.join(',')}`
+                  `[DETAIL-DEBUG] ${rawCall.id} missing=${!callData.recording_url ? 'recording' : ''}${!callData.recording_url && !callData.message_id ? '+' : ''}${!callData.message_id ? 'messageId' : ''}; keys=${detailKeys.join(',').slice(0, 500)}; messageKeys=${nestedMessageKeys.join(',')}; callKeys=${nestedCallKeys.join(',')}`
                 );
               }
             }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, Monitor, Smartphone, Tablet, XCircle } from 'lucide-react';
 import { adminService, ActiveSession } from '../../services/admin';
-import { format } from 'date-fns';
+import { formatDateEST } from '../../utils/formatting';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { NotificationModal } from '../NotificationModal';
 import { useNotification } from '../../hooks/useNotification';
@@ -127,10 +127,10 @@ export function UserSessionsModal({ userId, userName, onClose }: UserSessionsMod
                           )}
                           <p>
                             <span className="font-medium">Last Activity:</span>{' '}
-                            {format(new Date(session.last_activity_at), 'MMM d, yyyy h:mm a')}
+                            {formatDateEST(new Date(session.last_activity_at), 'MMM d, yyyy h:mm a')}
                           </p>
                           <p className="text-xs text-gray-500">
-                            Started: {format(new Date(session.created_at), 'MMM d, yyyy h:mm a')}
+                            Started: {formatDateEST(new Date(session.created_at), 'MMM d, yyyy h:mm a')}
                           </p>
                         </div>
                       </div>

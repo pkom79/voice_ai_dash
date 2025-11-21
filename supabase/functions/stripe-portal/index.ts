@@ -8,6 +8,11 @@ const corsHeaders = {
 };
 
 async function getSecret(key: string): Promise<string | null> {
+  const envValue = Deno.env.get(key);
+  if (envValue) {
+    return envValue;
+  }
+
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -40,11 +45,28 @@ Deno.serve(async (req: Request) => {
       throw new Error('Stripe secret key not configured');
     }
 
-    const { userId, returnUrl } = await req.json();
+    // Validate user via Authorization header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing Authorization header');
+    }
 
-    if (!userId || !returnUrl) {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    if (userError || !user) {
+      throw new Error('Invalid or expired user token');
+    }
+
+    const { returnUrl } = await req.json();
+
+    if (!returnUrl) {
       return new Response(
-        JSON.stringify({ error: 'Missing required parameters' }),
+        JSON.stringify({ error: 'Missing returnUrl parameter' }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -52,14 +74,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: billing, error: billingError } = await supabase
+    const { data: billing, error: billingError } = await supabaseAdmin
       .from('billing_accounts')
       .select('stripe_customer_id')
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .maybeSingle();
 
     if (billingError || !billing?.stripe_customer_id) {

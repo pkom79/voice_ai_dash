@@ -122,6 +122,10 @@ Deno.serve(async (req: Request) => {
     // Get redirect URI from environment
     const redirectUri = Deno.env.get("HIGHLEVEL_REDIRECT_URI") || "https://voiceaidash.app/oauth/callback";
 
+    // Determine user_type based on stored token data
+    // If we have a location_id, it's a Location level token. Otherwise assume Company.
+    const userType = tokenData.location_id ? "Location" : "Company";
+
     const refreshResponse = await fetch(tokenUrl, {
       method: "POST",
       headers: {
@@ -132,7 +136,7 @@ Deno.serve(async (req: Request) => {
         client_secret: clientSecret,
         grant_type: "refresh_token",
         refresh_token: tokenData.refresh_token,
-        user_type: "Company",
+        user_type: userType,
         redirect_uri: redirectUri,
       }).toString(),
     });

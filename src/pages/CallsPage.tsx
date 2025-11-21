@@ -16,7 +16,7 @@ import {
   Calendar,
   Volume2,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDateEST } from '../utils/formatting';
 import DateRangePicker from '../components/DateRangePicker';
 import RecordingPlayer from '../components/RecordingPlayer';
 import { formatContactName, formatPhoneNumber } from '../utils/formatting';
@@ -70,8 +70,6 @@ export function CallsPage() {
   const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [availableAgents, setAvailableAgents] = useState<Array<{ id: string; name: string }>>([]);
-  const [selectedPhoneNumber, setSelectedPhoneNumber] = useState<string>('all');
-  const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<Array<{ id: string; phoneNumber: string; normalized: string }>>([]);
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [showModal, setShowModal] = useState<'summary' | 'transcript' | 'recording' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -93,10 +91,6 @@ export function CallsPage() {
   }, [availableAgents, effectiveUserId]);
 
   useEffect(() => {
-    loadPhoneNumbers();
-  }, [selectedAgent, availableAgents, effectiveUserId]);
-
-  useEffect(() => {
     if (lastSyncTime) {
       loadCalls();
     }
@@ -104,12 +98,7 @@ export function CallsPage() {
 
   useEffect(() => {
     filterCalls();
-  }, [calls, direction, searchQuery, selectedAgent, selectedPhoneNumber, dateRange, sortField, sortDirection, availableAgents, availablePhoneNumbers]);
-
-  const normalizeNumber = (value?: string | null) => {
-    const digits = (value || '').replace(/[^0-9]/g, '');
-    return digits.replace(/^1(?=\d{10}$)/, '');
-  };
+  }, [calls, direction, searchQuery, selectedAgent, dateRange, sortField, sortDirection, availableAgents]);
 
   const loadViewingUserName = async (userId: string) => {
     try {
@@ -242,62 +231,6 @@ export function CallsPage() {
     }
   };
 
-  const loadPhoneNumbers = async () => {
-    try {
-      if (!effectiveUserId) return;
-
-      // Get phone numbers based on selected agent or all assigned agents
-      let agentIds: string[] = [];
-
-      if (selectedAgent === 'all') {
-        // Get all agents assigned to user
-        agentIds = availableAgents.map(agent => agent.id);
-      } else {
-        // Get only the selected agent
-        agentIds = [selectedAgent];
-      }
-
-      if (agentIds.length === 0) {
-        setAvailablePhoneNumbers([]);
-        setSelectedPhoneNumber('all');
-        return;
-      }
-
-      // Fetch phone numbers linked to these agents
-      const { data, error } = await supabase
-        .from('agent_phone_numbers')
-        .select(`
-          phone_numbers:phone_number_id (
-            id,
-            phone_number
-          )
-        `)
-        .in('agent_id', agentIds);
-
-      if (error) throw error;
-
-      const phoneNumbers = (data || [])
-        .filter((item: any) => item.phone_numbers)
-        .map((item: any) => ({
-          id: item.phone_numbers.id,
-          phoneNumber: item.phone_numbers.phone_number,
-          normalized: normalizeNumber(item.phone_numbers.phone_number),
-        }))
-        .filter((phone, index, self) =>
-          index === self.findIndex(p => p.id === phone.id)
-        );
-
-      setAvailablePhoneNumbers(phoneNumbers);
-
-      // Reset phone number selection if current selection is not in new list
-      if (selectedPhoneNumber !== 'all' && !phoneNumbers.find(p => p.id === selectedPhoneNumber)) {
-        setSelectedPhoneNumber('all');
-      }
-    } catch (error) {
-      console.error('Error loading phone numbers:', error);
-    }
-  };
-
   const filterCalls = () => {
     let filtered = [...calls];
 
@@ -305,20 +238,6 @@ export function CallsPage() {
 
     if (selectedAgent !== 'all') {
       filtered = filtered.filter((call) => call.agent_id === selectedAgent);
-    }
-
-    if (selectedPhoneNumber !== 'all') {
-      const selectedPhone = availablePhoneNumbers.find((p) => p.id === selectedPhoneNumber);
-      const normalizedSelection = selectedPhone?.normalized || '';
-
-      filtered = filtered.filter((call) => {
-        const matchesAssignment = call.phone_number_id === selectedPhoneNumber;
-        const matchesRawNumber =
-          normalizedSelection &&
-          (normalizeNumber(call.from_number) === normalizedSelection || normalizeNumber(call.to_number) === normalizedSelection);
-
-        return matchesAssignment || matchesRawNumber;
-      });
     }
 
     if (dateRange.start) {
@@ -379,7 +298,7 @@ export function CallsPage() {
     ];
 
     const rows = filteredCalls.map((call) => [
-      format(new Date(call.call_started_at), 'yyyy-MM-dd HH:mm:ss'),
+      formatDateEST(new Date(call.call_started_at), 'yyyy-MM-dd HH:mm:ss'),
       call.direction,
       formatContactName(call.contact_name),
       call.from_number,
@@ -395,7 +314,7 @@ export function CallsPage() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `calls-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.download = `calls-${formatDateEST(new Date(), 'yyyy-MM-dd')}.csv`;
     a.click();
   };
 
@@ -474,95 +393,79 @@ export function CallsPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-4">
-        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-4">
-          {/* Direction Toggle */}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-4 space-y-4">
+        {/* First Row: Direction Tabs & Date Picker */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex gap-2">
             <button
               onClick={() => setDirection('inbound')}
-              className={`px-4 py-2 text-sm rounded-md transition-colors ${direction === 'inbound' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'inbound'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
             >
               Inbound
             </button>
             <button
               onClick={() => setDirection('outbound')}
-              className={`px-4 py-2 text-sm rounded-md transition-colors ${direction === 'outbound' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'outbound'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
             >
               Outbound
             </button>
           </div>
 
-          {/* Date Range */}
-          <div className="flex items-center gap-2">
+          <div className="relative">
             <button
-              onClick={() => setShowDatePicker(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors bg-white dark:bg-gray-800"
             >
               <Calendar className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-              <span className="text-gray-700 dark:text-gray-300">
+              <span className="text-sm text-gray-700 dark:text-gray-300">
                 {dateRange.start && dateRange.end
-                  ? `${format(dateRange.start, 'MMM d, yyyy')} - ${format(dateRange.end, 'MMM d, yyyy')}`
-                  : dateRange.start
-                    ? format(dateRange.start, 'MMM d, yyyy')
-                    : 'All Time'}
+                  ? `${formatDateEST(dateRange.start, 'MMM d, yyyy')} - ${formatDateEST(dateRange.end, 'MMM d, yyyy')}`
+                  : 'Select Date Range'}
               </span>
             </button>
-            {(dateRange.start || dateRange.end) && (
-              <button
-                onClick={() => setDateRange({ start: null, end: null })}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                title="Clear date filter"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+          </div>
+        </div>
+
+        {/* Second Row: Agent | Search */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Agent Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agent</label>
+            <select
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              className="w-full px-3 py-2 h-[42px] border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              <option value="all">All Agents</option>
+              {availableAgents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Agent Filter */}
-          <select
-            value={selectedAgent}
-            onChange={(e) => setSelectedAgent(e.target.value)}
-            className="w-full sm:w-72 px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Agents</option>
-            {availableAgents.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Phone Numbers Filter */}
-          <select
-            value={selectedPhoneNumber}
-            onChange={(e) => setSelectedPhoneNumber(e.target.value)}
-            className="w-full sm:w-64 px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">Assigned Phone Numbers</option>
-            {availablePhoneNumbers.map((phone) => (
-              <option key={phone.id} value={phone.id}>
-                {formatPhoneNumber(phone.phoneNumber)}
-              </option>
-            ))}
-          </select>
-
           {/* Search */}
-          <div className="w-full sm:flex-1 sm:min-w-[150px]">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-gray-500" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
               <input
                 type="text"
-                placeholder="Search by contact or phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Contact, phone, action..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
               />
             </div>
           </div>
         </div>
-
       </div>
 
       {/* Calls Table */}
@@ -571,32 +474,14 @@ export function CallsPage() {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Call ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Agent
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Phone #
-                </th>
-                <th
-                  onClick={() => handleSort('contact_name')}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                >
-                  Contact
-                </th>
-                <th
-                  onClick={() => handleSort('from_number')}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                >
-                  From
-                </th>
                 <th
                   onClick={() => handleSort('call_started_at')}
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
                   Date & Time
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Direction
                 </th>
                 <th
                   onClick={() => handleSort('duration_seconds')}
@@ -611,14 +496,26 @@ export function CallsPage() {
                   Cost
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-
+                  Call ID
+                </th>
+                <th
+                  onClick={() => handleSort('contact_name')}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                >
+                  Contact
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Agent
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Content
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {paginatedCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     No calls found. Try adjusting your filters or click Sync Now to refresh your data.
                   </td>
                 </tr>
@@ -626,35 +523,22 @@ export function CallsPage() {
                 paginatedCalls.map((call) => (
                   <tr key={call.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-xs text-gray-600 dark:text-gray-400 font-mono">
-                        {call.highlevel_call_id}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900 dark:text-gray-100">
-                        {call.agents?.name || '-'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-gray-100 font-mono">
-                        {formatPhoneNumber(call.direction === 'inbound' ? call.to_number : call.from_number)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {formatContactName(call.contact_name)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-gray-100 font-mono">{call.from_number || '-'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-gray-100">
-                        {format(new Date(call.call_started_at), 'MMM d, yyyy')}
+                        {formatDateEST(new Date(call.call_started_at), 'MMM d, yyyy')}
                       </div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {format(new Date(call.call_started_at), 'h:mm a')}
+                        {formatDateEST(new Date(call.call_started_at), 'h:mm a')}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${call.direction === 'inbound'
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                          : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          }`}
+                      >
+                        {call.direction.toUpperCase()}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                       {formatDuration(call.duration_seconds)}
@@ -669,6 +553,24 @@ export function CallsPage() {
                           ${call.cost.toFixed(2)}
                         </span>
                       )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 font-mono">
+                        {call.highlevel_call_id}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {formatContactName(call.contact_name)}
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+                        {formatPhoneNumber(call.direction === 'inbound' ? call.from_number : call.to_number)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900 dark:text-gray-100">
+                        {call.agents?.name || '-'}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">

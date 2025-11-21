@@ -168,6 +168,7 @@ class AdminService {
     outboundRateCents?: number;
     adminNotes?: string;
     sendInvite?: boolean;
+    stripeCustomerId?: string;
   }): Promise<{ success: boolean; userId?: string; invitationLink?: string; error?: string }> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -589,6 +590,7 @@ class AdminService {
 
   async getAuditLogs(filters?: {
     adminId?: string;
+    targetUserId?: string;
     action?: string;
     startDate?: Date;
     endDate?: Date;
@@ -606,6 +608,10 @@ class AdminService {
 
       if (filters?.adminId) {
         query = query.eq('admin_user_id', filters.adminId);
+      }
+
+      if (filters?.targetUserId) {
+        query = query.eq('target_user_id', filters.targetUserId);
       }
 
       if (filters?.action) {

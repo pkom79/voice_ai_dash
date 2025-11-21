@@ -16,6 +16,7 @@ import {
   Moon,
   RefreshCw,
   BarChart3,
+  ShieldCheck,
 } from 'lucide-react';
 import logoLight from '../assets/Voice AI Dash Logo with Text.png';
 import logoDark from '../assets/Voice AI Dash Logo with Text Dark.png';
@@ -61,7 +62,7 @@ export function DashboardLayout() {
   const adminNavigation = [
     { name: 'Call Analytics', href: '/admin/calls', icon: BarChart3 },
     { name: 'Users', href: '/admin/users', icon: Users },
-    { name: 'Configuration', href: '/admin/config', icon: Settings },
+    { name: 'System', href: '/admin/system', icon: Settings },
     { name: 'Profile', href: '/profile', icon: User },
   ];
 
@@ -79,9 +80,8 @@ export function DashboardLayout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
@@ -109,11 +109,10 @@ export function DashboardLayout() {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive
                       ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
+                    }`}
                   onClick={() => setSidebarOpen(false)}
                 >
                   <item.icon className="h-5 w-5" />
@@ -134,7 +133,16 @@ export function DashboardLayout() {
                 <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                   {profile?.first_name} {profile?.last_name}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{profile?.role}</p>
+                {profile?.role === 'admin' ? (
+                  <span className="mt-1 inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold uppercase bg-red-600 text-white rounded-full tracking-wide shadow-sm">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Admin
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 capitalize truncate">
+                    {profile?.role}
+                  </span>
+                )}
               </div>
             </div>
             <button

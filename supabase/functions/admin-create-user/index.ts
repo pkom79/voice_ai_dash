@@ -1,11 +1,30 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
+
+async function getSecret(supabase: SupabaseClient, key: string): Promise<string | null> {
+  const envValue = Deno.env.get(key);
+  if (envValue) {
+    return envValue;
+  }
+
+  const { data, error } = await supabase
+    .from('app_secrets')
+    .select('value')
+    .eq('key', key)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data.value;
+}
 
 interface CreateUserRequest {
   email: string;
@@ -20,6 +39,7 @@ interface CreateUserRequest {
   outboundRateCents?: number;
   adminNotes?: string;
   sendInvite?: boolean;
+  stripeCustomerId?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -162,10 +182,72 @@ Deno.serve(async (req: Request) => {
     }
 
     if (requestData.role === "client" || !requestData.role) {
-      const inboundPlan = requestData.inboundPlan || null;
-      const outboundPlan = requestData.outboundPlan || null;
-      const inboundRateCents = requestData.inboundRateCents || 500;
-      const outboundRateCents = requestData.outboundRateCents || 500;
+      let inboundPlan = requestData.inboundPlan ?? null;
+      const outboundPlan = requestData.outboundPlan ?? null;
+      let stripeCustomerId: string | null = null;
+      let stripeSubscriptionId: string | null = null;
+      let nextPaymentAt: string | null = null;
+
+      // Check for existing Stripe Customer
+      try {
+        const stripeKey = await getSecret(supabaseAdmin, 'STRIPE_SECRET_KEY');
+        if (stripeKey) {
+          // If a specific Stripe Customer ID is provided, use it.
+          // Otherwise, look up by email.
+          if (requestData.stripeCustomerId) {
+            stripeCustomerId = requestData.stripeCustomerId;
+            console.log(`Using provided Stripe Customer ID: ${stripeCustomerId}`);
+          } else {
+            const customerResponse = await fetch(
+              `https://api.stripe.com/v1/customers?email=${encodeURIComponent(requestData.email)}&limit=1`,
+              {
+                headers: { Authorization: `Bearer ${stripeKey}` },
+              }
+            );
+
+            if (customerResponse.ok) {
+              const customerData = await customerResponse.json();
+              if (customerData.data && customerData.data.length > 0) {
+                const customer = customerData.data[0];
+                stripeCustomerId = customer.id;
+                console.log(`Found existing Stripe customer for ${requestData.email}: ${stripeCustomerId}`);
+              }
+            }
+          }
+
+          // If we have a customer ID (either provided or found), check for subscriptions
+          if (stripeCustomerId) {
+            const subResponse = await fetch(
+              `https://api.stripe.com/v1/subscriptions?customer=${stripeCustomerId}&status=active&limit=1`,
+              {
+                headers: { Authorization: `Bearer ${stripeKey}` },
+              }
+            );
+
+            if (subResponse.ok) {
+              const subData = await subResponse.json();
+              if (subData.data && subData.data.length > 0) {
+                const sub = subData.data[0];
+                stripeSubscriptionId = sub.id;
+                inboundPlan = 'inbound_unlimited'; // Auto-upgrade if subscription exists
+                nextPaymentAt = new Date(sub.current_period_end * 1000).toISOString();
+                console.log(`Found active subscription: ${stripeSubscriptionId}`);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error checking Stripe:", err);
+        // Continue without linking Stripe - don't block user creation
+      }
+
+      // Ensure at least one plan is present (default to inbound PPU)
+      if (!inboundPlan && !outboundPlan) {
+        inboundPlan = 'inbound_pay_per_use';
+      }
+
+      const inboundRateCents = requestData.inboundRateCents ?? 100;
+      const outboundRateCents = requestData.outboundRateCents ?? 100;
 
       const { error: billingError } = await supabaseAdmin.from("billing_accounts").insert({
         user_id: newUser.user.id,
@@ -176,6 +258,9 @@ Deno.serve(async (req: Request) => {
         wallet_cents: 0,
         first_login_billing_completed: false,
         admin_notes: requestData.adminNotes || null,
+        stripe_customer_id: stripeCustomerId,
+        stripe_subscription_id: stripeSubscriptionId,
+        next_payment_at: nextPaymentAt,
       });
 
       if (billingError) {

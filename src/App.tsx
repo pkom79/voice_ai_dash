@@ -13,7 +13,7 @@ import { CallsPage } from './pages/CallsPage';
 import { BillingPage } from './pages/BillingPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { AdminUsersPage } from './pages/AdminUsersPage';
-import { AdminConfigPage } from './pages/AdminConfigPage';
+import { AdminSystemPage } from './pages/AdminSystemPage';
 import { AdminCallsAnalytics } from './pages/AdminCallsAnalytics';
 import { UserDetailsPage } from './pages/UserDetailsPage';
 import { OAuthCallback } from './pages/OAuthCallback';
@@ -62,10 +62,10 @@ function App() {
               }
             />
             <Route
-              path="admin/config"
+              path="admin/system"
               element={
                 <ProtectedRoute requireAdmin>
-                  <AdminConfigPage />
+                  <AdminSystemPage />
                 </ProtectedRoute>
               }
             />

@@ -103,12 +103,17 @@ export async function processMonthlyPPUClose(userId: string): Promise<boolean> {
   // Get billing info
   const { data: billing } = await supabase
     .from('billing_accounts')
-    .select('billing_plan, wallet_cents, rate_per_minute_cents')
+    .select('inbound_plan, outbound_plan, wallet_cents, inbound_rate_cents, outbound_rate_cents')
     .eq('user_id', userId)
     .maybeSingle();
 
+  const hasPPU =
+    !!billing &&
+    (billing.inbound_plan === 'inbound_pay_per_use' ||
+      billing.outbound_plan === 'outbound_pay_per_use');
+
   // Only process PPU accounts
-  if (!billing || billing.billing_plan !== 'pay_per_use') {
+  if (!billing || !hasPPU) {
     return false;
   }
 
@@ -119,7 +124,7 @@ export async function processMonthlyPPUClose(userId: string): Promise<boolean> {
   periodStart.setMonth(periodStart.getMonth() - 1);
 
   // Calculate charges
-  const { totalCents, totalMinutes } = await calculateMonthlyPPUCharge(
+  const { totalCents, totalMinutes, avgRateCents } = await calculateMonthlyPPUCharge(
     userId,
     periodStart,
     periodEnd
@@ -141,7 +146,11 @@ export async function processMonthlyPPUClose(userId: string): Promise<boolean> {
       periodEnd,
       {
         minutes: totalMinutes,
-        rate: billing.rate_per_minute_cents || 500,
+        rate:
+          avgRateCents ||
+          billing.inbound_rate_cents ||
+          billing.outbound_rate_cents ||
+          100,
       }
     );
 

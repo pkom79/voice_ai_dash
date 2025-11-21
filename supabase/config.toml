@@ -56,3 +56,6 @@ backend = "postgres"
 
 [experimental]
 orioledb_version = ""
+
+[functions.stripe-webhook]
+verify_jwt = false

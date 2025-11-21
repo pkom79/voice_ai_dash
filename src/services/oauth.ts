@@ -25,7 +25,7 @@ class OAuthService {
   constructor() {
     const redirectUri = import.meta.env.VITE_HIGHLEVEL_REDIRECT_URI || 'https://voiceaidash.app/oauth/callback';
     const currentOrigin = window.location.origin;
-    const effectiveRedirectUri = redirectUri.includes('voiceaidash.com') && currentOrigin.includes('localhost')
+    const effectiveRedirectUri = redirectUri.includes('voiceaidash.app') && currentOrigin.includes('localhost')
       ? `${currentOrigin}/oauth/callback`
       : redirectUri;
 

@@ -27,7 +27,7 @@ import { CreateUserModal } from '../components/admin/CreateUserModal';
 import { UserSessionsModal } from '../components/admin/UserSessionsModal';
 import { BillingConfigModal } from '../components/admin/BillingConfigModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
-import { format } from 'date-fns';
+import { formatDateEST } from '../utils/formatting';
 import { NotificationModal } from '../components/NotificationModal';
 import { useNotification } from '../hooks/useNotification';
 
@@ -98,7 +98,7 @@ export function AdminUsersPage() {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   useEffect(() => {
@@ -443,166 +443,166 @@ export function AdminUsersPage() {
       </div>
 
       <div className="bg-white rounded-lg shadow">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center gap-2 mb-4">
-              <Users className="h-5 w-5 text-blue-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Users ({filteredUsers.length})</h2>
-            </div>
-
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search users..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="h-5 w-5 text-blue-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Users ({filteredUsers.length})</h2>
           </div>
 
-          <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
-            {loading ? (
-              <div className="p-12 text-center">
-                <Loader2 className="h-8 w-8 text-blue-600 mx-auto mb-2 animate-spin" />
-                <p className="text-gray-600">Loading users...</p>
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="p-12 text-center text-gray-500">No users found</div>
-            ) : (
-              filteredUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="p-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1">
-                      {/* Business Name - Prominent Display */}
-                      {user.business_name && (
-                        <h3 className="font-semibold text-gray-900 text-base mb-0.5">
-                          {user.business_name}
-                        </h3>
-                      )}
-
-                      {/* User Name - Secondary */}
-                      <div className="flex items-center gap-2 mb-2">
-                        <p className="text-sm text-gray-600">
-                          {user.first_name} {user.last_name}
-                        </p>
-                        <span className="text-xs text-gray-400 uppercase font-medium">
-                          {user.role}
-                        </span>
-                      </div>
-
-                      {/* Comprehensive Status Tags - ALL CAPS */}
-                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                        {/* Account Status */}
-                        {!user.is_active ? (
-                          <span className="px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded uppercase">
-                            SUSPENDED
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
-                            ACTIVE
-                          </span>
-                        )}
-
-                        {/* Billing Plan Tags */}
-                        {user.inboundPlan === 'inbound_unlimited' && (
-                          <span className="px-2 py-0.5 text-xs font-bold bg-blue-100 text-blue-700 rounded uppercase">
-                            INBOUND UNL
-                          </span>
-                        )}
-                        {user.inboundPlan === 'inbound_pay_per_use' && (
-                          <span className="px-2 py-0.5 text-xs font-bold bg-cyan-100 text-cyan-700 rounded uppercase">
-                            INBOUND PPU
-                          </span>
-                        )}
-                        {user.outboundPlan === 'outbound_pay_per_use' && (
-                          <span className="px-2 py-0.5 text-xs font-bold bg-teal-100 text-teal-700 rounded uppercase">
-                            OUTBOUND PPU
-                          </span>
-                        )}
-
-                        {/* Billing Status */}
-                        {user.billingStatus === 'LOW BALANCE' && (
-                          <span className="px-2 py-0.5 text-xs font-bold bg-orange-100 text-orange-700 rounded uppercase">
-                            LOW BALANCE
-                          </span>
-                        )}
-
-                        {/* Integration Status */}
-                        {user.hasConnection && (
-                          <span className="px-2 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700 rounded uppercase">
-                            HL CONNECTED
-                          </span>
-                        )}
-                        {user.hasExpiredToken && (
-                          <span className="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-700 rounded uppercase">
-                            TOKEN EXPIRED
-                          </span>
-                        )}
-                        {user.hasAgents && (
-                          <span className="px-2 py-0.5 text-xs font-bold bg-indigo-100 text-indigo-700 rounded uppercase">
-                            {user.agentCount === 1 ? 'AGENT' : `AGENTS (${user.agentCount})`}
-                          </span>
-                        )}
-                        {user.hasPhoneNumbers && (
-                          <span className="px-2 py-0.5 text-xs font-bold bg-purple-100 text-purple-700 rounded uppercase">
-                            PHONE
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Last Login */}
-                      {user.last_login && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          Last login: {format(new Date(user.last_login), 'MMM d, yyyy')}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Right Side Actions */}
-                    <div className="flex flex-col gap-2 ml-4">
-                      <button
-                        onClick={() => {
-                          window.location.href = `/admin/users/${user.id}?userId=${user.id}`;
-                        }}
-                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
-                      >
-                        View Details
-                      </button>
-                      <button
-                        onClick={() => {
-                          setConfirmModal({
-                            isOpen: true,
-                            title: 'Remove User',
-                            message: `Are you sure you want to remove ${user.first_name} ${user.last_name}? This action cannot be undone.`,
-                            type: 'danger',
-                            onConfirm: async () => {
-                              const success = await adminService.deleteUser(user.id);
-                              if (success) {
-                                await loadUsers();
-                                setConfirmModal({ ...confirmModal, isOpen: false });
-                                showSuccess('User removed successfully');
-                              } else {
-                                setConfirmModal({ ...confirmModal, isOpen: false });
-                                showError('Failed to remove user');
-                              }
-                            },
-                          });
-                        }}
-                        className="px-4 py-2 text-red-600 text-sm font-medium border border-red-300 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
-                      >
-                        Remove User
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
           </div>
         </div>
+
+        <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
+          {loading ? (
+            <div className="p-12 text-center">
+              <Loader2 className="h-8 w-8 text-blue-600 mx-auto mb-2 animate-spin" />
+              <p className="text-gray-600">Loading users...</p>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="p-12 text-center text-gray-500">No users found</div>
+          ) : (
+            filteredUsers.map((user) => (
+              <div
+                key={user.id}
+                className="p-4 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    {/* Business Name - Prominent Display */}
+                    {user.business_name && (
+                      <h3 className="font-semibold text-gray-900 text-base mb-0.5">
+                        {user.business_name}
+                      </h3>
+                    )}
+
+                    {/* User Name - Secondary */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-sm text-gray-600">
+                        {user.first_name} {user.last_name}
+                      </p>
+                      <span className="text-xs text-gray-400 uppercase font-medium">
+                        {user.role}
+                      </span>
+                    </div>
+
+                    {/* Comprehensive Status Tags - ALL CAPS */}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      {/* Account Status */}
+                      {!user.is_active ? (
+                        <span className="px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded uppercase">
+                          SUSPENDED
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
+                          ACTIVE
+                        </span>
+                      )}
+
+                      {/* Billing Plan Tags */}
+                      {user.inboundPlan === 'inbound_unlimited' && (
+                        <span className="px-2 py-0.5 text-xs font-bold bg-blue-100 text-blue-700 rounded uppercase">
+                          INBOUND UNL
+                        </span>
+                      )}
+                      {user.inboundPlan === 'inbound_pay_per_use' && (
+                        <span className="px-2 py-0.5 text-xs font-bold bg-cyan-100 text-cyan-700 rounded uppercase">
+                          INBOUND PPU
+                        </span>
+                      )}
+                      {user.outboundPlan === 'outbound_pay_per_use' && (
+                        <span className="px-2 py-0.5 text-xs font-bold bg-teal-100 text-teal-700 rounded uppercase">
+                          OUTBOUND PPU
+                        </span>
+                      )}
+
+                      {/* Billing Status */}
+                      {user.billingStatus === 'LOW BALANCE' && (
+                        <span className="px-2 py-0.5 text-xs font-bold bg-orange-100 text-orange-700 rounded uppercase">
+                          LOW BALANCE
+                        </span>
+                      )}
+
+                      {/* Integration Status */}
+                      {user.hasConnection && (
+                        <span className="px-2 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700 rounded uppercase">
+                          HL CONNECTED
+                        </span>
+                      )}
+                      {user.hasExpiredToken && (
+                        <span className="px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded uppercase">
+                          TOKEN EXPIRED
+                        </span>
+                      )}
+                      {user.hasAgents && (
+                        <span className="px-2 py-0.5 text-xs font-bold bg-indigo-100 text-indigo-700 rounded uppercase">
+                          {user.agentCount === 1 ? 'AGENT' : `AGENTS (${user.agentCount})`}
+                        </span>
+                      )}
+                      {user.hasPhoneNumbers && (
+                        <span className="px-2 py-0.5 text-xs font-bold bg-purple-100 text-purple-700 rounded uppercase">
+                          PHONE
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Last Login */}
+                    {user.last_login && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        Last login: {formatDateEST(new Date(user.last_login), 'MMM d, yyyy')}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Right Side Actions */}
+                  <div className="flex flex-col gap-2 ml-4">
+                    <button
+                      onClick={() => {
+                        window.location.href = `/admin/users/${user.id}?userId=${user.id}`;
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+                    >
+                      View Details
+                    </button>
+                    <button
+                      onClick={() => {
+                        setConfirmModal({
+                          isOpen: true,
+                          title: 'Remove User',
+                          message: `Are you sure you want to remove ${user.first_name} ${user.last_name}? This action cannot be undone.`,
+                          type: 'danger',
+                          onConfirm: async () => {
+                            const success = await adminService.deleteUser(user.id);
+                            if (success) {
+                              await loadUsers();
+                              setConfirmModal({ ...confirmModal, isOpen: false });
+                              showSuccess('User removed successfully');
+                            } else {
+                              setConfirmModal({ ...confirmModal, isOpen: false });
+                              showError('Failed to remove user');
+                            }
+                          },
+                        });
+                      }}
+                      className="px-4 py-2 text-red-600 text-sm font-medium border border-red-300 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
+                    >
+                      Remove User
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
 
       {showCreateUserModal && (
         <CreateUserModal
@@ -626,7 +626,7 @@ export function AdminUsersPage() {
           userId={selectedUser.id}
           userName={`${selectedUser.first_name} ${selectedUser.last_name}`}
           onClose={() => setShowBillingModal(false)}
-          onSuccess={() => {}}
+          onSuccess={() => { }}
         />
       )}
 
@@ -668,11 +668,10 @@ export function AdminUsersPage() {
                     return (
                       <div
                         key={agent.id}
-                        className={`p-4 border rounded-lg transition-colors ${
-                          isAssigned
+                        className={`p-4 border rounded-lg transition-colors ${isAssigned
                             ? 'bg-green-50 border-green-300'
                             : 'bg-white border-gray-200 hover:border-blue-300'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1">

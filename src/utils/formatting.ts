@@ -1,3 +1,5 @@
+import { formatInTimeZone } from 'date-fns-tz';
+
 export function toTitleCase(str: string | null): string {
   if (!str) return '';
 
@@ -38,4 +40,8 @@ export function formatPhoneNumber(phoneNumber: string | null): string {
 
   // Return original if format doesn't match expected patterns
   return phoneNumber;
+}
+
+export function formatDateEST(date: Date | string | number, formatStr: string = 'MMM d, yyyy h:mm a'): string {
+  return formatInTimeZone(date, 'America/New_York', formatStr);
 }

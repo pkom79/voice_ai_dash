@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { User, Building, Phone, Mail, Bell, Lock, Save, Plus, Trash2, Check, Send } from 'lucide-react';
+import { User, Building, Phone, Mail, Bell, Lock, Save, Plus, Trash2, Check, Send, Loader2 } from 'lucide-react';
 
 export function ProfilePage() {
   const { profile, user, updatePassword } = useAuth();
@@ -9,7 +9,7 @@ export function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
-  const [billingPlan, setBillingPlan] = useState<{inbound_plan: string | null; outbound_plan: string | null} | null>(null);
+  const [billingPlan, setBillingPlan] = useState<{ inbound_plan: string | null; outbound_plan: string | null } | null>(null);
   const [notificationEmails, setNotificationEmails] = useState<Array<{
     id: string;
     email: string;
@@ -23,6 +23,7 @@ export function ProfilePage() {
   const [newEmailAddress, setNewEmailAddress] = useState('');
   const [addingEmail, setAddingEmail] = useState(false);
   const [sendingTestEmail, setSendingTestEmail] = useState<string | null>(null);
+  const [sendingPasswordReset, setSendingPasswordReset] = useState(false);
 
   const [profileData, setProfileData] = useState({
     first_name: '',
@@ -35,6 +36,41 @@ export function ProfilePage() {
     newPassword: '',
     confirmPassword: '',
   });
+
+  const handleSendPasswordReset = async () => {
+    if (!user?.email) return;
+
+    setError('');
+    setSuccess('');
+    setSendingPasswordReset(true);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-password-reset`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ email: user.email }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to send password reset email');
+      }
+
+      setSuccess(`Password reset link sent to ${user.email}`);
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err: any) {
+      console.error('Error sending password reset:', err);
+      setError(err.message || 'Failed to send password reset link');
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setSendingPasswordReset(false);
+    }
+  };
 
   useEffect(() => {
     if (profile) {
@@ -300,11 +336,10 @@ export function ProfilePage() {
           <nav className="flex -mb-px">
             <button
               onClick={() => setActiveTab('profile')}
-              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'profile'
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'profile'
                   ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                   : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4" />
@@ -314,11 +349,10 @@ export function ProfilePage() {
             {profile?.role !== 'admin' && (
               <button
                 onClick={() => setActiveTab('notifications')}
-                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'notifications'
+                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'notifications'
                     ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <Bell className="h-4 w-4" />
@@ -328,11 +362,10 @@ export function ProfilePage() {
             )}
             <button
               onClick={() => setActiveTab('security')}
-              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'security'
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'security'
                   ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                   : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2">
                 <Lock className="h-4 w-4" />
@@ -615,54 +648,84 @@ export function ProfilePage() {
 
           {/* Security Tab */}
           {activeTab === 'security' && (
-            <form onSubmit={handleUpdatePassword} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  value={passwordData.newPassword}
-                  onChange={(e) =>
-                    setPasswordData({ ...passwordData, newPassword: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter new password"
-                />
-              </div>
+            <div className="space-y-8">
+              <form onSubmit={handleUpdatePassword} className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordData.newPassword}
+                    onChange={(e) =>
+                      setPasswordData({ ...passwordData, newPassword: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter new password"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  value={passwordData.confirmPassword}
-                  onChange={(e) =>
-                    setPasswordData({ ...passwordData, confirmPassword: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Confirm new password"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordData.confirmPassword}
+                    onChange={(e) =>
+                      setPasswordData({ ...passwordData, confirmPassword: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Confirm new password"
+                  />
+                </div>
 
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <p className="text-sm text-blue-900 dark:text-blue-300">
-                  Password must be at least 6 characters long
-                </p>
-              </div>
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <p className="text-sm text-blue-900 dark:text-blue-300">
+                    Password must be at least 6 characters long
+                  </p>
+                </div>
 
-              <div className="flex justify-end">
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    <Lock className="h-4 w-4" />
+                    {loading ? 'Updating...' : 'Update Password'}
+                  </button>
+                </div>
+              </form>
+
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">Password Reset</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Send a password recovery link to{' '}
+                    <span className="font-medium text-gray-900 dark:text-white">{user?.email}</span>
+                  </p>
+                </div>
                 <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  type="button"
+                  onClick={handleSendPasswordReset}
+                  disabled={sendingPasswordReset || !user?.email}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Lock className="h-4 w-4" />
-                  {loading ? 'Updating...' : 'Update Password'}
+                  {sendingPasswordReset ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="h-4 w-4" />
+                      Send Recovery Link
+                    </>
+                  )}
                 </button>
               </div>
-            </form>
+            </div>
           )}
         </div>
       </div>

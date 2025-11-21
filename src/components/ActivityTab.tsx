@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Activity, AlertCircle, Filter, Search, Download, ChevronDown, ChevronUp, X, CheckCircle2, XCircle, AlertTriangle, Info, Link2, Unlink, RefreshCw, Clock } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDateEST } from '../utils/formatting';
 import { activityLogger } from '../services/activityLogger';
 
 interface ActivityTabProps {
@@ -222,7 +222,7 @@ export function ActivityTab({ userId }: ActivityTabProps) {
               </div>
               <p className="text-sm text-gray-600 mb-2">{log.description}</p>
               <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span>{format(new Date(log.created_at), 'MMM d, yyyy h:mm a')}</span>
+                <span>{formatDateEST(new Date(log.created_at))}</span>
                 {Object.keys(log.metadata || {}).length > 0 && (
                   <button
                     onClick={() => toggleExpanded(log.id)}
@@ -268,11 +268,11 @@ export function ActivityTab({ userId }: ActivityTabProps) {
               )}
               {conn.token_expires_at && (
                 <p className="text-sm text-gray-600 mb-1">
-                  Token Expires: {format(new Date(conn.token_expires_at), 'MMM d, yyyy h:mm a')}
+                  Token Expires: {formatDateEST(new Date(conn.token_expires_at))}
                 </p>
               )}
               <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span>{format(new Date(conn.created_at), 'MMM d, yyyy h:mm a')}</span>
+                <span>{formatDateEST(new Date(conn.created_at))}</span>
                 {Object.keys(conn.metadata || {}).length > 0 && (
                   <button
                     onClick={() => toggleExpanded(conn.id)}
@@ -329,7 +329,7 @@ export function ActivityTab({ userId }: ActivityTabProps) {
                 <p className="text-xs text-gray-500 mb-1">Retry Attempts: {error.retry_count}</p>
               )}
               <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span>{format(new Date(error.created_at), 'MMM d, yyyy h:mm a')}</span>
+                <span>{formatDateEST(new Date(error.created_at))}</span>
                 <button
                   onClick={() => toggleExpanded(error.id)}
                   className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
@@ -393,11 +393,10 @@ export function ActivityTab({ userId }: ActivityTabProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                showFilters
+              className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${showFilters
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+                }`}
             >
               <Filter className="h-4 w-4" />
             </button>
@@ -475,31 +474,28 @@ export function ActivityTab({ userId }: ActivityTabProps) {
         <div className="flex gap-2">
           <button
             onClick={() => setActiveView('all')}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              activeView === 'all'
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+              }`}
           >
             All Activity ({filteredLogs.length})
           </button>
           <button
             onClick={() => setActiveView('connections')}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              activeView === 'connections'
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'connections'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+              }`}
           >
             Connections ({filteredConnections.length})
           </button>
           <button
             onClick={() => setActiveView('errors')}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              activeView === 'errors'
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'errors'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+              }`}
           >
             Errors ({filteredErrors.filter(e => !e.resolved).length})
           </button>

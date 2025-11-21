@@ -25,15 +25,15 @@ export function ConfirmationModal({
 
   const colors = {
     danger: {
-      header: 'bg-white dark:bg-slate-800',
+      header: 'bg-blue-600 dark:bg-blue-700',
       confirmButton: 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800',
     },
     warning: {
-      header: 'bg-white dark:bg-slate-800',
+      header: 'bg-blue-600 dark:bg-blue-700',
       confirmButton: 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800',
     },
     info: {
-      header: 'bg-white dark:bg-slate-800',
+      header: 'bg-blue-600 dark:bg-blue-700',
       confirmButton: 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800',
     },
   };
@@ -43,11 +43,11 @@ export function ConfirmationModal({
   return (
     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
-        <div className={`${colorScheme.header} px-6 py-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700`}>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
+        <div className={`${colorScheme.header} px-6 py-4 flex items-center justify-between`}>
+          <h3 className="text-lg font-semibold text-white">{title}</h3>
           <button
             onClick={onCancel}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+            className="text-white/80 hover:text-white transition-colors"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -55,7 +55,7 @@ export function ConfirmationModal({
         </div>
 
         <div className="px-6 py-8 bg-slate-50 dark:bg-slate-900">
-          <p className="text-gray-900 dark:text-gray-100 text-center leading-relaxed">{message}</p>
+          <p className="text-gray-900 dark:text-gray-100 text-center leading-relaxed whitespace-pre-wrap break-words">{message}</p>
         </div>
 
         <div className="px-6 py-4 bg-white dark:bg-slate-800 flex justify-center gap-3">

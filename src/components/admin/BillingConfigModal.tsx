@@ -15,7 +15,6 @@ interface BillingConfigModalProps {
 }
 
 interface BillingAccount {
-  billing_plan: 'pay_per_use' | 'unlimited' | 'complimentary';
   inbound_plan: string | null;
   outbound_plan: string | null;
   wallet_cents: number;
@@ -33,8 +32,8 @@ export function BillingConfigModal({
   const [billing, setBilling] = useState<BillingAccount | null>(null);
   const [inboundPlan, setInboundPlan] = useState<string | null>(null);
   const [outboundPlan, setOutboundPlan] = useState<string | null>(null);
-  const [inboundRate, setInboundRate] = useState('500');
-  const [outboundRate, setOutboundRate] = useState('500');
+  const [inboundRate, setInboundRate] = useState('100');
+  const [outboundRate, setOutboundRate] = useState('100');
   const [adminNotes, setAdminNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -45,13 +44,6 @@ export function BillingConfigModal({
   const [adjustType, setAdjustType] = useState<'add' | 'deduct'>('add');
   const { profile } = useAuth();
   const { notification, showError, showWarning, showSuccess, hideNotification } = useNotification();
-
-  const formatBillingPlan = (plan: string) => {
-    if (plan === 'pay_per_use') return 'Pay Per Use';
-    if (plan === 'unlimited') return 'Unlimited';
-    if (plan === 'complimentary') return 'Complimentary';
-    return plan;
-  };
 
   useEffect(() => {
     loadBilling();
@@ -72,8 +64,8 @@ export function BillingConfigModal({
         setBilling(data);
         setInboundPlan(data.inbound_plan);
         setOutboundPlan(data.outbound_plan);
-        setInboundRate(String(data.inbound_rate_cents || 500));
-        setOutboundRate(String(data.outbound_rate_cents || 500));
+        setInboundRate(String(data.inbound_rate_cents || 100));
+        setOutboundRate(String(data.outbound_rate_cents || 100));
         setAdminNotes(data.admin_notes || '');
       }
     } catch (err) {

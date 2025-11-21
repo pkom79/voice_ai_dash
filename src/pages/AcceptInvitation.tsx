@@ -85,10 +85,12 @@ export function AcceptInvitation() {
 
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/accept-invitation`;
 
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': session?.access_token ? `Bearer ${session.access_token}` : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': session?.access_token ? `Bearer ${session.access_token}` : `Bearer ${anonKey}`,
+          'apikey': anonKey,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -185,6 +187,7 @@ export function AcceptInvitation() {
             <input
               id="password"
               type="password"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -201,6 +204,7 @@ export function AcceptInvitation() {
             <input
               id="confirmPassword"
               type="password"
+              autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required

@@ -230,7 +230,7 @@ export async function createUnlimitedSubscription(
   await supabase
     .from('billing_accounts')
     .update({
-      billing_plan: 'unlimited',
+      inbound_plan: 'inbound_unlimited',
       stripe_subscription_id: subscription.id,
       next_payment_at: new Date(subscription.current_period_end * 1000).toISOString(),
     })
@@ -268,7 +268,7 @@ export async function switchToPPU(
   await supabase
     .from('billing_accounts')
     .update({
-      billing_plan: 'pay_per_use',
+      inbound_plan: 'inbound_pay_per_use',
       stripe_subscription_id: null,
       next_payment_at: immediate ? null : billing.next_payment_at,
     })

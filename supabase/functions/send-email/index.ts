@@ -59,7 +59,8 @@ Deno.serve(async (req: Request) => {
     const result = await response.json();
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseServiceKey =
+      Deno.env.get('SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (supabaseUrl && supabaseServiceKey) {
       await fetch(`${supabaseUrl}/rest/v1/email_delivery_log`, {

@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Get the HighLevel access token for this user
-    const tokenResponse = await fetch(`${supabaseUrl}/rest/v1/api_keys?user_id=eq.${userId}&service=eq.highlevel&is_active=eq.true&select=access_token`, {
+    const tokenResponse = await fetch(`${supabaseUrl}/rest/v1/api_keys?user_id=eq.${userId}&service=eq.highlevel&is_active=eq.true&select=id,access_token,last_used_at`, {
       headers: {
         'apikey': supabaseServiceKey!,
         'Authorization': `Bearer ${supabaseServiceKey}`,
@@ -107,7 +107,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const accessToken = tokens[0].access_token;
+    const { id: apiKeyId, access_token: accessToken } = tokens[0];
 
     // Fetch the recording from HighLevel Conversations API
     const recordingUrl = `https://services.leadconnectorhq.com/conversations/messages/${messageId}/locations/${locationId}/recording`;
@@ -122,6 +122,13 @@ Deno.serve(async (req: Request) => {
     });
 
     console.log('Recording response status:', recordingResponse.status);
+
+    if (recordingResponse.ok && apiKeyId) {
+      await supabaseClient
+        .from('api_keys')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('id', apiKeyId);
+    }
 
     if (!recordingResponse.ok) {
       const errorText = await recordingResponse.text();

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { formatDateEST } from '../utils/formatting';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -138,7 +138,7 @@ export default function RecordingPlayer({
           Duration: <span className="font-medium text-gray-900">{formatDuration(duration)}</span>
         </p>
         <p className="text-sm text-gray-600">
-          Date: <span className="font-medium text-gray-900">{format(new Date(callDate), 'MMM d, yyyy h:mm a')}</span>
+          Date: <span className="font-medium text-gray-900">{formatDateEST(new Date(callDate), 'MMM d, yyyy h:mm a')}</span>
         </p>
       </div>
 

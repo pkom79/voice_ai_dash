@@ -7,6 +7,13 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function getSecret(key: string): Promise<string | null> {
+  // First check environment variables (set via supabase secrets set)
+  const envValue = Deno.env.get(key);
+  if (envValue) {
+    return envValue;
+  }
+
+  // Fallback to app_secrets table
   const { data, error } = await supabase
     .from('app_secrets')
     .select('value')
@@ -68,6 +75,194 @@ async function verifyStripeSignature(
   }
 }
 
+interface WalletTopUpOptions {
+  userId: string;
+  amountCents: number;
+  customerId?: string | null;
+  paymentId?: string | null;
+  reason: string;
+}
+
+async function applyWalletTopUp({
+  userId,
+  amountCents,
+  customerId,
+  paymentId,
+  reason,
+}: WalletTopUpOptions): Promise<void> {
+  const { data: billing } = await supabase
+    .from('billing_accounts')
+    .select('wallet_cents, month_added_cents, stripe_customer_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!billing) {
+    console.error('No billing account found for user:', userId);
+    return;
+  }
+
+  const balanceBefore = billing.wallet_cents || 0;
+  const balanceAfter = balanceBefore + amountCents;
+
+  const updateData: Record<string, any> = {
+    wallet_cents: balanceAfter,
+    month_added_cents: (billing.month_added_cents || 0) + amountCents,
+  };
+
+  if (!billing.stripe_customer_id && customerId) {
+    updateData.stripe_customer_id = customerId;
+  }
+
+  await supabase
+    .from('billing_accounts')
+    .update(updateData)
+    .eq('user_id', userId);
+
+  await supabase.from('wallet_transactions').insert({
+    user_id: userId,
+    type: 'top_up',
+    amount_cents: amountCents,
+    balance_before_cents: balanceBefore,
+    balance_after_cents: balanceAfter,
+    reason,
+    stripe_payment_id: paymentId,
+  });
+}
+
+async function markFirstLoginComplete(userId: string, customerId?: string | null): Promise<void> {
+  const updateData: Record<string, any> = {
+    first_login_billing_completed: true,
+  };
+
+  if (customerId) {
+    updateData.stripe_customer_id = customerId;
+  }
+
+  await supabase
+    .from('billing_accounts')
+    .update(updateData)
+    .eq('user_id', userId);
+}
+
+type InvoiceStatus = 'draft' | 'finalized' | 'paid' | 'failed' | 'cancelled';
+
+function extractInvoiceDate(invoice: any, field: 'period_start' | 'period_end'): string {
+  if (invoice?.[field]) {
+    return new Date(invoice[field] * 1000).toISOString();
+  }
+
+  const linePeriod = invoice?.lines?.data?.[0]?.period?.[field === 'period_start' ? 'start' : 'end'];
+  if (linePeriod) {
+    return new Date(linePeriod * 1000).toISOString();
+  }
+
+  return new Date().toISOString();
+}
+
+function calculateWalletApplied(invoice: any): number {
+  if (!invoice?.lines?.data) return 0;
+
+  return invoice.lines.data.reduce((sum: number, line: any) => {
+    const description = line?.description?.toLowerCase() || '';
+    const isWalletLine = description.includes('wallet') || line?.metadata?.wallet_credit === true;
+    if (line?.amount < 0 && isWalletLine) {
+      return sum + Math.abs(line.amount);
+    }
+    return sum;
+  }, 0);
+}
+
+function mapInvoiceStatus(stripeStatus: string): InvoiceStatus {
+  switch (stripeStatus) {
+    case 'paid':
+      return 'paid';
+    case 'uncollectible':
+      return 'failed';
+    case 'void':
+      return 'cancelled';
+    case 'open':
+      return 'finalized';
+    default:
+      return 'draft';
+  }
+}
+
+async function upsertInvoiceRecord(invoice: any, overrideStatus?: InvoiceStatus): Promise<void> {
+  let userId = invoice?.metadata?.user_id;
+
+  if (!userId) {
+    const customerId = typeof invoice?.customer === 'string' ? invoice.customer : invoice?.customer?.id;
+    if (customerId) {
+      const { data: billingByCustomer } = await supabase
+        .from('billing_accounts')
+        .select('user_id')
+        .eq('stripe_customer_id', customerId)
+        .maybeSingle();
+      userId = billingByCustomer?.user_id || userId;
+    }
+  }
+
+  if (!userId && invoice?.subscription) {
+    const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription.id;
+    if (subscriptionId) {
+      const { data: billingBySubscription } = await supabase
+        .from('billing_accounts')
+        .select('user_id')
+        .eq('stripe_subscription_id', subscriptionId)
+        .maybeSingle();
+      userId = billingBySubscription?.user_id || userId;
+    }
+  }
+
+  if (!userId) {
+    return;
+  }
+
+  const billingCycleStart = extractInvoiceDate(invoice, 'period_start');
+  const billingCycleEnd = extractInvoiceDate(invoice, 'period_end');
+  const subtotal = typeof invoice?.subtotal === 'number'
+    ? invoice.subtotal
+    : typeof invoice?.amount_due === 'number'
+      ? invoice.amount_due
+      : invoice?.total || 0;
+  const totalCharged = typeof invoice?.amount_paid === 'number' && invoice.amount_paid > 0
+    ? invoice.amount_paid
+    : invoice?.total || subtotal;
+  const walletApplied = calculateWalletApplied(invoice);
+
+  const record = {
+    user_id: userId,
+    billing_cycle_start: billingCycleStart,
+    billing_cycle_end: billingCycleEnd,
+    subtotal_cents: subtotal,
+    wallet_applied_cents: walletApplied,
+    total_charged_cents: totalCharged,
+    status: overrideStatus || mapInvoiceStatus(invoice?.status),
+    stripe_invoice_id: invoice.id,
+    stripe_invoice_url: invoice.hosted_invoice_url,
+    metadata: {
+      ...(invoice.metadata || {}),
+      billing_reason: invoice.billing_reason,
+      invoice_number: invoice.number,
+    },
+  };
+
+  const { data: existing } = await supabase
+    .from('billing_invoices')
+    .select('id')
+    .eq('stripe_invoice_id', invoice.id)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from('billing_invoices')
+      .update(record)
+      .eq('id', existing.id);
+  } else {
+    await supabase.from('billing_invoices').insert(record);
+  }
+}
+
 async function handleCheckoutCompleted(event: any): Promise<void> {
   const session = event.data.object;
   const userId = session.metadata?.user_id;
@@ -94,47 +289,43 @@ async function handleCheckoutCompleted(event: any): Promise<void> {
   }
 
   if (type === 'wallet_topup') {
-    const amountCents = session.amount_total;
-
-    const { data: billing } = await supabase
-      .from('billing_accounts')
-      .select('wallet_cents, month_added_cents, stripe_customer_id')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (!billing) {
-      console.error('No billing account found for user:', userId);
-      return;
-    }
-
-    const balanceBefore = billing.wallet_cents || 0;
-    const balanceAfter = balanceBefore + amountCents;
-
-    const updateData: any = {
-      wallet_cents: balanceAfter,
-      month_added_cents: (billing.month_added_cents || 0) + amountCents,
-    };
-
-    if (!billing.stripe_customer_id && customerId) {
-      updateData.stripe_customer_id = customerId;
-    }
-
-    await supabase
-      .from('billing_accounts')
-      .update(updateData)
-      .eq('user_id', userId);
-
-    await supabase.from('wallet_transactions').insert({
-      user_id: userId,
-      type: 'top_up',
-      amount_cents: amountCents,
-      balance_before_cents: balanceBefore,
-      balance_after_cents: balanceAfter,
+    await applyWalletTopUp({
+      userId,
+      amountCents: session.amount_total,
+      customerId,
+      paymentId: session.payment_intent,
       reason: 'Wallet top-up via Stripe Checkout',
-      stripe_payment_id: session.payment_intent,
     });
-
-    console.log(`Wallet top-up completed for user ${userId}: +$${amountCents / 100}`);
+    console.log(`Wallet top-up completed for user ${userId}: +$${session.amount_total / 100}`);
+  } else if (type === 'first_login_wallet') {
+    const walletTopUpCents = parseInt(session.metadata?.wallet_topup_cents || `${session.amount_total || 0}`, 10);
+    if (walletTopUpCents > 0) {
+      await applyWalletTopUp({
+        userId,
+        amountCents: walletTopUpCents,
+        customerId,
+        paymentId: session.payment_intent,
+        reason: 'Initial wallet credit (onboarding)',
+      });
+    }
+    await markFirstLoginComplete(userId, customerId);
+    console.log(`First login wallet credit completed for user ${userId}`);
+  } else if (type === 'first_login_combined') {
+    const walletTopUpCents = parseInt(session.metadata?.wallet_topup_cents || '0', 10);
+    if (walletTopUpCents > 0) {
+      await applyWalletTopUp({
+        userId,
+        amountCents: walletTopUpCents,
+        customerId,
+        paymentId: session.payment_intent,
+        reason: 'Initial wallet credit (combined onboarding)',
+      });
+    }
+    await markFirstLoginComplete(userId, customerId);
+    console.log(`First login combined payment processed for user ${userId}`);
+  } else if (type === 'first_login_subscription') {
+    await markFirstLoginComplete(userId, customerId);
+    console.log(`First login subscription recorded for user ${userId}`);
   } else if (type === 'unlimited_upgrade') {
     const walletCents = parseInt(session.metadata?.wallet_cents || '0', 10);
     const subscriptionId = session.subscription;
@@ -230,15 +421,12 @@ async function handleInvoiceFinalized(event: any): Promise<void> {
     return;
   }
 
+  await upsertInvoiceRecord(invoice, 'finalized');
+
   await supabase
     .from('billing_accounts')
     .update({ month_spent_cents: 0 })
     .eq('user_id', userId);
-
-  await supabase
-    .from('billing_invoices')
-    .update({ status: 'finalized' })
-    .eq('stripe_invoice_id', invoice.id);
 
   console.log(`Invoice finalized for user ${userId}: ${invoice.id}`);
 }
@@ -251,15 +439,12 @@ async function handleInvoicePaid(event: any): Promise<void> {
     return;
   }
 
+  await upsertInvoiceRecord(invoice, 'paid');
+
   await supabase
     .from('billing_accounts')
     .update({ grace_until: null })
     .eq('user_id', userId);
-
-  await supabase
-    .from('billing_invoices')
-    .update({ status: 'paid' })
-    .eq('stripe_invoice_id', invoice.id);
 
   console.log(`Invoice paid for user ${userId}: ${invoice.id}`);
 }
@@ -272,6 +457,8 @@ async function handlePaymentFailed(event: any): Promise<void> {
     return;
   }
 
+  await upsertInvoiceRecord(invoice, 'failed');
+
   const graceUntil = new Date();
   graceUntil.setDate(graceUntil.getDate() + 7);
 
@@ -279,11 +466,6 @@ async function handlePaymentFailed(event: any): Promise<void> {
     .from('billing_accounts')
     .update({ grace_until: graceUntil.toISOString() })
     .eq('user_id', userId);
-
-  await supabase
-    .from('billing_invoices')
-    .update({ status: 'failed' })
-    .eq('stripe_invoice_id', invoice.id);
 
   await supabase.from('audit_logs').insert({
     action: 'payment_failed',
@@ -325,7 +507,7 @@ async function handleSubscriptionUpdated(event: any): Promise<void> {
   await supabase
     .from('billing_accounts')
     .update({
-      billing_plan: plan,
+      inbound_plan: 'inbound_unlimited',
       stripe_subscription_id: subscription.id,
       next_payment_at: nextPaymentAt,
     })
@@ -345,7 +527,7 @@ async function handleSubscriptionDeleted(event: any): Promise<void> {
   await supabase
     .from('billing_accounts')
     .update({
-      billing_plan: 'pay_per_use',
+      inbound_plan: 'inbound_pay_per_use',
       stripe_subscription_id: null,
       next_payment_at: null,
     })

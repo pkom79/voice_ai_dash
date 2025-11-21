@@ -21,6 +21,7 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
     inboundRate: '100',
     outboundRate: '100',
     adminNotes: '',
+    stripeCustomerId: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +88,7 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
         inboundRateCents: inboundRateCents,
         outboundRateCents: outboundRateCents,
         adminNotes: formData.adminNotes || undefined,
+        stripeCustomerId: formData.stripeCustomerId || undefined,
         sendInvite,
       });
 
@@ -264,6 +266,19 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
                     onInboundRateChange={(rate) => setFormData({ ...formData, inboundRate: rate })}
                     onOutboundRateChange={(rate) => setFormData({ ...formData, outboundRate: rate })}
                     showRates={true}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Stripe Customer ID <span className="text-xs font-normal text-gray-500">(Optional - Overrides email lookup)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.stripeCustomerId}
+                    onChange={(e) => setFormData({ ...formData, stripeCustomerId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="cus_..."
                   />
                 </div>
 

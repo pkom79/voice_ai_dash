@@ -66,7 +66,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: apiKey, error: apiKeyError } = await supabase
       .from("api_keys")
-      .select("access_token, refresh_token, token_expires_at, location_id")
+      .select("id, access_token, refresh_token, token_expires_at, location_id")
       .eq("user_id", userId)
       .eq("is_active", true)
       .single();
@@ -124,6 +124,13 @@ Deno.serve(async (req: Request) => {
         Version: "2021-07-28",
       },
     });
+
+    if (agentsResponse.ok && apiKey.id) {
+      await supabase
+        .from('api_keys')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('id', apiKey.id);
+    }
 
     if (!agentsResponse.ok) {
       const errorText = await agentsResponse.text();

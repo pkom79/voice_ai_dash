@@ -1129,6 +1129,7 @@ return parseFloat((minutes * costPerMinute).toFixed(4));
   - `fetchPhoneNumbers()` - Get all phone numbers for a location
   - `fetchNumberPools()` - Get number pools and their assigned numbers
   - `syncPhoneNumbersForUser()` - Sync phone numbers for user's assigned agents
+  - `supabase/functions/sync-highlevel-calls` now refreshes agent phone assignments before writing calls, so admin-triggered or scheduled syncs always capture the latest phone mappings and user-level phone lists
 - Pages: Dashboard and Call Logs both include phone number filtering
 - Utility: `formatPhoneNumber()` in `src/utils/formatting.ts`
 

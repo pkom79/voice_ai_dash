@@ -173,7 +173,7 @@ Deno.serve(async (req: Request) => {
         <li>Complete the OAuth flow to re-authorize</li>
       </ol>
 
-      <a href="https://voiceaidash.com/admin/users" class="button">Go to Admin Panel</a>
+      <a href="https://www.voiceaidash.app/admin/users" class="button">Go to Admin Panel</a>
     </div>
 
     <div class="footer">
@@ -200,7 +200,7 @@ Deno.serve(async (req: Request) => {
             "Authorization": `Bearer ${resendApiKey}`,
           },
           body: JSON.stringify({
-            from: "Voice AI Dashboard <notifications@voiceaidash.com>",
+            from: "Voice AI Dashboard <notifications@notifications.voiceaidash.app>",
             to: admin.email,
             subject: emailSubject,
             html: emailHtml,

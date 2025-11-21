@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, CreditCard, Wallet, Zap, Check, Loader2 } from 'lucide-react';
+import { CreditCard, Wallet, Zap, Check, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { getSupabaseFunctionUrl } from '../utils/supabaseFunctions';
 
 interface FirstLoginBillingModalProps {
   onClose: () => void;
@@ -18,17 +19,6 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
-
-  const handleClose = async () => {
-    // When user closes the modal, mark billing as completed so they don't see it again
-    if (profile?.id) {
-      await supabase
-        .from('billing_accounts')
-        .update({ first_login_billing_completed: true })
-        .eq('user_id', profile.id);
-    }
-    onClose();
-  };
 
   useEffect(() => {
     loadBillingInfo();
@@ -49,8 +39,8 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
       if (data) {
         setInboundPlan(data.inbound_plan);
         setOutboundPlan(data.outbound_plan);
-        setInboundRate(data.inbound_rate_cents || 500);
-        setOutboundRate(data.outbound_rate_cents || 500);
+        setInboundRate(data.inbound_rate_cents || 100);
+        setOutboundRate(data.outbound_rate_cents || 100);
         setWalletCents(data.wallet_cents || 0);
       }
     } catch (err) {
@@ -64,14 +54,12 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
     let walletRequired = 0;
     let subscriptionRequired = 0;
 
-    // Check if PPU wallet is needed ($50 = 5000 cents)
     if (inboundPlan === 'inbound_pay_per_use' || outboundPlan === 'outbound_pay_per_use') {
       if (walletCents < 5000) {
         walletRequired = 5000 - walletCents;
       }
     }
 
-    // Check if Unlimited subscription is needed ($500 = 50000 cents)
     if (inboundPlan === 'inbound_unlimited') {
       subscriptionRequired = 50000;
     }
@@ -91,7 +79,6 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
     try {
       const payment = calculateTotalPayment();
 
-      // If no payment is required, mark billing as completed and close
       if (payment.total === 0) {
         await supabase
           .from('billing_accounts')
@@ -102,8 +89,10 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const apiUrl = getSupabaseFunctionUrl('stripe-checkout');
 
       const requestBody = {
         userId: profile.id,
@@ -117,7 +106,7 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          Authorization: `Bearer ${session?.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestBody),
@@ -143,10 +132,11 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
-          <div className="flex items-center justify-center">
-            <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+      <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+        <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-10">
+          <div className="flex items-center justify-center gap-3 text-gray-900">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <span className="text-sm font-medium tracking-wide">Loading billing details…</span>
           </div>
         </div>
       </div>
@@ -159,7 +149,6 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
 
   const payment = calculateTotalPayment();
 
-  // If no payment is required, don't show the modal
   if (payment.total === 0) {
     onClose();
     return null;
@@ -171,172 +160,154 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
   const hasPPU = hasInboundPPU || hasOutboundPPU;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="relative bg-gradient-to-r from-blue-600 to-blue-700 p-8 text-white">
-          <button
-            onClick={handleClose}
-            className="absolute top-4 right-4 text-white hover:text-gray-200 transition-colors"
-          >
-            <X className="h-6 w-6" />
-          </button>
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-white bg-opacity-20 rounded-full mb-4">
-              <CreditCard className="h-8 w-8" />
-            </div>
-            <h2 className="text-3xl font-bold mb-2">Welcome to Voice AI Dash!</h2>
-            <p className="text-blue-100 text-lg">
-              To get started, please set up your billing method
+    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center px-4 py-6 z-[1000]">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col z-[1001]">
+        <div className="bg-gray-900 text-white px-10 py-8">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-white/70">Account: {userEmail}</p>
+            <h2 className="text-3xl font-semibold">Complete your billing setup</h2>
+            <p className="text-white/70">
+              Your Voice AI Dash workspace is locked until this initial payment is processed. This modal stays open until billing is confirmed.
             </p>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <p className="text-gray-600">
-              Your assigned billing plan
-            </p>
+        <div className="flex-1 overflow-y-auto px-10 py-8 space-y-8">
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+              <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Plan Overview</p>
+              <div className="mt-4 space-y-6">
+                {inboundPlan && (
+                  <div className="flex items-start gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-gray-900 text-white flex items-center justify-center">
+                      {hasInboundUnlimited ? <Zap className="h-5 w-5" /> : <Wallet className="h-5 w-5" />}
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-gray-500">Inbound calls</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {hasInboundUnlimited ? 'Unlimited plan' : 'Pay per use'}
+                      </p>
+                      <ul className="mt-3 space-y-2 text-sm text-gray-600">
+                        {hasInboundUnlimited ? (
+                          <>
+                            <li className="flex items-center gap-2">
+                              <Check className="h-4 w-4 text-gray-900" />
+                              Unlimited inbound minutes
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="h-4 w-4 text-gray-900" />
+                              $500/month flat subscription
+                            </li>
+                          </>
+                        ) : (
+                          <>
+                            <li className="flex items-center gap-2">
+                              <Check className="h-4 w-4 text-gray-900" />
+                              Billed from wallet at ${(inboundRate / 100).toFixed(2)} per minute
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="h-4 w-4 text-gray-900" />
+                              Wallet must maintain a $50 minimum
+                            </li>
+                          </>
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {outboundPlan && (
+                  <div className="flex items-start gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-gray-200 text-gray-900 flex items-center justify-center">
+                      <Wallet className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-gray-500">Outbound calls</p>
+                      <p className="text-lg font-semibold text-gray-900">Pay per use</p>
+                      <p className="text-sm text-gray-600 mt-2">
+                        Charged from wallet at ${(outboundRate / 100).toFixed(2)} per minute.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 p-6">
+              <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Payment Summary</p>
+              <div className="mt-6 space-y-4">
+                {payment.subscriptionRequired > 0 && (
+                  <div className="flex items-center justify-between text-sm text-gray-900">
+                    <span>Inbound Unlimited Subscription (first month)</span>
+                    <span className="font-semibold">${(payment.subscriptionRequired / 100).toFixed(2)}</span>
+                  </div>
+                )}
+                {payment.walletRequired > 0 && (
+                  <div className="flex items-center justify-between text-sm text-gray-900">
+                    <span>Required wallet credit</span>
+                    <span className="font-semibold">${(payment.walletRequired / 100).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="pt-4 border-t border-gray-200 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-gray-500">Total due today</p>
+                    <p className="text-3xl font-bold text-gray-900">${(payment.total / 100).toFixed(2)}</p>
+                  </div>
+                  <div className="text-right text-xs text-gray-500">
+                    <p>Secure card charge powered by Stripe</p>
+                    <p>This payment unlocks your workspace immediately.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">{error}</p>
+          {hasPPU && (
+            <div className="rounded-2xl border border-gray-200 p-6 bg-white">
+              <p className="text-sm font-semibold text-gray-900">Wallet requirement</p>
+              <p className="mt-2 text-sm text-gray-600">
+                Pay-per-use plans pull from your wallet balance. We require $50 in available funds so outbound and inbound usage can start right away.
+              </p>
+              <ul className="mt-4 space-y-2 text-sm text-gray-600">
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-gray-900" />
+                  Current wallet balance: ${(walletCents / 100).toFixed(2)}
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-gray-900" />
+                  Amount to add today: ${(payment.walletRequired / 100).toFixed(2)}
+                </li>
+              </ul>
             </div>
           )}
+        </div>
 
-          {/* Billing Plan Summary */}
-          <div className="mb-8 space-y-4">
-            <div className="text-center mb-4">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Your Plan Configuration</h3>
-              <p className="text-sm text-gray-600">Initial payment required to activate your account</p>
+        <div className="px-10 py-6 bg-gray-50 border-t border-gray-200">
+          {error && (
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
             </div>
-
-            {/* Inbound Plan Card */}
-            {inboundPlan && (
-              <div className={`relative p-6 rounded-xl border-2 ${
-                hasInboundUnlimited ? 'border-blue-600 bg-blue-50' : 'border-green-600 bg-green-50'
-              }`}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    hasInboundUnlimited ? 'bg-blue-100' : 'bg-green-100'
-                  }`}>
-                    {hasInboundUnlimited ? (
-                      <Zap className="w-5 h-5 text-blue-600" />
-                    ) : (
-                      <Wallet className="w-5 h-5 text-green-600" />
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-lg text-gray-900">
-                      {hasInboundUnlimited ? 'Inbound Unlimited' : 'Inbound Pay Per Use'}
-                    </h4>
-                    <p className="text-xs text-gray-500">Incoming AI Voice Calls</p>
-                  </div>
-                </div>
-                <ul className="space-y-1.5">
-                  {hasInboundUnlimited ? (
-                    <>
-                      <li className="flex items-center gap-2 text-sm text-gray-600">
-                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        <span>Unlimited inbound minutes</span>
-                      </li>
-                      <li className="flex items-center gap-2 text-sm text-gray-600">
-                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        <span>$500/month subscription</span>
-                      </li>
-                    </>
-                  ) : (
-                    <>
-                      <li className="flex items-center gap-2 text-sm text-gray-600">
-                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        <span>${(inboundRate / 100).toFixed(2)} per minute</span>
-                      </li>
-                      <li className="flex items-center gap-2 text-sm text-gray-600">
-                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        <span>Charged from wallet balance</span>
-                      </li>
-                    </>
-                  )}
-                </ul>
-              </div>
-            )}
-
-            {/* Outbound Plan Card */}
-            {outboundPlan && (
-              <div className="relative p-6 rounded-xl border-2 border-green-600 bg-green-50">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <Wallet className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-lg text-gray-900">Outbound Pay Per Use</h4>
-                    <p className="text-xs text-gray-500">Outgoing AI Voice Calls</p>
-                  </div>
-                </div>
-                <ul className="space-y-1.5">
-                  <li className="flex items-center gap-2 text-sm text-gray-600">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>${(outboundRate / 100).toFixed(2)} per minute</span>
-                  </li>
-                  <li className="flex items-center gap-2 text-sm text-gray-600">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Charged from wallet balance</span>
-                  </li>
-                </ul>
-              </div>
-            )}
-
-            {/* Payment Summary */}
-            <div className="p-6 rounded-xl border-2 border-gray-300 bg-gray-50">
-              <h4 className="font-bold text-lg text-gray-900 mb-3">Payment Summary</h4>
-              <div className="space-y-2">
-                {hasPPU && payment.walletRequired > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Wallet Credit (minimum $50)</span>
-                    <span className="font-semibold text-gray-900">${(payment.walletRequired / 100).toFixed(2)}</span>
-                  </div>
-                )}
-                {hasInboundUnlimited && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Unlimited Subscription (first month)</span>
-                    <span className="font-semibold text-gray-900">${(payment.subscriptionRequired / 100).toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="pt-2 mt-2 border-t border-gray-300 flex justify-between">
-                  <span className="font-bold text-gray-900">Total Due Today</span>
-                  <span className="font-bold text-xl text-blue-600">${(payment.total / 100).toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Call to Action */}
+          )}
           <button
             onClick={handleContinue}
             disabled={processing}
-            className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg hover:bg-blue-700 font-semibold text-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full inline-flex items-center justify-center gap-3 rounded-2xl bg-gray-900 text-white py-4 text-lg font-semibold hover:bg-black transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {processing ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
-                Processing...
+                Processing…
               </>
             ) : (
               <>
-                Continue to Payment
                 <CreditCard className="h-5 w-5" />
+                Pay ${(payment.total / 100).toFixed(2)}
               </>
             )}
           </button>
-
-          {/* Security Badge */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500">
-              Secure payment powered by Stripe
-            </p>
-          </div>
+          <p className="mt-3 text-center text-xs text-gray-500">
+            Payments are securely processed by Stripe. This screen remains open until billing is complete.
+          </p>
         </div>
       </div>
     </div>

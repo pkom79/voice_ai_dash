@@ -3,11 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
 import { supabase } from '../lib/supabase';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Phone, TrendingUp, Heart, CheckCircle, Clock, DollarSign, User, ArrowLeft, Calendar, X } from 'lucide-react';
-import { formatPhoneNumber } from '../utils/formatting';
+import { Phone, TrendingUp, Heart, CheckCircle, Clock, DollarSign, User, ArrowLeft, Calendar, X, Search } from 'lucide-react';
 import DateRangePicker from '../components/DateRangePicker';
-import { format } from 'date-fns';
+import { formatDateEST } from '../utils/formatting';
 import { FirstLoginBillingModal } from '../components/FirstLoginBillingModal';
+import { getSupabaseFunctionUrl } from '../utils/supabaseFunctions';
 
 export function Dashboard() {
   const { profile, user } = useAuth();
@@ -40,9 +40,14 @@ export function Dashboard() {
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [availableAgents, setAvailableAgents] = useState<Array<{ id: string; name: string }>>([]);
-  const [selectedPhoneNumber, setSelectedPhoneNumber] = useState<string>('all');
-  const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<Array<{ id: string; phoneNumber: string }>>([]);
+  const [billingInfo, setBillingInfo] = useState<{
+    inbound_plan: string | null;
+    outbound_plan: string | null;
+    stripe_customer_id: string | null;
+    wallet_cents: number | null;
+  } | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -53,13 +58,15 @@ export function Dashboard() {
     checkBillingStatus();
   }, [viewingUserId]);
 
+  // Ensure billing check runs once the profile/effective user ID is available (first login scenario)
   useEffect(() => {
-    loadPhoneNumbers();
-  }, [selectedAgent, availableAgents, effectiveUserId]);
+    if (!profile?.id) return;
+    checkBillingStatus();
+  }, [profile?.id, viewingUserId]);
 
   useEffect(() => {
     loadDashboardData();
-  }, [direction, dateRange, selectedAgent, selectedPhoneNumber, availableAgents, availablePhoneNumbers]);
+  }, [direction, dateRange, selectedAgent, availableAgents, searchQuery]);
 
   useEffect(() => {
     if (lastSyncTime) {
@@ -73,6 +80,8 @@ export function Dashboard() {
     }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+
       const { data: billingAccount } = await supabase
         .from('billing_accounts')
         .select('stripe_customer_id, inbound_plan, outbound_plan, wallet_cents, first_login_billing_completed')
@@ -80,36 +89,87 @@ export function Dashboard() {
         .maybeSingle();
 
       if (!billingAccount) {
+        setBillingInfo(null);
         return;
       }
 
-      // If first login billing has been completed, don't show the modal
-      if (billingAccount.first_login_billing_completed) {
-        return;
-      }
+      setBillingInfo({
+        inbound_plan: billingAccount.inbound_plan,
+        outbound_plan: billingAccount.outbound_plan,
+        stripe_customer_id: billingAccount.stripe_customer_id,
+        wallet_cents: billingAccount.wallet_cents,
+      });
 
-      // Check if any payment is actually required
       const walletBalance = billingAccount.wallet_cents || 0;
       const hasInboundPPU = billingAccount.inbound_plan === 'inbound_pay_per_use';
       const hasOutboundPPU = billingAccount.outbound_plan === 'outbound_pay_per_use';
       const hasInboundUnlimited = billingAccount.inbound_plan === 'inbound_unlimited';
+      const hasPaymentProfile = !!billingAccount.stripe_customer_id || walletBalance >= 5000;
 
-      let paymentNeeded = false;
+      const hasAnyPaymentRecord = async (): Promise<boolean> => {
+        const [{ data: walletData }, { data: invoiceData }] = await Promise.all([
+          supabase
+            .from('wallet_transactions')
+            .select('id')
+            .eq('user_id', effectiveUserId)
+            .limit(1),
+          supabase
+            .from('billing_invoices')
+            .select('id')
+            .eq('user_id', effectiveUserId)
+            .limit(1),
+        ]);
 
-      // Check if PPU wallet top-up is needed (minimum $50 = 5000 cents)
-      if ((hasInboundPPU || hasOutboundPPU) && walletBalance < 5000) {
-        paymentNeeded = true;
+        if ((walletData && walletData.length > 0) || (invoiceData && invoiceData.length > 0)) {
+          return true;
+        }
+
+        if (billingAccount.stripe_customer_id && session?.access_token) {
+          try {
+            const paymentResponse = await fetch(getSupabaseFunctionUrl('stripe-list-payments'), {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ userId: effectiveUserId, limit: 5 }),
+            });
+
+            if (paymentResponse.ok) {
+              const paymentResult = await paymentResponse.json();
+              return Array.isArray(paymentResult.payments)
+                && paymentResult.payments.some(
+                  (p: any) => p.status === 'succeeded' && (p.amount_received || p.amount) > 0
+                );
+            }
+          } catch (err) {
+            console.error('Failed to verify Stripe payments:', err);
+          }
+        }
+
+        return false;
+      };
+
+      if (!billingAccount.first_login_billing_completed && (await hasAnyPaymentRecord())) {
+        await supabase
+          .from('billing_accounts')
+          .update({ first_login_billing_completed: true })
+          .eq('user_id', effectiveUserId);
+        setShowBillingModal(false);
+        return;
       }
 
-      // Check if Unlimited subscription payment is needed
-      if (hasInboundUnlimited && !billingAccount.stripe_customer_id) {
-        paymentNeeded = true;
+      if (billingAccount.first_login_billing_completed) {
+        setShowBillingModal(false);
+        return;
       }
 
-      // Only show modal if payment is actually needed
-      if (paymentNeeded) {
-        setShowBillingModal(true);
-      }
+      const needsWalletTopup = (hasInboundPPU || hasOutboundPPU) && walletBalance < 5000;
+      const needsSubscription = hasInboundUnlimited && !billingAccount.stripe_customer_id;
+
+      const shouldShowModal = (needsWalletTopup || needsSubscription) && !hasPaymentProfile;
+      setShowBillingModal(shouldShowModal);
     } catch (error) {
       console.error('Error checking billing status:', error);
     }
@@ -155,10 +215,6 @@ export function Dashboard() {
         query = query.eq('agent_id', selectedAgent);
       }
 
-      if (selectedPhoneNumber !== 'all') {
-        query = query.or(`from_number.eq.${selectedPhoneNumber},to_number.eq.${selectedPhoneNumber}`);
-      }
-
       if (dateRange.start) {
         const startDate = new Date(dateRange.start);
         startDate.setHours(0, 0, 0, 0);
@@ -184,6 +240,16 @@ export function Dashboard() {
           filteredCalls = selectedAgent === 'all'
             ? calls.filter(call => call.agent_id && assignedAgentIds.includes(call.agent_id))
             : calls;
+        }
+
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          filteredCalls = filteredCalls.filter(
+            (call) =>
+              call.contact_name?.toLowerCase().includes(query) ||
+              call.from_number?.includes(query) ||
+              call.to_number?.includes(query)
+          );
         }
 
         const inbound = filteredCalls.filter((c) => c.direction === 'inbound');
@@ -254,61 +320,6 @@ export function Dashboard() {
     }
   };
 
-  const loadPhoneNumbers = async () => {
-    try {
-      if (!effectiveUserId) return;
-
-      // Get phone numbers based on selected agent or all assigned agents
-      let agentIds: string[] = [];
-
-      if (selectedAgent === 'all') {
-        // Get all agents assigned to user
-        agentIds = availableAgents.map(agent => agent.id);
-      } else {
-        // Get only the selected agent
-        agentIds = [selectedAgent];
-      }
-
-      if (agentIds.length === 0) {
-        setAvailablePhoneNumbers([]);
-        setSelectedPhoneNumber('all');
-        return;
-      }
-
-      // Fetch phone numbers linked to these agents
-      const { data, error } = await supabase
-        .from('agent_phone_numbers')
-        .select(`
-          phone_numbers:phone_number_id (
-            id,
-            phone_number
-          )
-        `)
-        .in('agent_id', agentIds);
-
-      if (error) throw error;
-
-      const phoneNumbers = (data || [])
-        .filter((item: any) => item.phone_numbers)
-        .map((item: any) => ({
-          id: item.phone_numbers.phone_number,
-          phoneNumber: item.phone_numbers.phone_number
-        }))
-        .filter((phone, index, self) =>
-          index === self.findIndex(p => p.id === phone.id)
-        );
-
-      setAvailablePhoneNumbers(phoneNumbers);
-
-      // Reset phone number selection if current selection is not in new list
-      if (selectedPhoneNumber !== 'all' && !phoneNumbers.find(p => p.id === selectedPhoneNumber)) {
-        setSelectedPhoneNumber('all');
-      }
-    } catch (error) {
-      console.error('Error loading phone numbers:', error);
-    }
-  };
-
   const formatDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -323,6 +334,9 @@ export function Dashboard() {
     }
   };
 
+  const isInboundUnlimitedOnly = billingInfo?.inbound_plan === 'inbound_unlimited' && !billingInfo?.outbound_plan;
+  const totalCostLabel = isInboundUnlimitedOnly ? 'N/A' : `$${stats.totalCost.toFixed(2)}`;
+
   const statCards = [
     {
       name: 'Total Calls',
@@ -332,7 +346,7 @@ export function Dashboard() {
     },
     {
       name: 'Total Cost',
-      value: `$${stats.totalCost.toFixed(2)}`,
+      value: totalCostLabel,
       icon: DollarSign,
       color: 'bg-green-500',
     },
@@ -395,81 +409,78 @@ export function Dashboard() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-4">
-        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-4">
-          {/* Direction Toggle */}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-4 space-y-4">
+        {/* First Row: Direction Tabs & Date Picker */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex gap-2">
             <button
               onClick={() => setDirection('inbound')}
-              className={`px-4 py-2 text-sm rounded-md transition-colors ${
-                direction === 'inbound' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'inbound'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               Inbound
             </button>
             <button
               onClick={() => setDirection('outbound')}
-              className={`px-4 py-2 text-sm rounded-md transition-colors ${
-                direction === 'outbound' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'outbound'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               Outbound
             </button>
           </div>
 
-          {/* Date Range */}
-          <div className="flex items-center gap-2">
+          <div className="relative">
             <button
-              onClick={() => setShowDatePicker(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors bg-white dark:bg-gray-800"
             >
               <Calendar className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-              <span className="text-gray-700 dark:text-gray-300">
+              <span className="text-sm text-gray-700 dark:text-gray-300">
                 {dateRange.start && dateRange.end
-                  ? `${format(dateRange.start, 'MMM d, yyyy')} - ${format(dateRange.end, 'MMM d, yyyy')}`
-                  : dateRange.start
-                  ? format(dateRange.start, 'MMM d, yyyy')
-                  : 'All Time'}
+                  ? `${formatDateEST(dateRange.start, 'MMM d, yyyy')} - ${formatDateEST(dateRange.end, 'MMM d, yyyy')}`
+                  : 'Select Date Range'}
               </span>
             </button>
-            {(dateRange.start || dateRange.end) && (
-              <button
-                onClick={() => setDateRange({ start: null, end: null })}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                title="Clear date filter"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+          </div>
+        </div>
+
+        {/* Second Row: Agent | Search */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Agent Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agent</label>
+            <select
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              className="w-full px-3 py-2 h-[42px] border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              <option value="all">All Agents</option>
+              {availableAgents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Agent Filter */}
-          <select
-            value={selectedAgent}
-            onChange={(e) => setSelectedAgent(e.target.value)}
-            className="w-full sm:w-72 px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Agents</option>
-            {availableAgents.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Phone Numbers Filter */}
-          <select
-            value={selectedPhoneNumber}
-            onChange={(e) => setSelectedPhoneNumber(e.target.value)}
-            className="w-full sm:w-64 px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">Assigned Phone Numbers</option>
-            {availablePhoneNumbers.map((phone) => (
-              <option key={phone.id} value={phone.id}>
-                {formatPhoneNumber(phone.phoneNumber)}
-              </option>
-            ))}
-          </select>
+          {/* Search */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Contact, phone, action..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

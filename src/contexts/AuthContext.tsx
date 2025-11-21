@@ -80,6 +80,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const { data: lastStatus } = await supabase
+        .from('sync_status')
+        .select('last_sync_at, sync_type')
+        .eq('service', 'highlevel')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (lastStatus?.sync_type === 'auto' && lastStatus.last_sync_at) {
+        const lastAuto = new Date(lastStatus.last_sync_at).getTime();
+        const fifteenMinutes = 15 * 60 * 1000;
+        if (Date.now() - lastAuto < fifteenMinutes) {
+          console.log('Recent auto-sync detected, skipping automatic sync to avoid rate limits.');
+          return;
+        }
+      }
+
       // Check if user has an OAuth connection before attempting sync
       const { data: connection } = await supabase
         .from('api_keys')

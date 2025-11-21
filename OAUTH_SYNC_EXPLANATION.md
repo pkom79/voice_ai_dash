@@ -63,7 +63,7 @@ Your `.env` file shows:
 ```
 VITE_HIGHLEVEL_CLIENT_ID=69125781544df54f39aaee49-mhtrgdiz
 VITE_HIGHLEVEL_CLIENT_SECRET=963a38ca-a6e4-40bf-adc9-62f88363b448
-VITE_HIGHLEVEL_REDIRECT_URI=https://voiceaidash.com/oauth/callback
+VITE_HIGHLEVEL_REDIRECT_URI=https://www.voiceaidash.app/oauth/callback
 VITE_HIGHLEVEL_AUTH_URL=https://marketplace.gohighlevel.com/oauth/chooselocation
 VITE_HIGHLEVEL_TOKEN_URL=https://services.leadconnectorhq.com/oauth/token
 VITE_HIGHLEVEL_API_URL=https://services.leadconnectorhq.com

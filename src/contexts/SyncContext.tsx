@@ -76,12 +76,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         throw new Error('No active OAuth connection found. Please connect your account first.');
       }
 
-      // Sync calls first
+      // Sync calls
       const callSyncResult = await highLevelService.syncCalls(profile.id, { syncType: isAuto ? 'auto' : 'manual' });
-
-      // Then sync phone numbers for the user's agents
-      const phoneNumberResult = await highLevelService.syncPhoneNumbersForUser(profile.id);
-      console.log('Phone number sync result:', phoneNumberResult);
 
       const now = new Date();
       const syncType = isAuto ? 'auto' : 'manual';
@@ -108,14 +104,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           last_sync_message: 'Sync completed successfully',
           sync_type: syncType,
           records_synced: 0,
-        });
+        }, { onConflict: 'service,user_id' });
 
       setTimeout(() => {
         setLastSyncMessage(null);
       }, 3000);
     } catch (error) {
       console.error('Error syncing data:', error);
-      setLastSyncMessage('Sync failed. Please try again.');
+      const friendlyMessage =
+        error instanceof Error && error.message.includes('rate limit')
+          ? 'HighLevel rate limit reached. Please wait and try again.'
+          : 'Sync failed. Please try again.';
+      setLastSyncMessage(friendlyMessage);
 
       if (profile?.id) {
         const syncType = isAuto ? 'auto' : 'manual';
@@ -131,7 +131,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
             last_sync_message: error instanceof Error ? error.message : 'Sync failed',
             sync_type: syncType,
             records_synced: 0,
-          });
+          }, { onConflict: 'service,user_id' });
       }
 
       setTimeout(() => {
@@ -151,8 +151,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
     try {
       const timeAgo = formatDistanceToNow(lastSyncTime, { addSuffix: true });
-      const syncTypeLabel = lastSyncType === 'auto' ? '(Auto)' : '(Manual)';
-      return `Synced ${timeAgo} ${syncTypeLabel}`;
+      return `Synced ${timeAgo}`;
     } catch {
       return 'Never synced';
     }

@@ -8,7 +8,6 @@ import {
   DollarSign,
   Search,
   Download,
-  RefreshCw,
   Filter,
   FileText,
   StickyNote,
@@ -18,11 +17,12 @@ import {
   Calendar,
 } from 'lucide-react';
 import { format, subDays, startOfToday, endOfToday } from 'date-fns';
+import { formatDateEST } from '../utils/formatting';
 import { NotificationModal } from '../components/NotificationModal';
 import { useNotification } from '../hooks/useNotification';
 import DateRangePicker from '../components/DateRangePicker';
 import RecordingPlayer from '../components/RecordingPlayer';
-import { formatContactName, formatPhoneNumber } from '../utils/formatting';
+import { formatContactName } from '../utils/formatting';
 
 interface Call {
   id: string;
@@ -64,29 +64,18 @@ interface Agent {
   name: string;
 }
 
-interface PhoneNumber {
-  id: string;
-  phone_number: string;
-  normalized: string;
-  label?: string;
-}
-
 export function AdminCallsAnalytics() {
   const { notification, showError, hideNotification } = useNotification();
   const [calls, setCalls] = useState<Call[]>([]);
   const [filteredCalls, setFilteredCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
 
   const [users, setUsers] = useState<User[]>([]);
   const [allAgents, setAllAgents] = useState<Agent[]>([]);
-  const [allPhoneNumbers, setAllPhoneNumbers] = useState<PhoneNumber[]>([]);
   const [userAgentMap, setUserAgentMap] = useState<Record<string, string[]>>({});
-  const [agentPhoneMap, setAgentPhoneMap] = useState<Record<string, string[]>>({});
 
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
-  const [selectedPhoneNumberId, setSelectedPhoneNumberId] = useState<string>('all');
   const [direction, setDirection] = useState<'inbound' | 'outbound'>('inbound');
   const [searchQuery, setSearchQuery] = useState('');
   const today = startOfToday();
@@ -98,36 +87,24 @@ export function AdminCallsAnalytics() {
   const [showModal, setShowModal] = useState<'summary' | 'transcript' | 'notes' | 'recording' | null>(null);
   const [billingPlans, setBillingPlans] = useState<Record<string, string>>({});
 
-  const normalizeNumber = (value?: string | null) => {
-    const digits = (value || '').replace(/[^0-9]/g, '');
-    return digits.replace(/^1(?=\d{10}$)/, '');
-  };
-
   useEffect(() => {
     loadData();
   }, []);
 
   useEffect(() => {
     filterCalls();
-  }, [calls, selectedUserId, selectedAgentId, selectedPhoneNumberId, direction, searchQuery, startDate, endDate]);
+  }, [calls, selectedUserId, selectedAgentId, direction, searchQuery, startDate, endDate]);
 
   useEffect(() => {
     if (selectedUserId !== 'all') {
       setSelectedAgentId('all');
-      setSelectedPhoneNumberId('all');
     }
   }, [selectedUserId]);
-
-  useEffect(() => {
-    if (selectedAgentId !== 'all') {
-      setSelectedPhoneNumberId('all');
-    }
-  }, [selectedAgentId]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [callsResult, usersResult, userAgentsResult, agentPhonesResult, billingResult] = await Promise.all([
+      const [callsResult, usersResult, userAgentsResult, billingResult] = await Promise.all([
         supabase
           .from('calls')
           .select(`
@@ -139,7 +116,6 @@ export function AdminCallsAnalytics() {
           .order('call_started_at', { ascending: false }),
         supabase.from('users').select('id, first_name, last_name').eq('role', 'client'),
         supabase.from('user_agents').select('user_id, agent_id'),
-        supabase.from('agent_phone_numbers').select('agent_id, phone_number_id'),
         supabase.from('billing_accounts').select('user_id, inbound_plan'),
       ]);
 
@@ -175,84 +151,6 @@ export function AdminCallsAnalytics() {
         setUserAgentMap(map);
       }
 
-      if (agentPhonesResult.data) {
-        const map: Record<string, string[]> = {};
-        agentPhonesResult.data.forEach((ap) => {
-          if (!map[ap.agent_id]) map[ap.agent_id] = [];
-          map[ap.agent_id].push(ap.phone_number_id);
-        });
-        setAgentPhoneMap(map);
-      }
-
-      // Get only phone numbers that are assigned to agents who are assigned to users
-      if (userAgentsResult.data && agentPhonesResult.data) {
-        const assignedAgentIds = [...new Set(userAgentsResult.data.map(ua => ua.agent_id))];
-        const assignedPhoneIds = agentPhonesResult.data
-          .filter(ap => assignedAgentIds.includes(ap.agent_id))
-          .map(ap => ap.phone_number_id);
-
-        const uniquePhoneIds = [...new Set(assignedPhoneIds)];
-
-        if (uniquePhoneIds.length > 0) {
-          const { data: phoneNumbersData } = await supabase
-            .from('phone_numbers')
-            .select('id, phone_number')
-            .in('id', uniquePhoneIds)
-            .eq('is_active', true);
-
-          if (phoneNumbersData) {
-            // Merge assigned phone numbers with call-derived numbers
-            const existing = new Map<string, PhoneNumber>();
-            phoneNumbersData.forEach((p) =>
-              existing.set(p.id, {
-                id: p.id,
-                phone_number: p.phone_number,
-                normalized: normalizeNumber(p.phone_number),
-                label: formatPhoneNumber(p.phone_number),
-              })
-            );
-            if (callsResult.data) {
-              callsResult.data.forEach((c) => {
-                [c.from_number, c.to_number].forEach((num) => {
-                  const normalized = normalizeNumber(num);
-                  if (num && !existing.has(`num:${normalized}`)) {
-                    existing.set(`num:${normalized}`, {
-                      id: `num:${normalized}`,
-                      phone_number: num,
-                      normalized,
-                      label: formatPhoneNumber(num),
-                    });
-                  }
-                });
-              });
-            }
-            setAllPhoneNumbers(Array.from(existing.values()));
-          }
-        } else {
-          setAllPhoneNumbers([]);
-        }
-      } else {
-        // Fallback: derive numbers from calls if nothing is assigned
-        if (callsResult.data && callsResult.data.length > 0) {
-          const unique = new Map<string, PhoneNumber>();
-          callsResult.data.forEach((c) => {
-            [c.from_number, c.to_number].forEach((num) => {
-              const normalized = normalizeNumber(num);
-              if (num && !unique.has(normalized)) {
-                unique.set(normalized, {
-                  id: `num:${normalized}`,
-                  phone_number: num,
-                  normalized,
-                  label: formatPhoneNumber(num),
-                });
-              }
-            });
-          });
-          setAllPhoneNumbers(Array.from(unique.values()));
-        } else {
-          setAllPhoneNumbers([]);
-        }
-      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -268,20 +166,6 @@ export function AdminCallsAnalytics() {
     return allAgents.filter((agent) => agentIds.includes(agent.id));
   };
 
-  const getAvailablePhoneNumbers = () => {
-    // Always allow call-derived numbers (id starts with num:) and assigned numbers
-    if (selectedAgentId === 'all') {
-      if (selectedUserId === 'all') {
-        return allPhoneNumbers;
-      }
-      const agentIds = userAgentMap[selectedUserId] || [];
-      const phoneIds = agentIds.flatMap((agentId) => agentPhoneMap[agentId] || []);
-      return allPhoneNumbers.filter((phone) => phoneIds.includes(phone.id) || phone.id.startsWith('num:'));
-    }
-    const phoneIds = agentPhoneMap[selectedAgentId] || [];
-    return allPhoneNumbers.filter((phone) => phoneIds.includes(phone.id) || phone.id.startsWith('num:'));
-  };
-
   const getUserForAgent = (agentId: string | null) => {
     if (!agentId) return null;
     const userId = Object.keys(userAgentMap).find((uid) => userAgentMap[uid].includes(agentId));
@@ -289,11 +173,7 @@ export function AdminCallsAnalytics() {
     return users.find((u) => u.id === userId);
   };
 
-  const getAgentAndPhoneForCall = (call: Call) => {
-    const agentName = call.agents?.name || 'N/A';
-    const phoneNumber = call.phone_numbers?.phone_number || 'N/A';
-    return { agentName, phoneNumber };
-  };
+  const getAgentLabelForCall = (call: Call) => call.agents?.name || 'N/A';
 
   const filterCalls = () => {
     let filtered = [...calls];
@@ -317,19 +197,6 @@ export function AdminCallsAnalytics() {
 
     if (selectedAgentId !== 'all') {
       filtered = filtered.filter((call) => call.agent_id === selectedAgentId);
-    }
-
-    if (selectedPhoneNumberId !== 'all') {
-      const selectedPhone = allPhoneNumbers.find((p) => p.id === selectedPhoneNumberId);
-      const normalizedSelection = selectedPhone?.normalized || '';
-
-      filtered = filtered.filter((call) => {
-        const matchesAssignment = call.phone_number_id === selectedPhoneNumberId;
-        const matchesNumber =
-          normalizedSelection &&
-          (normalizeNumber(call.from_number) === normalizedSelection || normalizeNumber(call.to_number) === normalizedSelection);
-        return matchesAssignment || matchesNumber;
-      });
     }
 
     filtered = filtered.filter((call) => call.direction === direction);
@@ -410,14 +277,13 @@ export function AdminCallsAnalytics() {
       'Cost',
       'User',
       'Agent',
-      'Phone Number',
     ];
 
     const rows = filteredCalls.map((call) => {
       const user = getUserForAgent(call.agent_id);
-      const { agentName, phoneNumber } = getAgentAndPhoneForCall(call);
+      const agentName = getAgentLabelForCall(call);
       return [
-        format(new Date(call.call_started_at), 'yyyy-MM-dd HH:mm:ss'),
+        formatDateEST(new Date(call.call_started_at), 'yyyy-MM-dd HH:mm:ss'),
         call.direction.toUpperCase(),
         formatContactName(call.contact_name),
         call.from_number,
@@ -429,7 +295,6 @@ export function AdminCallsAnalytics() {
         `$${call.cost.toFixed(2)}`,
         user ? `${user.first_name} ${user.last_name}` : 'N/A',
         agentName,
-        phoneNumber,
       ];
     });
 
@@ -438,7 +303,7 @@ export function AdminCallsAnalytics() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `admin-calls-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.download = `admin-calls-${formatDateEST(new Date(), 'yyyy-MM-dd')}.csv`;
     a.click();
   };
 
@@ -481,14 +346,6 @@ export function AdminCallsAnalytics() {
           <h1 className="text-2xl font-bold text-gray-900">Call Analytics</h1>
           <p className="text-gray-600">Comprehensive call monitoring and analytics</p>
         </div>
-        <button
-          onClick={() => loadData()}
-          disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
       </div>
 
       {/* Global Controls */}
@@ -500,8 +357,8 @@ export function AdminCallsAnalytics() {
             <button
               onClick={() => setDirection('inbound')}
               className={`px-6 py-2 rounded-l-lg border transition-colors ${direction === 'inbound'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                 }`}
             >
               Inbound
@@ -509,8 +366,8 @@ export function AdminCallsAnalytics() {
             <button
               onClick={() => setDirection('outbound')}
               className={`px-6 py-2 rounded-r-lg border-t border-r border-b transition-colors ${direction === 'outbound'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                 }`}
             >
               Outbound
@@ -525,21 +382,21 @@ export function AdminCallsAnalytics() {
             <Calendar className="h-4 w-4 text-gray-500" />
             <span className="text-gray-700">
               {startDate && endDate
-                ? `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`
+                ? `${formatDateEST(startDate, 'MMM d, yyyy')} - ${formatDateEST(endDate, 'MMM d, yyyy')}`
                 : 'Select Date Range'}
             </span>
           </button>
         </div>
 
-        {/* Second Row: User | Agent | Phone Numbers | Search */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Second Row: User | Agent | Search */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* User Selector */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">User</label>
             <select
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 h-[42px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Users</option>
               {users.map((user) => (
@@ -556,29 +413,12 @@ export function AdminCallsAnalytics() {
             <select
               value={selectedAgentId}
               onChange={(e) => setSelectedAgentId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 h-[42px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Agents</option>
               {getAvailableAgents().map((agent) => (
                 <option key={agent.id} value={agent.id}>
                   {agent.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Phone Numbers Selector */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Phone Numbers</label>
-            <select
-              value={selectedPhoneNumberId}
-              onChange={(e) => setSelectedPhoneNumberId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Phone Numbers</option>
-              {getAvailablePhoneNumbers().map((phone) => (
-                <option key={phone.id} value={phone.id}>
-                  {phone.label || formatPhoneNumber(phone.phone_number)}
                 </option>
               ))}
             </select>
@@ -679,6 +519,18 @@ export function AdminCallsAnalytics() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date & Time
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Direction
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Duration
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Cost
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Call ID
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -688,19 +540,7 @@ export function AdminCallsAnalytics() {
                   User
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Agent & Phone
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Direction
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date & Time
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Duration
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Cost
+                  Agent
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Content
@@ -717,53 +557,29 @@ export function AdminCallsAnalytics() {
               ) : (
                 filteredCalls.slice(0, 50).map((call) => (
                   <tr key={call.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-xs text-gray-600 font-mono">
-                        {call.highlevel_call_id}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {formatContactName(call.contact_name)}
-                      </div>
-                      <div className="text-sm text-gray-500 font-mono">{call.from_number}</div>
-                    </td>
+                    {/* Date & Time */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {(() => {
-                        const user = getUserForAgent(call.agent_id);
-                        return user ? `${user.first_name} ${user.last_name}` : 'N/A';
-                      })()}
+                      <div>{formatDateEST(new Date(call.call_started_at), 'MMM d, yyyy')}</div>
+                      <div className="text-gray-500">
+                        {formatDateEST(new Date(call.call_started_at), 'h:mm a')}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {(() => {
-                        const { agentName, phoneNumber } = getAgentAndPhoneForCall(call);
-                        return (
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">{agentName}</div>
-                            <div className="text-sm text-gray-500 font-mono">{phoneNumber}</div>
-                          </div>
-                        );
-                      })()}
-                    </td>
+                    {/* Direction */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 py-1 text-xs font-medium rounded-full ${call.direction === 'inbound'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-green-100 text-green-800'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-green-100 text-green-800'
                           }`}
                       >
                         {call.direction.toUpperCase()}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div>{format(new Date(call.call_started_at), 'MMM d, yyyy')}</div>
-                      <div className="text-gray-500">
-                        {format(new Date(call.call_started_at), 'h:mm a')}
-                      </div>
-                    </td>
+                    {/* Duration */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatDuration(call.duration_seconds)}
                     </td>
+                    {/* Cost */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {(call.display_cost === 'INCLUDED' || billingPlans[call.user_id] === 'inbound_unlimited') ? (
                         <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
@@ -773,6 +589,31 @@ export function AdminCallsAnalytics() {
                         `$${call.cost.toFixed(2)}`
                       )}
                     </td>
+                    {/* Call ID */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs text-gray-600 font-mono">
+                        {call.highlevel_call_id}
+                      </div>
+                    </td>
+                    {/* Contact */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {formatContactName(call.contact_name)}
+                      </div>
+                      <div className="text-sm text-gray-500 font-mono">{call.from_number}</div>
+                    </td>
+                    {/* User */}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {(() => {
+                        const user = getUserForAgent(call.agent_id);
+                        return user ? `${user.first_name} ${user.last_name}` : 'N/A';
+                      })()}
+                    </td>
+                    {/* Agent */}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {getAgentLabelForCall(call)}
+                    </td>
+                    {/* Content */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">
                         {call.summary && (

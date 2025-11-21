@@ -8,6 +8,11 @@ const corsHeaders = {
 };
 
 async function getSecret(key: string): Promise<string | null> {
+  const envValue = Deno.env.get(key);
+  if (envValue) {
+    return envValue;
+  }
+
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -95,7 +100,7 @@ Deno.serve(async (req: Request) => {
     await supabase
       .from('billing_accounts')
       .update({
-        billing_plan: plan,
+        inbound_plan: 'inbound_unlimited',
         stripe_subscription_id: subscriptionId,
         stripe_customer_id: customerIdToUpdate,
         next_payment_at: nextPaymentAt,

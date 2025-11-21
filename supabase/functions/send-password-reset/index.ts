@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const resendApiKey = Deno.env.get('RESEND_API_KEY')!;
-    const appUrl = 'https://voiceaidash.com';
+    const appUrl = 'https://www.voiceaidash.app';
 
     console.log('Processing password reset for:', email);
 
@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
 
     console.log('Sending email via Resend...');
 
-    // Send email using Resend with the HTML template
+    // Send email using Resend with the provided Reset Password template
     const emailHtml = `<!doctype html>
 <html lang="en" xmlns:v="urn:schemas-microsoft-com:vml">
 <head>
@@ -109,8 +109,8 @@ Deno.serve(async (req: Request) => {
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" class="container" style="width:600px; background:#0f172a; border-radius:16px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.35);">
           <tr>
             <td align="center" style="padding:28px 24px 8px 24px; background:#0b1220;">
-              <a href="https://voiceaidash.com" target="_blank" rel="noopener">
-                <img src="https://voiceaidash.com/assets/Voice%20AI%20Dash%20Logo%20with%20Text%20Dark-Di3zKMgu.png" alt="Voice AI Dash" width="180" style="display:block; border:0; outline:0; text-decoration:none;">
+              <a href="https://www.voiceaidash.app/" target="_blank" rel="noopener">
+                <img src="https://www.voiceaidash.app/Voice%20AI%20Dash%20Logo%20with%20Text%20Dark.png" alt="Voice AI Dash" width="180" style="display:block; border:0; outline:0; text-decoration:none;">
               </a>
             </td>
           </tr>
@@ -128,10 +128,20 @@ Deno.serve(async (req: Request) => {
 
           <tr>
             <td align="center" style="padding:24px 32px 8px 32px;">
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${confirmationUrl}" style="height:44px;v-text-anchor:middle;width:240px;" arcsize="12%" fillcolor="#2563eb" strokecolor="#2563eb">
+                <w:anchorlock/>
+                <center style="color:#ffffff;font-family:Segoe UI, Arial, sans-serif;font-size:16px;font-weight:600;">
+                  Reset Password
+                </center>
+              </v:roundrect>
+              <![endif]-->
+              <!--[if !mso]><!-- -->
               <a href="${confirmationUrl}" class="btn"
                  style="display:inline-block; background:#2563eb; color:#ffffff; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif; font-size:16px; font-weight:600; line-height:44px; padding:0 24px; border-radius:12px; text-align:center; min-width:200px;">
                 Reset Password
               </a>
+              <!--<![endif]-->
               <div style="height:8px; line-height:8px;">&nbsp;</div>
               <p style="margin:8px 0 0 0; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif; font-size:12px; line-height:18px; color:#94a3b8;">
                 If the button does not work, paste this link into your browser:
@@ -154,7 +164,7 @@ Deno.serve(async (req: Request) => {
           <tr>
             <td style="padding:16px 32px 28px 32px;">
               <p style="margin:0; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif; font-size:12px; line-height:20px; color:#94a3b8;">
-                If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.
+                If you didn’t request a password reset, you can safely ignore this email. Your password will remain unchanged.
               </p>
             </td>
           </tr>

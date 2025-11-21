@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { AlertCircle, Calendar, CheckCircle, Download, Loader2, RefreshCw, XCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDateEST } from '../../utils/formatting';
 import DateRangePicker from '../DateRangePicker';
 
 interface DiagnosticPanelProps {
@@ -326,7 +326,7 @@ export function DiagnosticPanel({ userId, userName }: DiagnosticPanelProps) {
           >
             <Calendar className="h-4 w-4" />
             {startDate && endDate
-              ? `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`
+              ? `${formatDateEST(startDate, 'MMM d, yyyy')} - ${formatDateEST(endDate, 'MMM d, yyyy')}`
               : 'Select Date Range (optional)'}
           </button>
           {(startDate || endDate) && (

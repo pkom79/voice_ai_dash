@@ -7,7 +7,26 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
+async function handleStripeError(response: Response, context: string): Promise<never> {
+  let message: string;
+
+  try {
+    const data = await response.json();
+    message = data?.error?.message || JSON.stringify(data);
+  } catch {
+    message = await response.text();
+  }
+
+  console.error(`Stripe API error (${context}) status ${response.status}:`, message);
+  throw new Error(`${context}: ${message}`);
+}
+
 async function getSecret(key: string): Promise<string | null> {
+  const envOverride = Deno.env.get(key);
+  if (envOverride) {
+    return envOverride;
+  }
+
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -98,9 +117,7 @@ Deno.serve(async (req: Request) => {
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        console.error('Stripe API error:', error);
-        throw new Error('Failed to create checkout session');
+        await handleStripeError(response, 'Failed to create checkout session');
       }
 
       const session = await response.json();
@@ -136,9 +153,7 @@ Deno.serve(async (req: Request) => {
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        console.error('Stripe API error:', error);
-        throw new Error('Failed to create subscription session');
+        await handleStripeError(response, 'Failed to create subscription session');
       }
 
       const session = await response.json();
@@ -196,9 +211,7 @@ Deno.serve(async (req: Request) => {
         });
 
         if (!response.ok) {
-          const error = await response.text();
-          console.error('Stripe API error:', error);
-          throw new Error('Failed to create combined checkout session');
+          await handleStripeError(response, 'Failed to create combined checkout session');
         }
 
         const session = await response.json();
@@ -235,9 +248,7 @@ Deno.serve(async (req: Request) => {
         });
 
         if (!response.ok) {
-          const error = await response.text();
-          console.error('Stripe API error:', error);
-          throw new Error('Failed to create subscription session');
+          await handleStripeError(response, 'Failed to create subscription session');
         }
 
         const session = await response.json();
@@ -271,9 +282,7 @@ Deno.serve(async (req: Request) => {
         });
 
         if (!response.ok) {
-          const error = await response.text();
-          console.error('Stripe API error:', error);
-          throw new Error('Failed to create wallet checkout session');
+          await handleStripeError(response, 'Failed to create wallet checkout session');
         }
 
         const session = await response.json();

@@ -25,7 +25,7 @@ function calculateCallCost(
   }
 
   // Unlimited inbound plan - inbound calls are included
-  if (direction === 'inbound' && billingAccount.inbound_plan === 'unlimited') {
+  if (direction === 'inbound' && billingAccount.inbound_plan === 'inbound_unlimited') {
     return { cost: 0, displayCost: 'INCLUDED' };
   }
 
@@ -37,6 +37,10 @@ function calculateCallCost(
     rateCents = billingAccount.inbound_rate_cents;
   } else if (direction === 'outbound' && billingAccount.outbound_rate_cents) {
     rateCents = billingAccount.outbound_rate_cents;
+  }
+
+  if (!rateCents) {
+    rateCents = 100;
   }
 
   // Cost = (duration in minutes) * (rate in cents) / 100 (convert to dollars)

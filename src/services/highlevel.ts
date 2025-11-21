@@ -120,9 +120,21 @@ class HighLevelService {
           : totalFetched === 0
             ? 'No calls found in date range'
             : undefined;
-        await this.updateSyncStatus('success', savedCount || 0, message);
+        await this.updateSyncStatus(
+          userId,
+          'success',
+          savedCount || 0,
+          message,
+          options?.syncType
+        );
       } else {
-        await this.updateSyncStatus('failure', 0, `Failed to save ${errorCount} calls`);
+        await this.updateSyncStatus(
+          userId,
+          'failure',
+          0,
+          `Failed to save ${errorCount} calls`,
+          options?.syncType
+        );
       }
 
       return {
@@ -133,8 +145,20 @@ class HighLevelService {
       };
     } catch (error) {
       console.error('Error syncing calls:', error);
-      await this.updateSyncStatus('failure', 0, error instanceof Error ? error.message : 'Unknown error');
-      throw error;
+      const friendlyMessage =
+        error instanceof Error && error.message.includes('429')
+          ? 'HighLevel rate limit reached. Please wait a minute and try again.'
+          : error instanceof Error
+            ? error.message
+            : 'Unknown error occurred during sync';
+      await this.updateSyncStatus(
+        userId,
+        'failure',
+        0,
+        friendlyMessage,
+        options?.syncType
+      );
+      throw new Error(friendlyMessage);
     }
   }
 
@@ -271,19 +295,26 @@ class HighLevelService {
   }
 
   private async updateSyncStatus(
+    userId: string,
     status: 'success' | 'failure',
     recordsSynced: number,
-    message?: string
+    message?: string,
+    syncType?: 'manual' | 'auto' | 'admin_historical'
   ) {
+    const normalizedSyncType: 'auto' | 'manual' =
+      syncType === 'auto' ? 'auto' : 'manual';
+
     await supabase.from('sync_status').upsert(
       {
         service: 'highlevel',
+        user_id: userId,
         last_sync_at: new Date().toISOString(),
         last_sync_status: status,
         last_sync_message: message || null,
+        sync_type: normalizedSyncType,
         records_synced: recordsSynced,
       },
-      { onConflict: 'service' }
+      { onConflict: 'service,user_id' }
     );
   }
 

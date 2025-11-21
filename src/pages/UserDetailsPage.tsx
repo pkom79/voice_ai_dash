@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2, Bug } from 'lucide-react';
+import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2 } from 'lucide-react';
 import { format, startOfToday, endOfToday } from 'date-fns';
+import { formatDateEST } from '../utils/formatting';
 import { getLocationTimezone, createDayStart, createDayEnd, getFullTimezoneDisplay, getDaysDifference } from '../utils/timezone';
 import { NotificationModal } from '../components/NotificationModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import DateRangePicker from '../components/DateRangePicker';
 import { ActivityTab } from '../components/ActivityTab';
-import { DiagnosticPanel } from '../components/admin/DiagnosticPanel';
 import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../contexts/AuthContext';
 import { oauthService } from '../services/oauth';
@@ -41,7 +41,7 @@ interface BillingData {
   outbound_plan: string | null;
 }
 
-type TabType = 'profile' | 'api' | 'billing' | 'call-analytics' | 'activity' | 'diagnostics';
+type TabType = 'profile' | 'api' | 'billing' | 'call-analytics' | 'activity';
 
 export function UserDetailsPage() {
   const navigate = useNavigate();
@@ -71,6 +71,7 @@ export function UserDetailsPage() {
   const [expiredConnection, setExpiredConnection] = useState<any>(null);
   const [assignedAgents, setAssignedAgents] = useState<any[]>([]);
   const [loadingApiData, setLoadingApiData] = useState(false);
+  const [refreshingToken, setRefreshingToken] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [showAgentManagementModal, setShowAgentManagementModal] = useState(false);
@@ -105,12 +106,9 @@ export function UserDetailsPage() {
   const [direction, setDirection] = useState<'inbound' | 'outbound'>('inbound');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
-  const [selectedPhoneNumberId, setSelectedPhoneNumberId] = useState<string>('all');
   const [startDate, setStartDate] = useState<Date | null>(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [endDate, setEndDate] = useState<Date | null>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<any[]>([]);
-  const [agentPhoneMap, setAgentPhoneMap] = useState<Record<string, string[]>>({});
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [suspendAction, setSuspendAction] = useState<'suspend' | 'activate'>('suspend');
   const [suspending, setSuspending] = useState(false);
@@ -119,6 +117,14 @@ export function UserDetailsPage() {
   const [resyncRangeEnd, setResyncRangeEnd] = useState<Date | null>(new Date());
   const [adminOverride, setAdminOverride] = useState(false);
   const [showResyncDatePicker, setShowResyncDatePicker] = useState(false);
+  const [latestInvitation, setLatestInvitation] = useState<{
+    status: string;
+    created_at: string;
+    expires_at: string | null;
+    accepted_at: string | null;
+  } | null>(null);
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [callToDelete, setCallToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -192,6 +198,16 @@ export function UserDetailsPage() {
         .eq('user_id', userId)
         .maybeSingle();
       setBillingData(billing);
+
+      // Load latest invitation info (if any)
+      const { data: invitation } = await supabase
+        .from('user_invitations')
+        .select('status, created_at, expires_at, accepted_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setLatestInvitation(invitation || null);
     } catch (error) {
       console.error('Error loading user:', error);
       showError('Failed to load user details');
@@ -200,6 +216,39 @@ export function UserDetailsPage() {
       setLoading(false);
     }
   };
+
+  const handleSendInvitation = async () => {
+    if (!userId) return;
+    setSendingInvite(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-user-invitation', {
+        body: { userId },
+      });
+
+      if (error || !data?.success) {
+        throw new Error(data?.error || 'Failed to send invitation');
+      }
+
+      showSuccess('Invitation email sent');
+
+      // Refresh invitation status
+      const { data: invitation } = await supabase
+        .from('user_invitations')
+        .select('status, created_at, expires_at, accepted_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setLatestInvitation(invitation || null);
+    } catch (err: any) {
+      console.error('Error sending invitation:', err);
+      showError(err.message || 'Failed to send invitation');
+    } finally {
+      setSendingInvite(false);
+    }
+  };
+
+  const invitationAccepted = latestInvitation?.status?.toLowerCase() === 'accepted';
 
   const loadApiData = async () => {
     if (!userId) return;
@@ -257,6 +306,23 @@ export function UserDetailsPage() {
       console.error('Error loading API data:', error);
     } finally {
       setLoadingApiData(false);
+    }
+  };
+
+  const handleRefreshToken = async () => {
+    if (!userId) return;
+    setRefreshingToken(true);
+    try {
+      const refreshed = await oauthService.refreshAccessToken(userId);
+      if (!refreshed) throw new Error('Token refresh failed');
+
+      showSuccess('HighLevel token refreshed');
+      await loadApiData();
+    } catch (error: any) {
+      console.error('Error refreshing token:', error);
+      showError(error.message || 'Failed to refresh token');
+    } finally {
+      setRefreshingToken(false);
     }
   };
 
@@ -327,13 +393,9 @@ export function UserDetailsPage() {
       );
 
       if (!response.ok) {
-        throw new Error('Failed to send password reset email');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to send password reset');
       }
-
-      showSuccess(`Password reset link sent to ${primaryEmail}`);
-    } catch (error) {
-      console.error('Error sending password reset:', error);
-      showError('Failed to send password reset link');
     } finally {
       setSendingPasswordReset(false);
     }
@@ -434,26 +496,32 @@ export function UserDetailsPage() {
   };
 
   const handleSendTestEmail = async (emailAddress: string) => {
+    if (!userId) return;
     setSendingTestEmail(emailAddress);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('You must be signed in to send emails.');
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-test-notification`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
-            userId: userId,
+            userId,
             email: emailAddress,
           }),
         }
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Failed to send test email');
       }
 
@@ -726,47 +794,12 @@ export function UserDetailsPage() {
       if (!userAgents || userAgents.length === 0) {
         setCalls([]);
         setAssignedAgents([]);
-        setAvailablePhoneNumbers([]);
         return;
       }
 
       const agentIds = userAgents.map(ua => ua.agent_id);
       const agents = userAgents.map(ua => ua.agents).filter(Boolean);
       setAssignedAgents(agents as any);
-
-      // Load agent-phone mapping
-      const { data: agentPhones } = await supabase
-        .from('agent_phone_numbers')
-        .select('agent_id, phone_number_id')
-        .in('agent_id', agentIds);
-
-      const phoneMap: Record<string, string[]> = {};
-      const allPhoneIds = new Set<string>();
-
-      if (agentPhones) {
-        agentPhones.forEach((ap) => {
-          if (!phoneMap[ap.agent_id]) {
-            phoneMap[ap.agent_id] = [];
-          }
-          phoneMap[ap.agent_id].push(ap.phone_number_id);
-          allPhoneIds.add(ap.phone_number_id);
-        });
-      }
-
-      setAgentPhoneMap(phoneMap);
-
-      // Load phone numbers
-      if (allPhoneIds.size > 0) {
-        const { data: phoneNumbers } = await supabase
-          .from('phone_numbers')
-          .select('id, phone_number')
-          .in('id', Array.from(allPhoneIds))
-          .eq('is_active', true);
-
-        setAvailablePhoneNumbers(phoneNumbers || []);
-      } else {
-        setAvailablePhoneNumbers([]);
-      }
 
       const { data, error } = await supabase
         .from('calls')
@@ -792,25 +825,12 @@ export function UserDetailsPage() {
     return assignedAgents;
   };
 
-  const getAvailablePhoneNumbers = () => {
-    if (selectedAgentId === 'all') {
-      return availablePhoneNumbers;
-    }
-    const phoneIds = agentPhoneMap[selectedAgentId] || [];
-    return availablePhoneNumbers.filter(p => phoneIds.includes(p.id));
-  };
-
   const getFilteredCalls = () => {
     let filtered = calls.filter(c => c.direction === direction);
 
     // Agent filter
     if (selectedAgentId !== 'all') {
       filtered = filtered.filter(c => c.agent_id === selectedAgentId);
-    }
-
-    // Phone number filter
-    if (selectedPhoneNumberId !== 'all') {
-      filtered = filtered.filter(c => c.phone_number_id === selectedPhoneNumberId);
     }
 
     // Date range filter
@@ -948,9 +968,14 @@ export function UserDetailsPage() {
 
     setSyncingCalls(true);
     try {
-      // Convert dates to timezone-aware ISO strings
-      const startDateISO = createDayStart(resyncRangeStart, timezone);
-      const endDateISO = resyncRangeEnd ? createDayEnd(resyncRangeEnd, timezone) : createDayEnd(resyncRangeStart, timezone);
+      // Convert dates to timezone-aware ISO strings if they exist
+      let startDateISO: string | undefined;
+      let endDateISO: string | undefined;
+
+      if (resyncRangeStart) {
+        startDateISO = createDayStart(resyncRangeStart, timezone);
+        endDateISO = resyncRangeEnd ? createDayEnd(resyncRangeEnd, timezone) : createDayEnd(resyncRangeStart, timezone);
+      }
 
       console.log('Syncing calls with params:', {
         userId: userId,
@@ -1160,6 +1185,40 @@ export function UserDetailsPage() {
     }
   };
 
+  const handleDeleteCall = (callId: string) => {
+    setCallToDelete(callId);
+  };
+
+  const executeDeleteCall = async () => {
+    if (!callToDelete) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-delete-call`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ callId: callToDelete }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete call');
+      }
+
+      showSuccess('Call deleted successfully');
+      setCallToDelete(null);
+      loadCalls();
+    } catch (error) {
+      console.error('Error deleting call:', error);
+      showError(error instanceof Error ? error.message : 'Failed to delete call');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1173,6 +1232,8 @@ export function UserDetailsPage() {
   }
 
   const apiLabel = 'API';
+  const tokenExpiresAt = apiConnection?.token_expires_at ? new Date(apiConnection.token_expires_at) : null;
+  const tokenIsExpired = tokenExpiresAt ? tokenExpiresAt < new Date() : false;
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
@@ -1180,7 +1241,6 @@ export function UserDetailsPage() {
     { id: 'billing', label: 'Billing', icon: DollarSign },
     { id: 'call-analytics', label: 'Call Analytics', icon: Phone },
     { id: 'activity', label: 'Activity', icon: Activity },
-    { id: 'diagnostics', label: 'Diagnostics', icon: Bug },
   ] as const;
 
   return (
@@ -1212,11 +1272,10 @@ export function UserDetailsPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-3 border-b-2 font-medium transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
-                  }`}
+                  className={`flex items-center gap-2 px-4 py-3 border-b-2 font-medium transition-colors ${activeTab === tab.id
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                    }`}
                 >
                   <Icon className="h-4 w-4" />
                   {tab.label}
@@ -1321,11 +1380,10 @@ export function UserDetailsPage() {
                           setSuspendAction(user.is_active ? 'suspend' : 'activate');
                           setShowSuspendModal(true);
                         }}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                          user.is_active
-                            ? 'bg-red-600 text-white hover:bg-red-700'
-                            : 'bg-green-600 text-white hover:bg-green-700'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${user.is_active
+                          ? 'bg-red-600 text-white hover:bg-red-700'
+                          : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
                       >
                         {user.is_active ? (
                           <>
@@ -1347,14 +1405,58 @@ export function UserDetailsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Created</label>
                     <div className="px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                      {format(new Date(user.created_at), 'MMM d, yyyy h:mm a')}
+                      {formatDateEST(new Date(user.created_at), 'MMM d, yyyy h:mm a')}
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Last Login</label>
                     <div className="px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                      {user.last_login ? format(new Date(user.last_login), 'MMM d, yyyy h:mm a') : 'Never'}
+                      {user.last_login ? formatDateEST(new Date(user.last_login), 'MMM d, yyyy h:mm a') : 'Never'}
                     </div>
+                  </div>
+                </div>
+
+                {/* Invitation Controls */}
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-medium text-gray-900">Account Invitation</h3>
+                      <p className="text-xs text-gray-600">
+                        Send or resend an invitation email so the user can complete their setup.
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Status:{' '}
+                        {latestInvitation
+                          ? `${latestInvitation.status.toUpperCase()} · Created ${formatDateEST(new Date(latestInvitation.created_at), 'MMM d, yyyy h:mm a')}`
+                          : 'No invitation sent yet'}
+                        {latestInvitation?.expires_at
+                          ? ` · Expires ${formatDateEST(new Date(latestInvitation.expires_at), 'MMM d, yyyy h:mm a')}`
+                          : ''}
+                        {latestInvitation?.accepted_at
+                          ? ` · Accepted ${formatDateEST(new Date(latestInvitation.accepted_at), 'MMM d, yyyy h:mm a')}`
+                          : ''}
+                      </p>
+                    </div>
+                    {!invitationAccepted && (
+                      <button
+                        type="button"
+                        onClick={handleSendInvitation}
+                        disabled={sendingInvite}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                      >
+                        {sendingInvite ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4" />
+                            Send Invitation
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1447,7 +1549,7 @@ export function UserDetailsPage() {
                             <button
                               type="button"
                               onClick={() => handleRemoveEmail(emailRecord.id)}
-                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
                               title="Remove email"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1597,7 +1699,7 @@ export function UserDetailsPage() {
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Token Expired</h3>
                   <p className="text-gray-600 mb-2">The HighLevel connection token has expired</p>
                   <p className="text-sm text-gray-500 mb-6">
-                    Expired on: {format(new Date(expiredConnection.token_expires_at), 'MMM d, yyyy h:mm a')}
+                    Expired on: {formatDateEST(new Date(expiredConnection.token_expires_at), 'MMM d, yyyy h:mm a')}
                   </p>
                   <button
                     onClick={handleConnectHighLevel}
@@ -1666,7 +1768,7 @@ export function UserDetailsPage() {
                         Connected Since
                       </label>
                       <div className="text-gray-900">
-                        {format(new Date(apiConnection.created_at), 'MMM d, yyyy h:mm a')}
+                        {formatDateEST(new Date(apiConnection.created_at), 'MMM d, yyyy h:mm a')}
                       </div>
                     </div>
                     <div>
@@ -1675,7 +1777,7 @@ export function UserDetailsPage() {
                       </label>
                       <div className="text-gray-900">
                         {apiConnection.last_used_at
-                          ? format(new Date(apiConnection.last_used_at), 'MMM d, yyyy h:mm a')
+                          ? formatDateEST(new Date(apiConnection.last_used_at), 'MMM d, yyyy h:mm a')
                           : 'Never'}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">Last time data was synced from HighLevel</p>
@@ -1684,42 +1786,83 @@ export function UserDetailsPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Token Expires
                       </label>
-                      <div className="text-gray-900">
-                        {apiConnection.token_expires_at
-                          ? format(new Date(apiConnection.token_expires_at), 'MMM d, yyyy h:mm a')
-                          : 'Unknown'}
+                      <div className="flex items-center gap-2 text-gray-900">
+                        <span className={`w-2.5 h-2.5 rounded-full ${tokenIsExpired ? 'bg-red-500' : 'bg-green-500'}`} />
+                        <span className={tokenIsExpired ? 'text-red-600 font-semibold' : ''}>
+                          {tokenExpiresAt
+                            ? formatDateEST(tokenExpiresAt, 'MMM d, yyyy h:mm a')
+                            : 'Unknown'}
+                        </span>
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        {apiConnection.token_expires_at && new Date(apiConnection.token_expires_at) < new Date()
-                          ? 'Token expired - will refresh on next use'
+                        {tokenIsExpired
+                          ? 'Token expired - refresh the token to restore syncing.'
                           : 'Automatically refreshes when needed'}
                       </p>
                     </div>
                     <div className="pt-4 border-t border-gray-200 space-y-3">
-                      <button
-                        onClick={loadApiData}
-                        disabled={loadingApiData}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-                      >
-                        {loadingApiData ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Refreshing...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="h-4 w-4" />
-                            Refresh Connection Status
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => setShowDisconnectModal(true)}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium"
-                      >
-                        <X className="h-4 w-4" />
-                        Disconnect HighLevel
-                      </button>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button
+                          onClick={loadApiData}
+                          disabled={loadingApiData}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                        >
+                          {loadingApiData ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Refreshing...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-4 w-4" />
+                              Refresh Connection Status
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={handleRefreshToken}
+                          disabled={refreshingToken || loadingApiData}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors font-medium disabled:opacity-50"
+                        >
+                          {refreshingToken ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Refreshing...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-4 w-4" />
+                              Refresh Token
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button
+                          onClick={() => setShowResyncModal(true)}
+                          disabled={syncingCalls}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+                        >
+                          {syncingCalls ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Syncing...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-4 w-4" />
+                              Sync Calls from HighLevel
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => setShowDisconnectModal(true)}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium"
+                        >
+                          <X className="h-4 w-4" />
+                          Disconnect HighLevel
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1765,11 +1908,10 @@ export function UserDetailsPage() {
                                 )}
                               </div>
                               <div className="flex items-center gap-2">
-                                <div className={`px-2 py-1 rounded text-xs font-medium ${
-                                  agent.is_active
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-amber-100 text-amber-700'
-                                }`}>
+                                <div className={`px-2 py-1 rounded text-xs font-medium ${agent.is_active
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-amber-100 text-amber-700'
+                                  }`}>
                                   {agent.is_active ? 'Active' : 'Inactive'}
                                 </div>
                                 <button
@@ -2013,15 +2155,14 @@ export function UserDetailsPage() {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <span
-                                    className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                      transaction.type === 'top_up' || transaction.type === 'admin_credit'
-                                        ? 'bg-green-100 text-green-800'
-                                        : transaction.type === 'deduction' || transaction.type === 'admin_debit'
+                                    className={`px-2 py-1 text-xs font-medium rounded-full ${transaction.type === 'top_up' || transaction.type === 'admin_credit'
+                                      ? 'bg-green-100 text-green-800'
+                                      : transaction.type === 'deduction' || transaction.type === 'admin_debit'
                                         ? 'bg-red-100 text-red-800'
                                         : transaction.type === 'refund'
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-gray-100 text-gray-800'
-                                    }`}
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : 'bg-gray-100 text-gray-800'
+                                      }`}
                                   >
                                     {transaction.type?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN'}
                                   </span>
@@ -2031,11 +2172,10 @@ export function UserDetailsPage() {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right">
                                   <span
-                                    className={`text-sm font-medium ${
-                                      transaction.type === 'top_up' || transaction.type === 'admin_credit' || transaction.type === 'refund'
-                                        ? 'text-green-600'
-                                        : 'text-red-600'
-                                    }`}
+                                    className={`text-sm font-medium ${transaction.type === 'top_up' || transaction.type === 'admin_credit' || transaction.type === 'refund'
+                                      ? 'text-green-600'
+                                      : 'text-red-600'
+                                      }`}
                                   >
                                     {transaction.type === 'top_up' || transaction.type === 'admin_credit' || transaction.type === 'refund'
                                       ? '+'
@@ -2123,21 +2263,19 @@ export function UserDetailsPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setDirection('inbound')}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      direction === 'inbound'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'inbound'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
                   >
                     Inbound
                   </button>
                   <button
                     onClick={() => setDirection('outbound')}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      direction === 'outbound'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'outbound'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
                   >
                     Outbound
                   </button>
@@ -2151,15 +2289,15 @@ export function UserDetailsPage() {
                     <Calendar className="h-4 w-4 text-gray-600" />
                     <span className="text-sm">
                       {startDate && endDate
-                        ? `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`
+                        ? `${formatDateEST(startDate, 'MMM d, yyyy')} - ${formatDateEST(endDate, 'MMM d, yyyy')}`
                         : 'Select Date Range'}
                     </span>
                   </button>
                 </div>
               </div>
 
-              {/* Second Row: Agent | Phone Numbers | Search */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Second Row: Agent | Search */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Agent Selector */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Agent</label>
@@ -2167,7 +2305,6 @@ export function UserDetailsPage() {
                     value={selectedAgentId}
                     onChange={(e) => {
                       setSelectedAgentId(e.target.value);
-                      setSelectedPhoneNumberId('all');
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
@@ -2175,23 +2312,6 @@ export function UserDetailsPage() {
                     {getAvailableAgents().map((agent: any) => (
                       <option key={agent.id} value={agent.id}>
                         {agent.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Phone Numbers Selector */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Phone Numbers</label>
-                  <select
-                    value={selectedPhoneNumberId}
-                    onChange={(e) => setSelectedPhoneNumberId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="all">All Phone Numbers</option>
-                    {getAvailablePhoneNumbers().map((phone: any) => (
-                      <option key={phone.id} value={phone.id}>
-                        {phone.phone_number}
                       </option>
                     ))}
                   </select>
@@ -2264,9 +2384,9 @@ export function UserDetailsPage() {
                       {billingData?.inbound_plan === 'inbound_unlimited'
                         ? 'N/A'
                         : `$${getFilteredCalls()
-                            .filter(c => c.display_cost !== 'INCLUDED')
-                            .reduce((sum, c) => sum + c.cost, 0)
-                            .toFixed(2)}`}
+                          .filter(c => c.display_cost !== 'INCLUDED')
+                          .reduce((sum, c) => sum + c.cost, 0)
+                          .toFixed(2)}`}
                     </p>
                   </div>
                   <DollarSign className="h-8 w-8 text-purple-600" />
@@ -2328,92 +2448,104 @@ export function UserDetailsPage() {
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Cost
                         </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <span className="sr-only">Delete</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {getFilteredCalls().map((call) => (
-                          <tr key={call.id}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {format(new Date(call.call_started_at), 'MMM d, yyyy h:mm a')}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {call.contact_name || 'Unknown'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {direction === 'inbound' ? call.from_number : call.to_number}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex flex-wrap gap-2">
-                                {(() => {
-                                  const rawActions = (call.action_triggered || call.actions || []);
-                                  const actionsArray = Array.isArray(rawActions)
-                                    ? rawActions
-                                    : typeof rawActions === 'string'
-                                      ? rawActions.split(',').map(a => a.trim()).filter(Boolean)
-                                      : [];
+                        <tr key={call.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {formatDateEST(new Date(call.call_started_at), 'MMM d, yyyy h:mm a')}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {call.contact_name || 'Unknown'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {direction === 'inbound' ? call.from_number : call.to_number}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex flex-wrap gap-2">
+                              {(() => {
+                                const rawActions = (call.action_triggered || call.actions || []);
+                                const actionsArray = Array.isArray(rawActions)
+                                  ? rawActions
+                                  : typeof rawActions === 'string'
+                                    ? rawActions.split(',').map(a => a.trim()).filter(Boolean)
+                                    : [];
 
-                                  if (actionsArray.length === 0) {
-                                    return <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">NONE</span>;
+                                if (actionsArray.length === 0) {
+                                  return <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">NONE</span>;
+                                }
+
+                                const mapLabel = (a: string) => {
+                                  const key = a.toLowerCase();
+                                  if (key.includes('knowledge')) return 'KB';
+                                  if (key.includes('call_transfer') || key.includes('transfer')) return 'TRANSFER';
+                                  if (key.includes('workflow')) return 'WORKFLOW';
+                                  if (key.includes('sms')) return 'SMS';
+                                  if (key.includes('appointment')) return 'APPT';
+                                  if (key.includes('contact')) return 'CONTACT';
+                                  return 'CUSTOM';
+                                };
+
+                                const mapStyle = (label: string) => {
+                                  switch (label) {
+                                    case 'KB':
+                                      return 'bg-blue-100 text-blue-800';
+                                    case 'TRANSFER':
+                                      return 'bg-purple-100 text-purple-800';
+                                    case 'WORKFLOW':
+                                      return 'bg-indigo-100 text-indigo-800';
+                                    case 'SMS':
+                                      return 'bg-teal-100 text-teal-800';
+                                    case 'APPT':
+                                      return 'bg-emerald-100 text-emerald-800';
+                                    case 'CONTACT':
+                                      return 'bg-sky-100 text-sky-800';
+                                    default:
+                                      return 'bg-gray-100 text-gray-800';
                                   }
+                                };
 
-                                  const mapLabel = (a: string) => {
-                                    const key = a.toLowerCase();
-                                    if (key.includes('knowledge')) return 'KB';
-                                    if (key.includes('call_transfer') || key.includes('transfer')) return 'TRANSFER';
-                                    if (key.includes('workflow')) return 'WORKFLOW';
-                                    if (key.includes('sms')) return 'SMS';
-                                    if (key.includes('appointment')) return 'APPT';
-                                    if (key.includes('contact')) return 'CONTACT';
-                                    return 'CUSTOM';
-                                  };
-
-                                  const mapStyle = (label: string) => {
-                                    switch (label) {
-                                      case 'KB':
-                                        return 'bg-blue-100 text-blue-800';
-                                      case 'TRANSFER':
-                                        return 'bg-purple-100 text-purple-800';
-                                      case 'WORKFLOW':
-                                        return 'bg-indigo-100 text-indigo-800';
-                                      case 'SMS':
-                                        return 'bg-teal-100 text-teal-800';
-                                      case 'APPT':
-                                        return 'bg-emerald-100 text-emerald-800';
-                                      case 'CONTACT':
-                                        return 'bg-sky-100 text-sky-800';
-                                      default:
-                                        return 'bg-gray-100 text-gray-800';
-                                    }
-                                  };
-
-                                  return actionsArray.map((act: string, idx: number) => {
-                                    const label = mapLabel(act);
-                                    return (
-                                      <span
-                                        key={`${act}-${idx}`}
-                                        className={`px-2 py-1 text-xs font-semibold rounded-full uppercase ${mapStyle(label)}`}
-                                      >
-                                        {label}
-                                      </span>
-                                    );
-                                  });
-                                })()}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                              {billingData?.inbound_plan === 'inbound_unlimited' || call.display_cost === 'INCLUDED' ? (
-                                <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
-                                  INCLUDED
-                                </span>
-                              ) : (
-                                <span className="text-gray-900">${(call.cost || 0).toFixed(2)}</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                                return actionsArray.map((act: string, idx: number) => {
+                                  const label = mapLabel(act);
+                                  return (
+                                    <span
+                                      key={`${act}-${idx}`}
+                                      className={`px-2 py-1 text-xs font-semibold rounded-full uppercase ${mapStyle(label)}`}
+                                    >
+                                      {label}
+                                    </span>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                            {billingData?.inbound_plan === 'inbound_unlimited' || call.display_cost === 'INCLUDED' ? (
+                              <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
+                                INCLUDED
+                              </span>
+                            ) : (
+                              <span className="text-gray-900">${(call.cost || 0).toFixed(2)}</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                            <button
+                              onClick={() => handleDeleteCall(call.id)}
+                              className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
+                              title="Delete Call"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 )}
@@ -2426,12 +2558,7 @@ export function UserDetailsPage() {
           <ActivityTab userId={userId} />
         )}
 
-        {activeTab === 'diagnostics' && userId && user && (
-          <DiagnosticPanel
-            userId={userId}
-            userName={user.business_name || `${user.first_name} ${user.last_name}`}
-          />
-        )}
+
       </div>
 
       {/* Disconnect Confirmation Modal */}
@@ -2544,11 +2671,10 @@ export function UserDetailsPage() {
                       return (
                         <div
                           key={agent.id}
-                          className={`border rounded-lg p-4 transition-all ${
-                            isAssigned
-                              ? 'border-blue-300 bg-blue-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
+                          className={`border rounded-lg p-4 transition-all ${isAssigned
+                            ? 'border-blue-300 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                            }`}
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
@@ -2556,7 +2682,7 @@ export function UserDetailsPage() {
                                 <h4 className="font-medium text-gray-900 truncate">{agent.name}</h4>
                                 {isAssigned && (
                                   <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
-                                    Assigned
+                                    ASSIGNED
                                   </span>
                                 )}
                               </div>
@@ -2566,11 +2692,10 @@ export function UserDetailsPage() {
                             </div>
                             <button
                               onClick={() => handleToggleAgentAssignment(agent.id, isAssigned)}
-                              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${
-                                isAssigned
-                                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                  : 'bg-blue-600 text-white hover:bg-blue-700'
-                              }`}
+                              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${isAssigned
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }`}
                             >
                               {isAssigned ? 'Remove' : 'Assign'}
                             </button>
@@ -2586,7 +2711,7 @@ export function UserDetailsPage() {
             <div className="p-6 border-t border-gray-200">
               <button
                 onClick={() => setShowAgentManagementModal(false)}
-                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
               >
                 Done
               </button>
@@ -2773,11 +2898,10 @@ export function UserDetailsPage() {
                 <div className="space-y-3">
                   <div
                     onClick={() => setSelectedInboundPlan('inbound_pay_per_use')}
-                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      selectedInboundPlan === 'inbound_pay_per_use'
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                    }`}
+                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedInboundPlan === 'inbound_pay_per_use'
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                      }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -2797,11 +2921,10 @@ export function UserDetailsPage() {
                   </div>
                   <div
                     onClick={() => setSelectedInboundPlan('inbound_unlimited')}
-                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      selectedInboundPlan === 'inbound_unlimited'
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                    }`}
+                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedInboundPlan === 'inbound_unlimited'
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                      }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -2821,11 +2944,10 @@ export function UserDetailsPage() {
                   </div>
                   <div
                     onClick={() => setSelectedInboundPlan(null)}
-                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      selectedInboundPlan === null
-                        ? 'border-red-600 bg-red-50'
-                        : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
-                    }`}
+                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedInboundPlan === null
+                      ? 'border-red-600 bg-red-50'
+                      : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
+                      }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -2872,11 +2994,10 @@ export function UserDetailsPage() {
                 <div className="space-y-3">
                   <div
                     onClick={() => setSelectedOutboundPlan('outbound_pay_per_use')}
-                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      selectedOutboundPlan === 'outbound_pay_per_use'
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                    }`}
+                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOutboundPlan === 'outbound_pay_per_use'
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                      }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -2896,11 +3017,10 @@ export function UserDetailsPage() {
                   </div>
                   <div
                     onClick={() => setSelectedOutboundPlan(null)}
-                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      selectedOutboundPlan === null
-                        ? 'border-red-600 bg-red-50'
-                        : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
-                    }`}
+                    className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOutboundPlan === null
+                      ? 'border-red-600 bg-red-50'
+                      : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
+                      }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -3056,22 +3176,38 @@ export function UserDetailsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Date Range
                 </label>
-                <button
-                  onClick={() => setShowResyncDatePicker(true)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-left hover:bg-gray-50 transition-colors"
-                >
-                  {resyncRangeStart && resyncRangeEnd ? (
-                    <span className="text-gray-900">
-                      {format(resyncRangeStart, 'MMM d, yyyy')} - {format(resyncRangeEnd, 'MMM d, yyyy')}
-                    </span>
-                  ) : resyncRangeStart ? (
-                    <span className="text-gray-900">{format(resyncRangeStart, 'MMM d, yyyy')}</span>
-                  ) : (
-                    <span className="text-gray-500">Select date range</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowResyncDatePicker(true)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-left hover:bg-gray-50 transition-colors"
+                  >
+                    {resyncRangeStart && resyncRangeEnd ? (
+                      <span className="text-gray-900">
+                        {formatDateEST(resyncRangeStart, 'MMM d, yyyy')} - {formatDateEST(resyncRangeEnd, 'MMM d, yyyy')}
+                      </span>
+                    ) : resyncRangeStart ? (
+                      <span className="text-gray-900">{formatDateEST(resyncRangeStart, 'MMM d, yyyy')}</span>
+                    ) : (
+                      <span className="text-gray-500 italic">Auto (Latest Call)</span>
+                    )}
+                  </button>
+                  {(resyncRangeStart || resyncRangeEnd) && (
+                    <button
+                      onClick={() => {
+                        setResyncRangeStart(null);
+                        setResyncRangeEnd(null);
+                      }}
+                      className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-500"
+                      title="Clear Date Range"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   )}
-                </button>
+                </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Times: 00:00:00 to 23:59:59 in {getFullTimezoneDisplay(locationTimezone || 'America/New_York')}
+                  {resyncRangeStart 
+                    ? `Times: 00:00:00 to 23:59:59 in ${getFullTimezoneDisplay(locationTimezone || 'America/New_York')}`
+                    : "Will fetch calls starting from the most recent call in the database."}
                 </p>
               </div>
 
@@ -3086,10 +3222,10 @@ export function UserDetailsPage() {
                 />
                 <div className="flex-1">
                   <label htmlFor="adminOverride" className="text-sm font-medium text-gray-900 cursor-pointer">
-                    Admin Override (bypass calls_reset_at)
+                    Admin Override (Force Full Resync)
                   </label>
                   <p className="text-xs text-gray-600 mt-1">
-                    When enabled, fetches all calls in the selected date range, ignoring the calls_reset_at restriction. Use this to sync historical calls.
+                    When enabled, this will force a re-fetch of all calls in the selected date range, including calls that were previously removed or reset. This bypasses the standard <code className="bg-gray-100 px-1 rounded">calls_reset_at</code> safety check.
                   </p>
                 </div>
               </div>
@@ -3100,7 +3236,7 @@ export function UserDetailsPage() {
                   <AlertTriangle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-orange-800">
                     <p className="font-medium">Admin override enabled</p>
-                    <p className="mt-1">This will bypass the normal sync restrictions. This action will be logged in the audit trail.</p>
+                    <p className="mt-1">This will re-import calls that may have been previously deleted. This action bypasses sync restrictions and will be logged in the audit trail.</p>
                   </div>
                 </div>
               )}
@@ -3156,6 +3292,18 @@ export function UserDetailsPage() {
         title={notification.title}
         message={notification.message}
         type={notification.type}
+      />
+
+      {/* Delete Call Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={!!callToDelete}
+        title="Delete Call Record"
+        message="Are you sure you want to delete this call? This action cannot be undone and will remove it from analytics and billing calculations."
+        confirmText="Delete Call"
+        cancelText="Cancel"
+        onConfirm={executeDeleteCall}
+        onCancel={() => setCallToDelete(null)}
+        type="danger"
       />
     </div>
   );

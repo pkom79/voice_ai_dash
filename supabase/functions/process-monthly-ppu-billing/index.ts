@@ -38,6 +38,11 @@ interface UsageSummary {
 }
 
 async function getSecret(key: string): Promise<string | null> {
+  const envValue = Deno.env.get(key);
+  if (envValue) {
+    return envValue;
+  }
+
   const { data, error } = await supabase
     .from('app_secrets')
     .select('value')
