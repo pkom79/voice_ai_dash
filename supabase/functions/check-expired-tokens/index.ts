@@ -240,30 +240,23 @@ Deno.serve(async (req: Request) => {
 
     for (const adminEmail of adminEmails) {
       try {
-        const emailResponse = await fetch(
-          `${supabaseUrl}/functions/v1/send-email`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({
-              to: adminEmail,
-              subject: `Connection Health Alert - ${issuesToNotify.length} User(s) Need Attention`,
-              html: emailHtml,
-              userId: issuesToNotify[0]?.user_id ?? "",
-              emailType: "admin_token_expired",
-            }),
+        const { data, error } = await supabase.functions.invoke('send-email', {
+          body: {
+            to: adminEmail,
+            subject: `Connection Health Alert - ${issuesToNotify.length} User(s) Need Attention`,
+            html: emailHtml,
+            userId: issuesToNotify[0]?.user_id ?? "",
+            emailType: "admin_token_expired",
           }
-        );
+        });
 
-        if (emailResponse.ok) {
-          emailsSent++;
+        if (error) {
+          console.error(`Failed to send email to ${adminEmail}:`, error);
+          // Log content as fallback
+          console.log(`[FALLBACK LOG] Email Content for ${adminEmail}:`, emailHtml);
+          emailErrors.push({ email: adminEmail, error });
         } else {
-          const errorText = await emailResponse.text();
-          console.error(`Failed to send email to ${adminEmail}:`, errorText);
-          emailErrors.push({ email: adminEmail, status: emailResponse.status, error: errorText });
+          emailsSent++;
         }
       } catch (error) {
         console.error(`Error sending email to ${adminEmail}:`, error);
