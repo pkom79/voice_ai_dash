@@ -577,7 +577,7 @@ export function AdminUsersPage() {
                         setConfirmModal({
                           isOpen: true,
                           title: 'Remove User',
-                          message: `Are you sure you want to remove ${user.first_name} ${user.last_name}? This action cannot be undone.`,
+                          message: `Are you sure you want to remove ${user.first_name} ${user.last_name}?\nThis action cannot be undone.`,
                           type: 'danger',
                           onConfirm: async () => {
                             const success = await adminService.deleteUser(user.id);

@@ -95,9 +95,7 @@ export function AdminSystemPage() {
   const loadConnections = async () => {
     setLoadingConnections(true);
     try {
-      const { data, error } = await supabase.rpc('get_admin_connections_status');
-      
-      if (error) throw error;
+      const data = await adminService.getConnectionsStatus();
       setConnections(data || []);
     } catch (error) {
       console.error('Error loading connections:', error);
@@ -118,20 +116,23 @@ export function AdminSystemPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">System</h1>
-        <p className="text-gray-600">System monitoring and diagnostics</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">System</h1>
+          <p className="text-gray-500">System monitoring and diagnostics</p>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
             <button
               onClick={() => setActiveTab('audit')}
-              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'audit'
-                  ? 'border-blue-600 text-blue-600'
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'audit'
+                  ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+              }`}
             >
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
@@ -140,10 +141,11 @@ export function AdminSystemPage() {
             </button>
             <button
               onClick={() => setActiveTab('connections')}
-              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'connections'
-                  ? 'border-blue-600 text-blue-600'
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'connections'
+                  ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+              }`}
             >
               <div className="flex items-center gap-2">
                 <Link2 className="h-4 w-4" />
@@ -156,140 +158,136 @@ export function AdminSystemPage() {
         <div className="p-6">
           {activeTab === 'audit' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-4">
-                  {/* Date Range Picker Button */}
+              <div className="flex flex-wrap gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Action Type</label>
+                  <select
+                    value={auditFilters.action || ''}
+                    onChange={(e) => setAuditFilters(prev => ({ ...prev, action: e.target.value || undefined }))}
+                    className="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">All Actions</option>
+                    <option value="login">Login</option>
+                    <option value="logout">Logout</option>
+                    <option value="create_user">Create User</option>
+                    <option value="update_user">Update User</option>
+                    <option value="delete_user">Delete User</option>
+                    <option value="invite_user">Invite User</option>
+                    <option value="revoke_invitation">Revoke Invitation</option>
+                    <option value="impersonate_user">Impersonate User</option>
+                    <option value="view_user_details">View User Details</option>
+                    <option value="export_data">Export Data</option>
+                    <option value="system_config_change">System Config Change</option>
+                  </select>
+                </div>
+
+                <div className="flex-1 min-w-[200px] relative" ref={auditUserDropdownRef}>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Target User</label>
+                  <div 
+                    className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 bg-white cursor-pointer flex items-center justify-between"
+                    onClick={() => setShowAuditUserDropdown(!showAuditUserDropdown)}
+                  >
+                    <span className={!selectedAuditUser ? 'text-gray-500' : 'text-gray-900'}>
+                      {selectedAuditUser 
+                        ? `${selectedAuditUser.first_name} ${selectedAuditUser.last_name}`
+                        : 'All Users'}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                  </div>
+                  
+                  {showAuditUserDropdown && (
+                    <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
+                      <div className="p-2 sticky top-0 bg-white border-b border-gray-100">
+                        <input
+                          type="text"
+                          className="w-full border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Search users..."
+                          value={auditUserSearch}
+                          onChange={(e) => setAuditUserSearch(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                      <div
+                        className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 text-gray-900"
+                        onClick={() => {
+                          setAuditFilters(prev => ({ ...prev, targetUserId: undefined }));
+                          setShowAuditUserDropdown(false);
+                        }}
+                      >
+                        All Users
+                      </div>
+                      {filteredAuditUsers.map((user) => (
+                        <div
+                          key={user.id}
+                          className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 text-gray-900"
+                          onClick={() => {
+                            setAuditFilters(prev => ({ ...prev, targetUserId: user.id }));
+                            setShowAuditUserDropdown(false);
+                          }}
+                        >
+                          {user.first_name} {user.last_name}
+                          <span className="block text-xs text-gray-500">{user.email}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Date Range</label>
                   <div className="relative">
                     <button
                       onClick={() => setShowDatePicker(!showDatePicker)}
-                      className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors bg-white text-sm"
+                      className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50"
                     >
-                      <Calendar className="h-4 w-4 text-gray-600" />
                       <span className="text-gray-700">
-                        {auditFilters.startDate && auditFilters.endDate
-                          ? `${formatDateEST(auditFilters.startDate, 'MMM d, yyyy')} - ${formatDateEST(auditFilters.endDate, 'MMM d, yyyy')}`
-                          : 'Select Date Range'}
+                        {auditFilters.startDate ? (
+                          <>
+                            {formatDateEST(auditFilters.startDate, 'MMM d')}
+                            {auditFilters.endDate ? ` - ${formatDateEST(auditFilters.endDate, 'MMM d')}` : ''}
+                          </>
+                        ) : (
+                          'All Time'
+                        )}
                       </span>
+                      <Calendar className="h-4 w-4 text-gray-400" />
                     </button>
                     {showDatePicker && (
-                      <DateRangePicker
-                        startDate={auditFilters.startDate || null}
-                        endDate={auditFilters.endDate || null}
-                        onDateRangeChange={(start, end) => {
-                          setAuditFilters(prev => ({ ...prev, startDate: start || undefined, endDate: end || undefined }));
-                          setShowDatePicker(false);
-                        }}
-                        onClose={() => setShowDatePicker(false)}
-                      />
-                    )}
-                  </div>
-
-                  {/* Action Filter */}
-                  <select
-                    value={auditFilters.action || ''}
-                    onChange={(e) => setAuditFilters({ ...auditFilters, action: e.target.value || undefined })}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  >
-                    <option value="">All Actions</option>
-                    <option value="create_user">Create User</option>
-                    <option value="suspend_user">Suspend User</option>
-                    <option value="unsuspend_user">Unsuspend User</option>
-                    <option value="invite_user">Invite User</option>
-                    <option value="update_billing_model">Update Billing</option>
-                    <option value="assign_agent">Assign Agent</option>
-                    <option value="unassign_agent">Unassign Agent</option>
-                    <option value="update_user_profile">Update User Profile</option>
-                    <option value="reset_password">Reset Password</option>
-                    <option value="delete_user">Delete User</option>
-                    <option value="update_subscription">Update Subscription</option>
-                    <option value="wallet_adjustment">Wallet Adjustment</option>
-                    <option value="oauth_connected">OAuth Connected</option>
-                    <option value="oauth_disconnected">OAuth Disconnected</option>
-                  </select>
-
-                  {/* Target User Filter */}
-                  <div className="relative" ref={auditUserDropdownRef}>
-                    <div 
-                      className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white cursor-pointer min-w-[200px]"
-                      onClick={() => setShowAuditUserDropdown(!showAuditUserDropdown)}
-                    >
-                      <User className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm text-gray-700 flex-1 truncate">
-                        {selectedAuditUser 
-                          ? `${selectedAuditUser.first_name} ${selectedAuditUser.last_name}` 
-                          : 'All Users'}
-                      </span>
-                      {selectedAuditUser ? (
-                        <X 
-                          className="h-4 w-4 text-gray-400 hover:text-gray-600" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setAuditFilters(prev => ({ ...prev, targetUserId: undefined }));
-                          }}
-                        />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-gray-400" />
-                      )}
-                    </div>
-                    
-                    {showAuditUserDropdown && (
-                      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
-                        <div className="p-2 border-b border-gray-200">
-                          <input
-                            type="text"
-                            placeholder="Search users..."
-                            value={auditUserSearch}
-                            onChange={(e) => setAuditUserSearch(e.target.value)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-                            autoFocus
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-                        <div className="overflow-y-auto flex-1">
-                          <div 
-                            className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
-                            onClick={() => {
-                              setAuditFilters(prev => ({ ...prev, targetUserId: undefined }));
-                              setShowAuditUserDropdown(false);
+                      <div className="absolute z-10 mt-1 right-0">
+                        <div className="fixed inset-0" onClick={() => setShowDatePicker(false)} />
+                        <div className="relative bg-white shadow-lg rounded-lg p-4 border border-gray-200">
+                          <DateRangePicker
+                            startDate={auditFilters.startDate}
+                            endDate={auditFilters.endDate}
+                            onChange={(start, end) => {
+                              setAuditFilters(prev => ({ ...prev, startDate: start, endDate: end }));
+                              if (start && end) setShowDatePicker(false);
                             }}
-                          >
-                            All Users
-                          </div>
-                          {filteredAuditUsers.map(user => (
-                            <div
-                              key={user.id}
-                              className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
-                              onClick={() => {
-                                setAuditFilters(prev => ({ ...prev, targetUserId: user.id }));
-                                setShowAuditUserDropdown(false);
-                              }}
-                            >
-                              {user.first_name} {user.last_name}
-                            </div>
-                          ))}
-                          {filteredAuditUsers.length === 0 && (
-                            <div className="px-4 py-2 text-sm text-gray-500 text-center">No users found</div>
-                          )}
+                          />
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <button
-                  onClick={() => loadAuditLogs()}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <RefreshCw className={`h-4 w-4 ${loadingAudit ? 'animate-spin' : ''}`} />
-                  Refresh Data
-                </button>
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setAuditFilters({});
+                      setAuditUserSearch('');
+                    }}
+                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                <table className="w-full">
+              <div className="overflow-hidden border border-gray-200 rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="w-8 px-4 py-3"></th>
+                      <th className="w-10 px-4 py-3"></th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Date
                       </th>
@@ -424,8 +422,8 @@ export function AdminSystemPage() {
                       </tr>
                     ) : (
                       filteredConnections.map((conn: any) => {
-                        const isConnected = !!conn.connection_id && conn.is_active;
-                        const isTokenHealthy = isConnected && conn.token_expires_at && new Date(conn.token_expires_at) > new Date();
+                        const isConnected = conn.has_connection;
+                        const isTokenHealthy = conn.token_status === 'valid';
                         
                         return (
                           <tr key={conn.user_id} className="hover:bg-gray-50">
@@ -471,6 +469,7 @@ export function AdminSystemPage() {
               </div>
             </div>
           )}
+
         </div>
       </div>
     </div>

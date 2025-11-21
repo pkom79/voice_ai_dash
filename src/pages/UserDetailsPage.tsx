@@ -2212,7 +2212,7 @@ export function UserDetailsPage() {
                   ) : (
                     <Trash2 className="h-4 w-4" />
                   )}
-                  Reset All Call Data
+                  Delete All Call Data
                 </button>
                 <button
                   onClick={handleSyncBillingBalance}
@@ -3114,8 +3114,8 @@ export function UserDetailsPage() {
       {/* Reset Confirmation Modal */}
       <ConfirmationModal
         isOpen={showResetConfirmModal}
-        title="Reset All Call Data"
-        message="Are you sure you want to delete all call data for this user? This action cannot be undone."
+        title="Delete All Call Data"
+        message={`Are you sure you want to delete all call data for this user?\nThis action cannot be undone.`}
         confirmText="Delete All"
         cancelText="Cancel"
         onConfirm={handleResetCalls}
@@ -3129,8 +3129,8 @@ export function UserDetailsPage() {
         title={suspendAction === 'suspend' ? 'Suspend User' : 'Activate User'}
         message={
           suspendAction === 'suspend'
-            ? 'Are you sure you want to suspend this user? This will prevent them from accessing the system.'
-            : 'Are you sure you want to activate this user? This will restore their access to the system.'
+            ? 'Are you sure you want to suspend this user?\nThis will prevent them from accessing the system.'
+            : 'Are you sure you want to activate this user?\nThis will restore their access to the system.'
         }
         confirmText={suspendAction === 'suspend' ? 'Suspend User' : 'Activate User'}
         cancelText="Cancel"

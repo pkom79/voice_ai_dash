@@ -162,7 +162,7 @@ export function UserSessionsModal({ userId, userName, onClose }: UserSessionsMod
       <ConfirmationModal
         isOpen={confirmTerminate !== null}
         title="Terminate Session"
-        message="Are you sure you want to terminate this session? The user will be logged out immediately."
+        message={`Are you sure you want to terminate this session?\nThe user will be logged out immediately.`}
         type="danger"
         onConfirm={() => confirmTerminate && handleTerminateSession(confirmTerminate)}
         onCancel={() => setConfirmTerminate(null)}

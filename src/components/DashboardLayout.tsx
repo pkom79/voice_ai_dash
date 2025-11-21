@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
+import { adminService } from '../services/admin';
 import {
   LayoutDashboard,
   Phone,
@@ -25,10 +26,36 @@ export function DashboardLayout() {
   const { isSyncing, syncData, getLastSyncDisplay } = useSync();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [systemHealth, setSystemHealth] = useState<'healthy' | 'unhealthy' | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
     return (saved as 'light' | 'dark') || 'light';
   });
+
+  useEffect(() => {
+    if (profile?.role === 'admin') {
+      const checkSystemHealth = async () => {
+        try {
+          const connections = await adminService.getConnectionsStatus();
+          const hasUnhealthy = connections.some((conn: any) => {
+            // Only check established connections
+            if (!conn.connection_id) return false;
+            
+            const isConnected = conn.is_active;
+            const isTokenHealthy = conn.token_expires_at && new Date(conn.token_expires_at) > new Date();
+            
+            return !isConnected || !isTokenHealthy;
+          });
+          
+          setSystemHealth(hasUnhealthy ? 'unhealthy' : 'healthy');
+        } catch (error) {
+          console.error('Error checking system health:', error);
+        }
+      };
+      
+      checkSystemHealth();
+    }
+  }, [profile]);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -61,7 +88,12 @@ export function DashboardLayout() {
   const adminNavigation = [
     { name: 'Call Analytics', href: '/admin/calls', icon: BarChart3 },
     { name: 'Users', href: '/admin/users', icon: Users },
-    { name: 'System', href: '/admin/system', icon: Settings },
+    { 
+      name: 'System', 
+      href: '/admin/system', 
+      icon: Settings,
+      status: systemHealth
+    },
     { name: 'Profile', href: '/profile', icon: User },
   ];
 
@@ -115,7 +147,13 @@ export function DashboardLayout() {
                   onClick={() => setSidebarOpen(false)}
                 >
                   <item.icon className="h-5 w-5" />
-                  <span className="font-medium">{item.name}</span>
+                  <span className="font-medium flex-1">{item.name}</span>
+                  {(item as any).status && (
+                    <div 
+                      className={`h-2.5 w-2.5 rounded-full ${(item as any).status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`} 
+                      title={(item as any).status === 'healthy' ? 'All systems operational' : 'System attention needed'}
+                    />
+                  )}
                 </Link>
               );
             })}
