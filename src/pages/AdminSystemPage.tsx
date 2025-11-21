@@ -6,7 +6,7 @@ import { formatDateEST } from '../utils/formatting';
 import DateRangePicker from '../components/DateRangePicker';
 
 export function AdminSystemPage() {
-  const [activeTab, setActiveTab] = useState<'audit' | 'connections'>('audit');
+  const [activeTab, setActiveTab] = useState<'audit' | 'connections'>('connections');
 
   // Audit Logs State
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -127,27 +127,27 @@ export function AdminSystemPage() {
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
             <button
-              onClick={() => setActiveTab('audit')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'audit'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-            >
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                Audit Logs
-              </div>
-            </button>
-            <button
               onClick={() => setActiveTab('connections')}
               className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'connections'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
             >
               <div className="flex items-center gap-2">
                 <Link2 className="h-4 w-4" />
                 Connections
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('audit')}
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'audit'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                Audit Logs
               </div>
             </button>
           </nav>

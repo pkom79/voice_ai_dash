@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
         token_expires_at,
         location_name,
         is_active,
-        users!inner(
+        users!api_keys_user_id_fkey!inner(
           first_name,
           last_name,
           business_name
@@ -205,8 +205,8 @@ Deno.serve(async (req: Request) => {
         </thead>
         <tbody>
           ${tokensToNotify
-            .map(
-              (token) => `
+        .map(
+          (token) => `
             <tr>
               <td>${token.first_name} ${token.last_name}</td>
               <td>${token.business_name || "N/A"}</td>
@@ -214,8 +214,8 @@ Deno.serve(async (req: Request) => {
               <td>${new Date(token.token_expires_at).toLocaleString()}</td>
             </tr>
           `
-            )
-            .join("")}
+        )
+        .join("")}
         </tbody>
       </table>
       <p style="margin-top: 20px;">

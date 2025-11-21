@@ -15,7 +15,7 @@ INSERT INTO user_notification_emails (
 )
 SELECT
   u.id,
-  u.email,
+  au.email,
   true,
   false, -- client-only alerts
   false,
@@ -27,9 +27,10 @@ SELECT
   true,
   true
 FROM users u
+JOIN auth.users au ON au.id = u.id
 WHERE u.role = 'admin'
   AND u.is_active = true
-  AND u.email IS NOT NULL
+  AND au.email IS NOT NULL
   AND NOT EXISTS (
     SELECT 1
     FROM user_notification_emails une

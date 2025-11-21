@@ -41,11 +41,9 @@ export function DashboardLayout() {
         try {
           const connections = await adminService.getConnectionsStatus();
           const hasUnhealthy = connections.some((conn: any) => {
-            // Only check established connections
-            if (!conn.connection_id) return false;
-
-            const isConnected = conn.is_active;
-            const isTokenHealthy = conn.token_expires_at && new Date(conn.token_expires_at) > new Date();
+            // Check if any connection or token is unhealthy (red dot in UI)
+            const isConnected = conn.has_connection;
+            const isTokenHealthy = conn.token_status === 'valid';
 
             return !isConnected || !isTokenHealthy;
           });
@@ -222,21 +220,23 @@ export function DashboardLayout() {
             </button>
 
             <div className="flex items-center gap-4 ml-auto">
-              {/* Sync Status */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
-                  Last synced: {getLastSyncDisplay()}
-                </span>
-                <button
-                  onClick={() => syncData()}
-                  disabled={isSyncing}
-                  className={`p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors ${isSyncing ? 'animate-spin' : ''
-                    }`}
-                  title="Sync Data"
-                >
-                  <RefreshCw className="h-5 w-5" />
-                </button>
-              </div>
+              {/* Sync Status - Only for Clients */}
+              {profile?.role !== 'admin' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
+                    Last synced: {getLastSyncDisplay()}
+                  </span>
+                  <button
+                    onClick={() => syncData()}
+                    disabled={isSyncing}
+                    className={`p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors ${isSyncing ? 'animate-spin' : ''
+                      }`}
+                    title="Sync Data"
+                  >
+                    <RefreshCw className="h-5 w-5" />
+                  </button>
+                </div>
+              )}
 
               <button
                 onClick={toggleTheme}
