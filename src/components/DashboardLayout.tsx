@@ -29,7 +29,7 @@ export function DashboardLayout() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
-  const [systemHealth, setSystemHealth] = useState<'healthy' | 'unhealthy' | null>(null);
+  const [systemHealth, setSystemHealth] = useState<'healthy' | 'unhealthy' | 'unknown' | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
     return (saved as 'light' | 'dark') || 'light';
@@ -40,6 +40,11 @@ export function DashboardLayout() {
       const checkSystemHealth = async () => {
         try {
           const connections = await adminService.getConnectionsStatus();
+          if (connections.length === 0) {
+            setSystemHealth('unknown');
+            return;
+          }
+
           const hasUnhealthy = connections.some((conn: any) => {
             // Check if any connection or token is unhealthy (red dot in UI)
             const isConnected = conn.has_connection;
@@ -151,8 +156,16 @@ export function DashboardLayout() {
                   <span className="font-medium flex-1">{item.name}</span>
                   {(item as any).status && (
                     <div
-                      className={`h-2.5 w-2.5 rounded-full ${(item as any).status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}
-                      title={(item as any).status === 'healthy' ? 'All systems operational' : 'System attention needed'}
+                      className={`h-2.5 w-2.5 rounded-full ${(item as any).status === 'healthy'
+                        ? 'bg-green-500'
+                        : (item as any).status === 'unhealthy'
+                          ? 'bg-red-500'
+                          : 'bg-gray-400'}`}
+                      title={(item as any).status === 'healthy'
+                        ? 'All systems operational'
+                        : (item as any).status === 'unhealthy'
+                          ? 'System attention needed'
+                          : 'No user connections'}
                     />
                   )}
                 </Link>
