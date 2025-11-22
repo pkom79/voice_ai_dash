@@ -162,7 +162,7 @@ export function AdminSystemPage() {
                   <select
                     value={auditFilters.action || ''}
                     onChange={(e) => setAuditFilters(prev => ({ ...prev, action: e.target.value || undefined }))}
-                    className="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">All Actions</option>
                     <option value="login">Login</option>
