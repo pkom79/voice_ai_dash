@@ -160,13 +160,13 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
   const hasPPU = hasInboundPPU || hasOutboundPPU;
 
   return (
-    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center px-4 py-6 z-[1000]">
+    <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center px-4 py-6 z-[1000]">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col z-[1001]">
-        <div className="bg-gray-900 text-white px-10 py-8">
+        <div className="bg-blue-700 text-white px-10 py-8">
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-white/70">Account: {userEmail}</p>
+            <p className="text-sm text-white/80">Account: {userEmail}</p>
             <h2 className="text-3xl font-semibold">Complete your billing setup</h2>
-            <p className="text-white/70">
+            <p className="text-white/80">
               Your Voice AI Dash workspace is locked until this initial payment is processed. This modal stays open until billing is confirmed.
             </p>
           </div>
@@ -174,13 +174,13 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
 
         <div className="flex-1 overflow-y-auto px-10 py-8 space-y-8">
           <div className="grid gap-6 md:grid-cols-2">
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
-              <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Plan Overview</p>
+            <div className="rounded-2xl border border-gray-200 bg-white p-6">
+              <p className="text-xs uppercase tracking-[0.3em] text-blue-600">Plan Overview</p>
               <div className="mt-4 space-y-6">
                 {inboundPlan && (
                   <div className="flex items-start gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-gray-900 text-white flex items-center justify-center">
-                      {hasInboundUnlimited ? <Zap className="h-5 w-5" /> : <Wallet className="h-5 w-5" />}
+                    <div className="h-12 w-12 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                      {hasInboundUnlimited ? <Zap className="h-5 w-5" /> : <CreditCard className="h-5 w-5" />}
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-wider text-gray-500">Inbound calls</p>
@@ -203,11 +203,11 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
                           <>
                             <li className="flex items-center gap-2">
                               <Check className="h-4 w-4 text-gray-900" />
-                              Billed from wallet at ${(inboundRate / 100).toFixed(2)} per minute
+                              Billed at ${(inboundRate / 100).toFixed(2)} per minute (charged to card, not wallet)
                             </li>
                             <li className="flex items-center gap-2">
                               <Check className="h-4 w-4 text-gray-900" />
-                              Wallet must maintain a $50 minimum
+                              One-time $50 wallet top-up to get started; no ongoing minimums after activation
                             </li>
                           </>
                         )}
@@ -218,7 +218,7 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
 
                 {outboundPlan && (
                   <div className="flex items-start gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-gray-200 text-gray-900 flex items-center justify-center">
+                    <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
                       <Wallet className="h-5 w-5" />
                     </div>
                     <div>
@@ -234,7 +234,7 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
             </div>
 
             <div className="rounded-2xl border border-gray-200 p-6">
-              <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Payment Summary</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-blue-600">Payment Summary</p>
               <div className="mt-6 space-y-4">
                 {payment.subscriptionRequired > 0 && (
                   <div className="flex items-center justify-between text-sm text-gray-900">
@@ -253,9 +253,8 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
                     <p className="text-xs uppercase tracking-wider text-gray-500">Total due today</p>
                     <p className="text-3xl font-bold text-gray-900">${(payment.total / 100).toFixed(2)}</p>
                   </div>
-                  <div className="text-right text-xs text-gray-500">
-                    <p>Secure card charge powered by Stripe</p>
-                    <p>This payment unlocks your workspace immediately.</p>
+                  <div className="text-sm text-gray-600">
+                    First payment collects your wallet top-up and any subscription fees.
                   </div>
                 </div>
               </div>
@@ -266,7 +265,7 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
             <div className="rounded-2xl border border-gray-200 p-6 bg-white">
               <p className="text-sm font-semibold text-gray-900">Wallet requirement</p>
               <p className="mt-2 text-sm text-gray-600">
-                Pay-per-use plans pull from your wallet balance. We require $50 in available funds so outbound and inbound usage can start right away.
+                Start with a $50 wallet top-up to enable pay-per-use. After activation, you can top up whenever you like—no ongoing minimums required.
               </p>
               <ul className="mt-4 space-y-2 text-sm text-gray-600">
                 <li className="flex items-center gap-2">
@@ -291,7 +290,7 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
           <button
             onClick={handleContinue}
             disabled={processing}
-            className="w-full inline-flex items-center justify-center gap-3 rounded-2xl bg-gray-900 text-white py-4 text-lg font-semibold hover:bg-black transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full inline-flex items-center justify-center gap-3 rounded-2xl bg-blue-700 text-white py-4 text-lg font-semibold hover:bg-blue-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {processing ? (
               <>
