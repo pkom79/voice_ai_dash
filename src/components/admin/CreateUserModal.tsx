@@ -55,22 +55,30 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
         return;
       }
 
-      if (!formData.inboundPlan && !formData.outboundPlan) {
+      if (formData.role === 'client' && !formData.inboundPlan && !formData.outboundPlan) {
         setError('Please select at least one plan (Inbound or Outbound)');
         setLoading(false);
         return;
       }
 
-      const inboundRateCents = parseInt(formData.inboundRate);
-      const outboundRateCents = parseInt(formData.outboundRate);
+      const inboundRateCents = formData.role === 'client' ? parseInt(formData.inboundRate) : undefined;
+      const outboundRateCents = formData.role === 'client' ? parseInt(formData.outboundRate) : undefined;
 
-      if (formData.inboundPlan === 'inbound_pay_per_use' && (isNaN(inboundRateCents) || inboundRateCents < 0)) {
+      if (
+        formData.role === 'client' &&
+        formData.inboundPlan === 'inbound_pay_per_use' &&
+        (inboundRateCents === undefined || isNaN(inboundRateCents) || inboundRateCents < 0)
+      ) {
         setError('Invalid inbound rate per minute value');
         setLoading(false);
         return;
       }
 
-      if (formData.outboundPlan === 'outbound_pay_per_use' && (isNaN(outboundRateCents) || outboundRateCents < 0)) {
+      if (
+        formData.role === 'client' &&
+        formData.outboundPlan === 'outbound_pay_per_use' &&
+        (outboundRateCents === undefined || isNaN(outboundRateCents) || outboundRateCents < 0)
+      ) {
         setError('Invalid outbound rate per minute value');
         setLoading(false);
         return;
@@ -83,8 +91,8 @@ export function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
         businessName: formData.businessName,
         phoneNumber: formData.phoneNumber,
         role: formData.role,
-        inboundPlan: formData.inboundPlan,
-        outboundPlan: formData.outboundPlan,
+        inboundPlan: formData.role === 'client' ? formData.inboundPlan : null,
+        outboundPlan: formData.role === 'client' ? formData.outboundPlan : null,
         inboundRateCents: inboundRateCents,
         outboundRateCents: outboundRateCents,
         adminNotes: formData.adminNotes || undefined,
