@@ -18,13 +18,15 @@ import {
   RefreshCw,
   BarChart3,
   LifeBuoy,
+  Eye,
+  XCircle,
 } from 'lucide-react';
 import logoLight from '../assets/Voice AI Dash Logo with Text.png';
 import logoDark from '../assets/Voice AI Dash Logo with Text Dark.png';
 import { SupportModal } from './SupportModal';
 
 export function DashboardLayout() {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isImpersonating, stopImpersonation } = useAuth();
   const { isSyncing, syncData, getLastSyncDisplay } = useSync();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -222,6 +224,26 @@ export function DashboardLayout() {
 
       {/* Main content */}
       <div className="lg:pl-64">
+        {/* Impersonation Banner */}
+        {isImpersonating && (
+          <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 flex items-center justify-between text-sm text-amber-900">
+            <div className="flex items-center gap-2">
+              <Eye className="w-4 h-4" />
+              <span className="font-medium">
+                Viewing as {profile?.first_name} {profile?.last_name}
+                {profile?.business_name ? ` (${profile.business_name})` : ''}
+              </span>
+            </div>
+            <button
+              onClick={stopImpersonation}
+              className="flex items-center gap-1 px-3 py-1 bg-amber-200 hover:bg-amber-300 rounded text-amber-900 font-medium transition-colors"
+            >
+              <XCircle className="w-4 h-4" />
+              Exit Impersonation
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <header className="sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between h-20 px-4 lg:px-8">

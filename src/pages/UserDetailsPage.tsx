@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2, Eye } from 'lucide-react';
 import { format, startOfToday, endOfToday } from 'date-fns';
 import { formatDateEST } from '../utils/formatting';
 import { getLocationTimezone, createDayStart, createDayEnd, getFullTimezoneDisplay, getDaysDifference } from '../utils/timezone';
@@ -23,6 +23,7 @@ interface UserData {
   is_active: boolean;
   created_at: string;
   last_login: string | null;
+  email?: string;
 }
 
 interface NotificationEmail {
@@ -39,6 +40,11 @@ interface NotificationEmail {
 interface BillingData {
   inbound_plan: string | null;
   outbound_plan: string | null;
+  wallet_cents: number;
+  month_spent_cents: number;
+  grace_until: string | null;
+  inbound_rate_cents: number;
+  outbound_rate_cents: number;
 }
 
 type TabType = 'profile' | 'api' | 'billing' | 'call-analytics' | 'activity';
@@ -47,7 +53,7 @@ export function UserDetailsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const userId = searchParams.get('userId');
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, impersonateUser } = useAuth();
 
   const { notification, showError, showSuccess, hideNotification } = useNotification();
   const [user, setUser] = useState<UserData | null>(null);
@@ -194,10 +200,10 @@ export function UserDetailsPage() {
       // Load billing data
       const { data: billing } = await supabase
         .from('billing_accounts')
-        .select('inbound_plan, outbound_plan')
+        .select('*')
         .eq('user_id', userId)
         .maybeSingle();
-      setBillingData(billing);
+      setBillingData(billing as BillingData);
 
       // Load latest invitation info (if any)
       const { data: invitation } = await supabase
@@ -1256,11 +1262,29 @@ export function UserDetailsPage() {
 
       {/* Header */}
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
-            {user.first_name} {user.last_name}
-          </h1>
-          <p className="text-gray-600 mt-1">{user.business_name}</p>
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {user.first_name} {user.last_name}
+            </h1>
+            <p className="text-gray-600 mt-1">{user.business_name}</p>
+          </div>
+
+          {/* Impersonate Button */}
+          {currentUser?.id !== userId && (
+            <button
+              onClick={async () => {
+                if (userId) {
+                  await impersonateUser(userId);
+                  navigate('/');
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors"
+            >
+              <Eye className="w-4 h-4" />
+              Impersonate User
+            </button>
+          )}
         </div>
 
         {/* Tab Navigation */}

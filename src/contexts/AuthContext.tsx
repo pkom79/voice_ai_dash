@@ -30,6 +30,9 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
+  impersonateUser: (userId: string) => Promise<void>;
+  stopImpersonation: () => void;
+  isImpersonating: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,6 +42,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Impersonation state
+  const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
+  const [impersonatedProfile, setImpersonatedProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -64,6 +71,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           setProfile(null);
+          setImpersonatedUser(null);
+          setImpersonatedProfile(null);
+          localStorage.removeItem('impersonated_user_id');
           setLoading(false);
         }
       })();
@@ -71,6 +81,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Restore impersonation on load if admin
+  useEffect(() => {
+    const restoreImpersonation = async () => {
+      const storedUserId = localStorage.getItem('impersonated_user_id');
+      if (storedUserId && profile?.role === 'admin' && !impersonatedUser) {
+        await impersonateUser(storedUserId);
+      }
+    };
+
+    if (profile && !loading) {
+      restoreImpersonation();
+    }
+  }, [profile, loading]);
 
   const triggerAutoSync = async (userId: string) => {
     try {
@@ -199,6 +223,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    stopImpersonation();
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
@@ -226,11 +251,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
+  const impersonateUser = async (userId: string) => {
+    if (profile?.role !== 'admin') {
+      console.error('Only admins can impersonate users');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // Fetch target profile
+      const { data: targetProfile, error: profileError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (profileError) throw profileError;
+
+      // Fetch target email (best effort)
+      const { data: emails } = await supabase
+        .from('user_notification_emails')
+        .select('email')
+        .eq('user_id', userId)
+        .eq('is_primary', true)
+        .maybeSingle();
+
+      // Construct mock User object
+      const mockUser: User = {
+        id: targetProfile.id,
+        app_metadata: {},
+        user_metadata: {},
+        aud: 'authenticated',
+        created_at: targetProfile.created_at,
+        email: emails?.email || 'impersonated@user.com',
+        phone: targetProfile.phone_number || '',
+        role: 'authenticated',
+        updated_at: new Date().toISOString()
+      } as User;
+
+      setImpersonatedProfile(targetProfile);
+      setImpersonatedUser(mockUser);
+      localStorage.setItem('impersonated_user_id', userId);
+    } catch (error) {
+      console.error('Error impersonating user:', error);
+      stopImpersonation();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const stopImpersonation = () => {
+    setImpersonatedUser(null);
+    setImpersonatedProfile(null);
+    localStorage.removeItem('impersonated_user_id');
+  };
+
   return (
     <AuthContext.Provider
       value={{
-        user,
-        profile,
+        user: impersonatedUser || user,
+        profile: impersonatedProfile || profile,
         session,
         loading,
         signIn,
@@ -238,6 +318,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         resetPassword,
         updatePassword,
+        impersonateUser,
+        stopImpersonation,
+        isImpersonating: !!impersonatedUser
       }}
     >
       {children}
