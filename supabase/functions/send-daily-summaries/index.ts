@@ -64,6 +64,9 @@ Deno.serve(async (req: Request) => {
         .from('calls')
         .select('direction, duration_seconds, status, created_at')
         .eq('user_id', user.id)
+        .eq('is_test_call', false)
+        .not('from_number', 'is', null)
+        .neq('from_number', '')
         .gte('created_at', yesterdayUTC.toISOString())
         .lt('created_at', todayUTC.toISOString());
 
