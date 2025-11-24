@@ -160,125 +160,59 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
   const hasPPU = hasInboundPPU || hasOutboundPPU;
 
   return (
-    <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center px-4 py-6 z-[1000]">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col z-[1001]">
-        <div className="bg-blue-700 text-white px-10 py-8">
-          <div className="flex flex-col gap-2">
-            <p className="text-sm text-white/80">Account: {userEmail}</p>
-            <h2 className="text-3xl font-semibold">Complete your billing setup</h2>
-            <p className="text-white/80">
-              Your Voice AI Dash workspace is locked until this initial payment is processed. This modal stays open until billing is confirmed.
-            </p>
-          </div>
+    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center px-4 py-6 z-[1000]">
+      <div className="bg-white rounded-3xl shadow-xl w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col z-[1001]">
+        <div className="bg-blue-700 text-white px-8 py-6">
+          <p className="text-sm text-white/80">Account: {userEmail}</p>
+          <h2 className="mt-2 text-2xl font-semibold">Complete your billing setup</h2>
+          <p className="mt-1 text-white/80">
+            Your Voice AI Dash workspace will be unlocked when your initial payment is processed.
+          </p>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-10 py-8 space-y-8">
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="rounded-2xl border border-gray-200 bg-white p-6">
-              <p className="text-xs uppercase tracking-[0.3em] text-blue-600">Plan Overview</p>
-              <div className="mt-4 space-y-6">
-                {inboundPlan && (
-                  <div className="flex items-start gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-blue-600 text-white flex items-center justify-center">
-                      {hasInboundUnlimited ? <Zap className="h-5 w-5" /> : <CreditCard className="h-5 w-5" />}
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-gray-500">Inbound calls</p>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {hasInboundUnlimited ? 'Unlimited plan' : 'Pay per use'}
-                      </p>
-                      <ul className="mt-3 space-y-2 text-sm text-gray-600">
-                        {hasInboundUnlimited ? (
-                          <>
-                            <li className="flex items-center gap-2">
-                              <Check className="h-4 w-4 text-gray-900" />
-                              Unlimited inbound minutes
-                            </li>
-                            <li className="flex items-center gap-2">
-                              <Check className="h-4 w-4 text-gray-900" />
-                              $500/month flat subscription
-                            </li>
-                          </>
-                        ) : (
-                          <>
-                            <li className="flex items-center gap-2">
-                              <Check className="h-4 w-4 text-gray-900" />
-                              Billed at ${(inboundRate / 100).toFixed(2)} per minute (charged to card, not wallet)
-                            </li>
-                            <li className="flex items-center gap-2">
-                              <Check className="h-4 w-4 text-gray-900" />
-                              One-time $50 wallet top-up to get started; no ongoing minimums after activation
-                            </li>
-                          </>
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-
-                {outboundPlan && (
-                  <div className="flex items-start gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
-                      <Wallet className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-gray-500">Outbound calls</p>
-                      <p className="text-lg font-semibold text-gray-900">Pay per use</p>
-                      <p className="text-sm text-gray-600 mt-2">
-                        Charged from wallet at ${(outboundRate / 100).toFixed(2)} per minute.
-                      </p>
-                    </div>
-                  </div>
-                )}
+        <div className="flex-1 overflow-y-auto px-8 py-8 space-y-6">
+          <div className="rounded-2xl border border-gray-200 p-6 bg-white space-y-4">
+            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Plan Overview</p>
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+                <CreditCard className="h-5 w-5" />
               </div>
-            </div>
-
-            <div className="rounded-2xl border border-gray-200 p-6">
-              <p className="text-xs uppercase tracking-[0.3em] text-blue-600">Payment Summary</p>
-              <div className="mt-6 space-y-4">
-                {payment.subscriptionRequired > 0 && (
-                  <div className="flex items-center justify-between text-sm text-gray-900">
-                    <span>Inbound Unlimited Subscription (first month)</span>
-                    <span className="font-semibold">${(payment.subscriptionRequired / 100).toFixed(2)}</span>
-                  </div>
-                )}
-                {payment.walletRequired > 0 && (
-                  <div className="flex items-center justify-between text-sm text-gray-900">
-                    <span>Required wallet credit</span>
-                    <span className="font-semibold">${(payment.walletRequired / 100).toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="pt-4 border-t border-gray-200 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-wider text-gray-500">Total due today</p>
-                    <p className="text-3xl font-bold text-gray-900">${(payment.total / 100).toFixed(2)}</p>
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    First payment collects your wallet top-up and any subscription fees.
-                  </div>
-                </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500">Inbound calls</p>
+                <p className="text-lg font-semibold text-gray-900">Pay per use</p>
+                <p className="text-sm text-gray-600 mt-2">Rate: ${(inboundRate / 100).toFixed(2)} per minute</p>
               </div>
             </div>
           </div>
 
-          {hasPPU && (
-            <div className="rounded-2xl border border-gray-200 p-6 bg-white">
-              <p className="text-sm font-semibold text-gray-900">Wallet requirement</p>
-              <p className="mt-2 text-sm text-gray-600">
-                Start with a $50 wallet top-up to enable pay-per-use. After activation, you can top up whenever you like—no ongoing minimums required.
-              </p>
-              <ul className="mt-4 space-y-2 text-sm text-gray-600">
-                <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-gray-900" />
-                  Current wallet balance: ${(walletCents / 100).toFixed(2)}
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-gray-900" />
-                  Amount to add today: ${(payment.walletRequired / 100).toFixed(2)}
-                </li>
-              </ul>
+          <div className="rounded-2xl border border-gray-200 p-6 bg-white space-y-4">
+            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Payment Summary</p>
+            <div className="flex items-center justify-between text-sm text-gray-900">
+              <span>Required wallet credit</span>
+              <span className="font-semibold">${(payment.walletRequired / 100).toFixed(2)}</span>
             </div>
-          )}
+            <div className="pt-4 border-t border-gray-200">
+              <p className="text-xs uppercase tracking-wider text-gray-500">Total due today</p>
+              <p className="text-3xl font-bold text-gray-900">${(payment.total / 100).toFixed(2)}</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 p-6 bg-white space-y-3">
+            <p className="text-sm font-semibold text-gray-900">Wallet requirement</p>
+            <p className="text-sm text-gray-600">
+              Start with a $50 wallet top-up to enable pay-per-use.
+            </p>
+            <ul className="space-y-2 text-sm text-gray-600">
+              <li className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-gray-900" />
+                Current wallet balance: ${(walletCents / 100).toFixed(2)}
+              </li>
+              <li className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-gray-900" />
+                Amount to add today: ${(payment.walletRequired / 100).toFixed(2)}
+              </li>
+            </ul>
+          </div>
         </div>
 
         <div className="px-10 py-6 bg-gray-50 border-t border-gray-200">
@@ -305,7 +239,7 @@ export function FirstLoginBillingModal({ onClose, userEmail }: FirstLoginBilling
             )}
           </button>
           <p className="mt-3 text-center text-xs text-gray-500">
-            Payments are securely processed by Stripe. This screen remains open until billing is complete.
+            Payments are securely processed by Stripe.
           </p>
         </div>
       </div>
