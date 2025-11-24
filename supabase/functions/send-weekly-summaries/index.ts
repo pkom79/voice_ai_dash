@@ -105,6 +105,9 @@ Deno.serve(async (req: Request) => {
         .from('calls')
         .select('direction, duration_seconds, cost, action_triggered')
         .eq('user_id', user.id)
+        .eq('is_test_call', false)
+        .not('from_number', 'is', null)
+        .neq('from_number', '')
         .gte('call_started_at', startDateUTC.toISOString())
         .lte('call_started_at', endDateUTC.toISOString());
 
