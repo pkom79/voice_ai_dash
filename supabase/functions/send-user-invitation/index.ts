@@ -110,7 +110,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: targetUser, error: userError } = await supabaseAdmin
       .from("users")
-      .select("id, first_name, last_name, business_name, phone_number")
+      .select("id, first_name, last_name, business_name, phone_number, role")
       .eq("id", requestData.userId)
       .maybeSingle();
 
@@ -171,7 +171,7 @@ Deno.serve(async (req: Request) => {
       user_id: requestData.userId,
       email: userEmail,
       invitation_token: invitationToken,
-      role: 'client',
+      role: targetUser.role || 'client',
       status: 'pending',
       expires_at: expiresAt.toISOString(),
       billing_plan: billingPlan,

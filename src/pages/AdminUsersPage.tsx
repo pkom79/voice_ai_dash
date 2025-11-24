@@ -84,6 +84,7 @@ export function AdminUsersPage() {
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [showAdmins, setShowAdmins] = useState(false);
   const [sendingInvite, setSendingInvite] = useState<string | null>(null);
   const [syncingUser, setSyncingUser] = useState<string | null>(null);
   const [showSessionsModal, setShowSessionsModal] = useState(false);
@@ -103,7 +104,7 @@ export function AdminUsersPage() {
 
   useEffect(() => {
     loadUsers();
-  }, []);
+  }, [showAdmins]);
 
   useEffect(() => {
     loadUserStatuses();
@@ -112,11 +113,16 @@ export function AdminUsersPage() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('users')
         .select('*')
-        .neq('role', 'admin')
         .order('created_at', { ascending: false });
+
+      if (!showAdmins) {
+        query = query.neq('role', 'admin');
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setUsers(data || []);
@@ -433,13 +439,25 @@ export function AdminUsersPage() {
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-600">Manage users, connections, agents, and billing</p>
         </div>
-        <button
-          onClick={() => setShowCreateUserModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <UserPlus className="h-4 w-4" />
-          Create New User
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAdmins(!showAdmins)}
+            className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${showAdmins
+                ? 'bg-purple-50 border-purple-200 text-purple-700'
+                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+          >
+            <Shield className="h-4 w-4" />
+            {showAdmins ? 'Hide Admins' : 'Show Admins'}
+          </button>
+          <button
+            onClick={() => setShowCreateUserModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <UserPlus className="h-4 w-4" />
+            Create New User
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow">
@@ -564,6 +582,20 @@ export function AdminUsersPage() {
 
                   {/* Right Side Actions */}
                   <div className="flex flex-col gap-2 ml-4">
+                    {!user.last_login && (
+                      <button
+                        onClick={() => handleSendInvite(user.id)}
+                        disabled={sendingInvite === user.id}
+                        className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap flex items-center justify-center gap-2"
+                      >
+                        {sendingInvite === user.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Mail className="h-4 w-4" />
+                        )}
+                        Send Invite
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         window.location.href = `/admin/users/${user.id}?userId=${user.id}`;
