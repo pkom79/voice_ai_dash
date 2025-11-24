@@ -21,6 +21,7 @@ interface BillingAccount {
   inbound_rate_cents: number;
   outbound_rate_cents: number;
   admin_notes: string | null;
+  stripe_customer_id: string | null;
 }
 
 export function BillingConfigModal({
@@ -35,6 +36,7 @@ export function BillingConfigModal({
   const [inboundRate, setInboundRate] = useState('100');
   const [outboundRate, setOutboundRate] = useState('100');
   const [adminNotes, setAdminNotes] = useState('');
+  const [stripeCustomerId, setStripeCustomerId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +69,7 @@ export function BillingConfigModal({
         setInboundRate(String(data.inbound_rate_cents || 100));
         setOutboundRate(String(data.outbound_rate_cents || 100));
         setAdminNotes(data.admin_notes || '');
+        setStripeCustomerId(data.stripe_customer_id || '');
       }
     } catch (err) {
       console.error('Error loading billing:', err);
@@ -112,6 +115,7 @@ export function BillingConfigModal({
           inbound_rate_cents: inboundRateCents,
           outbound_rate_cents: outboundRateCents,
           admin_notes: adminNotes,
+          stripe_customer_id: stripeCustomerId ? stripeCustomerId.trim() : null,
         })
         .eq('user_id', userId);
 
@@ -126,6 +130,7 @@ export function BillingConfigModal({
           outbound_plan: outboundPlan,
           inbound_rate_cents: inboundRateCents,
           outbound_rate_cents: outboundRateCents,
+          stripe_customer_id: stripeCustomerId ? stripeCustomerId.trim() : null,
         },
       });
 
@@ -321,6 +326,22 @@ export function BillingConfigModal({
                   onOutboundRateChange={setOutboundRate}
                   showRates={true}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Stripe Customer ID <span className="text-xs font-normal text-gray-500">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={stripeCustomerId}
+                  onChange={(e) => setStripeCustomerId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="cus_..."
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Use this to link an existing Stripe customer to this account.
+                </p>
               </div>
 
               <div>
