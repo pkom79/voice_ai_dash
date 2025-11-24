@@ -7,46 +7,77 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-interface ResetCallsRequest {
-  userId: string;
-}
-
 Deno.serve(async (req: Request) => {
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-      }
-    );
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
-    const { userId }: ResetCallsRequest = await req.json();
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error("Missing Supabase environment variables");
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+
+    // Verify Auth
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      throw new Error("Missing Authorization header");
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+
+    if (authError || !user) {
+      throw new Error("Invalid token");
+    }
+
+    // Check if user is admin
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (userError || userData?.role !== "admin") {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: Admin access required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Parse request body
+    const { userId } = await req.json();
 
     if (!userId) {
       return new Response(
         JSON.stringify({ error: "userId is required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Resetting call data for user: ${userId}`);
+    console.log(`Admin ${user.id} resetting call data for user: ${userId}`);
 
     // Get all call IDs for this user before deletion
-    const { data: callsToDelete, error: fetchError } = await supabase
+    const { data: callsToDelete, error: fetchError } = await supabaseAdmin
       .from("calls")
       .select("id")
       .eq("user_id", userId);
@@ -67,7 +98,7 @@ Deno.serve(async (req: Request) => {
 
     // Delete usage logs associated with these calls
     if (callIds.length > 0) {
-      const { error: usageLogDeleteError } = await supabase
+      const { error: usageLogDeleteError } = await supabaseAdmin
         .from("usage_logs")
         .delete()
         .in("call_id", callIds);
@@ -87,7 +118,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Delete all calls for this user
-    const { error: callsDeleteError } = await supabase
+    const { error: callsDeleteError } = await supabaseAdmin
       .from("calls")
       .delete()
       .eq("user_id", userId);
@@ -106,7 +137,7 @@ Deno.serve(async (req: Request) => {
     console.log(`Deleted all calls for user ${userId}`);
 
     // Recalculate month_spent_cents from remaining usage logs
-    const { data: remainingUsage, error: usageError } = await supabase
+    const { data: remainingUsage, error: usageError } = await supabaseAdmin
       .from("usage_logs")
       .select("cost_cents")
       .eq("user_id", userId);
@@ -127,7 +158,7 @@ Deno.serve(async (req: Request) => {
     console.log(`Recalculated month_spent_cents: ${totalCostCents} cents`);
 
     // Update billing account with reset timestamp and recalculated cost
-    const { error: billingUpdateError } = await supabase
+    const { error: billingUpdateError } = await supabaseAdmin
       .from("billing_accounts")
       .update({
         calls_reset_at: new Date().toISOString(),
