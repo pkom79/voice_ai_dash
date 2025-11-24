@@ -62,13 +62,13 @@ Deno.serve(async (req: Request) => {
 
       const { data: calls, error: callsError } = await supabase
         .from('calls')
-        .select('direction, duration_seconds, status, created_at')
+        .select('direction, duration_seconds, status, call_started_at')
         .eq('user_id', user.id)
         .eq('is_test_call', false)
         .not('from_number', 'is', null)
         .neq('from_number', '')
-        .gte('created_at', yesterdayUTC.toISOString())
-        .lt('created_at', todayUTC.toISOString());
+        .gte('call_started_at', yesterdayUTC.toISOString())
+        .lt('call_started_at', todayUTC.toISOString());
 
       if (callsError) {
         console.error(`Error fetching calls for user ${user.id}:`, callsError);
