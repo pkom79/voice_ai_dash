@@ -306,14 +306,29 @@ Deno.serve(async (req: Request) => {
           }),
         });
 
-        if (inviteResponse.ok) {
-          const inviteData = await inviteResponse.json();
-          invitationLink = inviteData.invitationLink;
-        } else {
-          console.error("Failed to send invitation:", await inviteResponse.text());
+        if (!inviteResponse.ok) {
+          const errorText = await inviteResponse.text();
+          console.error("Failed to send invitation:", errorText);
+          return new Response(
+            JSON.stringify({ error: "Failed to send invitation email" }),
+            {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
         }
+
+        const inviteData = await inviteResponse.json();
+        invitationLink = inviteData.invitationLink;
       } catch (inviteError) {
         console.error("Error sending invitation:", inviteError);
+        return new Response(
+          JSON.stringify({ error: "Failed to send invitation email" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
     }
 

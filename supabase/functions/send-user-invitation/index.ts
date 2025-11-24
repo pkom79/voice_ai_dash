@@ -212,36 +212,49 @@ Deno.serve(async (req: Request) => {
 
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
 
-    if (resendApiKey) {
-      const htmlContent = renderAccountSetupInvitation({
-        firstName: targetUser.first_name || "",
-        invitationLink,
-      });
-      const emailResponse = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${resendApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'Voice AI Dash <no-reply@notifications.voiceaidash.app>',
-          to: [userEmail],
-          subject: 'Account Setup Invitation',
-          html: htmlContent,
-        }),
-      });
-
-      const emailResult = await emailResponse.text();
-      if (!emailResponse.ok) {
-        console.error("Failed to send email. Status:", emailResponse.status);
-        console.error("Response:", emailResult);
-      } else {
-        console.log("Email sent successfully:", emailResult);
-      }
-    } else {
-      console.log("Resend API key not configured, skipping email send");
-      console.log("Invitation link:", invitationLink);
+    if (!resendApiKey) {
+      console.error("Resend API key not configured, aborting email send");
+      return new Response(
+        JSON.stringify({ error: "Resend API key not configured" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
+
+    const htmlContent = renderAccountSetupInvitation({
+      firstName: targetUser.first_name || "",
+      invitationLink,
+    });
+    const emailResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Voice AI Dash <no-reply@notifications.voiceaidash.app>',
+        to: [userEmail],
+        subject: 'Account Setup Invitation',
+        html: htmlContent,
+      }),
+    });
+
+    const emailResult = await emailResponse.text();
+    if (!emailResponse.ok) {
+      console.error("Failed to send email. Status:", emailResponse.status);
+      console.error("Response:", emailResult);
+      return new Response(
+        JSON.stringify({ error: "Failed to send invitation email" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log("Email sent successfully:", emailResult);
 
     if (invitingUserId) {
       await supabaseAdmin.from("audit_logs").insert({
