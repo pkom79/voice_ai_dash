@@ -294,5 +294,6 @@ export function DashboardLayout() {
           onClose={() => setShowSupportModal(false)}
         />
       </div>
-      );
+    </div>
+  );
 }
