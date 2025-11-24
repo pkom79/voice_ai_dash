@@ -98,6 +98,7 @@ export function BillingPage() {
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [showCancelAlert, setShowCancelAlert] = useState(false);
   const [loadingPortal, setLoadingPortal] = useState(false);
+  const portalLoginUrl = import.meta.env.VITE_STRIPE_PORTAL_LOGIN_URL || 'https://billing.stripe.com/p/login/cNieV5ey2edpad5gd75gc00';
   const combinedTransactions = useMemo<CombinedTransactionRecord[]>(() => {
     const walletEntries = transactions.map((transaction) => ({
       id: `wallet-${transaction.id}`,
@@ -343,7 +344,9 @@ export function BillingPage() {
   };
 
   const handleOpenStripePortal = async () => {
-    if (!billingAccount?.stripe_customer_id) {
+    const hasPaymentHistory = combinedTransactions.length > 0;
+
+    if (!billingAccount?.stripe_customer_id && !hasPaymentHistory) {
       showWarning('To access payment management, please make a payment first by adding funds to your wallet or upgrading to an Unlimited plan. This will create your payment profile.');
       return;
     }
@@ -368,7 +371,11 @@ export function BillingPage() {
         const errorData = await response.json();
         const errorMessage = errorData.error || 'Failed to create portal session';
 
-        if (errorMessage.includes('No Stripe customer found')) {
+        if (errorMessage.includes('No Stripe customer found') || response.status === 404) {
+          if (portalLoginUrl) {
+            window.location.href = portalLoginUrl;
+            return;
+          }
           throw new Error('To access payment management, please make a payment first by adding funds to your wallet or upgrading to an Unlimited plan.');
         }
         throw new Error(errorMessage);
@@ -377,6 +384,10 @@ export function BillingPage() {
       const { url } = await response.json();
       window.location.href = url;
     } catch (error) {
+      if (portalLoginUrl) {
+        window.location.href = portalLoginUrl;
+        return;
+      }
       console.error('Error opening portal:', error);
       showError(error instanceof Error ? error.message : 'Unable to open billing portal. Please try again later.');
       setLoadingPortal(false);
