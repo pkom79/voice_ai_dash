@@ -771,7 +771,14 @@ Deno.serve(async (req: Request) => {
     }
 
     if (adminOverride) {
-      effectiveStartDate = startDate;
+      // Ensure startDate is treated as undefined if null, to avoid new Date(null) -> 1970
+      // Also handle string "null" which might come from JSON serialization quirks
+      if (startDate === null || startDate === 'null' || startDate === '') {
+        effectiveStartDate = undefined;
+      } else {
+        effectiveStartDate = startDate;
+      }
+
       originalResetDate = billingAccount?.calls_reset_at || null;
       syncLogger.logs.push(`[ADMIN OVERRIDE] Bypassing calls_reset_at restriction`);
       if (originalResetDate) {
@@ -794,12 +801,16 @@ Deno.serve(async (req: Request) => {
 
     const effectiveEndDate = endDate || new Date().toISOString();
 
+    console.log(`[DEBUG] Received startDate: ${startDate} (type: ${typeof startDate}), endDate: ${endDate}`);
+    console.log(`[DEBUG] Effective startDate: ${effectiveStartDate}, endDate: ${effectiveEndDate}`);
+
     const baseParams: Record<string, string> = {};
     if (oauthData.location_id) {
       baseParams.locationId = oauthData.location_id;
     }
-    if (effectiveStartDate) baseParams.startDate = effectiveStartDate;
-    if (effectiveEndDate) baseParams.endDate = effectiveEndDate;
+    // Do not add startDate/endDate to baseParams as they are added per-chunk
+    // if (effectiveStartDate) baseParams.startDate = effectiveStartDate;
+    // if (effectiveEndDate) baseParams.endDate = effectiveEndDate;
     baseParams.timezone = timezone;
 
     syncLogger.logs.push(`[API] Location: ${oauthData.location_id}, Start: ${effectiveStartDate || 'none'}, End: ${effectiveEndDate}, Timezone: ${timezone}`);
@@ -809,8 +820,15 @@ Deno.serve(async (req: Request) => {
     const callsById = new Map<string, any>();
     let totalApiTime = 0;
 
-    const rangeStartDate = effectiveStartDate ? new Date(effectiveStartDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const rangeStartDate = (effectiveStartDate && !isNaN(new Date(effectiveStartDate).getTime()))
+      ? new Date(effectiveStartDate)
+      : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
     const rangeEndDate = new Date(effectiveEndDate);
+
+    console.log(`[DEBUG] Range Start (Date obj): ${rangeStartDate.toString()}`);
+    console.log(`[DEBUG] Range Start (ISO): ${rangeStartDate.toISOString()}`);
+    console.log(`[DEBUG] Range End (ISO): ${rangeEndDate.toISOString()}`);
 
     // Fetch deleted calls to exclude them
     const { data: deletedCallsData } = await supabase
@@ -848,6 +866,10 @@ Deno.serve(async (req: Request) => {
     }
 
     syncLogger.logs.push(`[CHUNKING] Date range split into ${chunks.length} daily chunks`);
+    if (chunks.length > 0) {
+      console.log(`[DEBUG] First chunk: ${JSON.stringify(chunks[0])}`);
+      console.log(`[DEBUG] Last chunk: ${JSON.stringify(chunks[chunks.length - 1])}`);
+    }
 
     const pageSize = 50; // HighLevel limit is 50
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
@@ -867,7 +889,7 @@ Deno.serve(async (req: Request) => {
         const apiUrl = `https://services.leadconnectorhq.com/voice-ai/dashboard/call-logs?${queryParams}`;
         const apiCallStart = Date.now();
 
-        syncLogger.logs.push(`[API REQUEST] Chunk ${chunkIndex + 1}/${chunks.length} Page ${page} Range: ${chunk.start} to ${chunk.end}, Timezone: ${timezone}`);
+        syncLogger.logs.push(`[API REQUEST] Chunk ${chunkIndex + 1}/${chunks.length} Page ${page} Range: ${chunk.start} to ${chunk.end}`);
         console.log(`[SYNC] Calling HighLevel API: ${apiUrl}`);
 
         const response = await fetch(apiUrl, {

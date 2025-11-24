@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2, Eye } from 'lucide-react';
 import { format, startOfToday, endOfToday } from 'date-fns';
 import { formatDateEST } from '../utils/formatting';
-import { getLocationTimezone, createDayStart, createDayEnd, getFullTimezoneDisplay, getDaysDifference } from '../utils/timezone';
+import { getLocationTimezone } from '../utils/timezone';
 import { NotificationModal } from '../components/NotificationModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import DateRangePicker from '../components/DateRangePicker';
@@ -119,10 +119,7 @@ export function UserDetailsPage() {
   const [suspendAction, setSuspendAction] = useState<'suspend' | 'activate'>('suspend');
   const [suspending, setSuspending] = useState(false);
   const [locationTimezone, setLocationTimezone] = useState<string | null>(null);
-  const [resyncRangeStart, setResyncRangeStart] = useState<Date | null>(new Date(2025, 10, 1));
-  const [resyncRangeEnd, setResyncRangeEnd] = useState<Date | null>(new Date());
   const [adminOverride, setAdminOverride] = useState(false);
-  const [showResyncDatePicker, setShowResyncDatePicker] = useState(false);
   const [latestInvitation, setLatestInvitation] = useState<{
     status: string;
     created_at: string;
@@ -131,6 +128,10 @@ export function UserDetailsPage() {
   } | null>(null);
   const [sendingInvite, setSendingInvite] = useState(false);
   const [callToDelete, setCallToDelete] = useState<string | null>(null);
+  const [selectedCallIds, setSelectedCallIds] = useState<Set<string>>(new Set());
+  const [showSetRateModal, setShowSetRateModal] = useState(false);
+  const [bulkRate, setBulkRate] = useState('');
+  const [processingBulkAction, setProcessingBulkAction] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -948,48 +949,21 @@ export function UserDetailsPage() {
       return;
     }
 
-    // Validate date range
-    if (!resyncRangeStart) {
-      showError('Please select a start date');
-      return;
-    }
-
-    if (resyncRangeEnd && resyncRangeStart > resyncRangeEnd) {
-      showError('Start date must be before end date');
-      return;
-    }
-
     // Get timezone
     const timezone = locationTimezone || 'America/New_York';
 
-    // Warn for large date ranges
-    if (resyncRangeEnd) {
-      const daysDiff = getDaysDifference(resyncRangeStart, resyncRangeEnd);
-      if (daysDiff > 90) {
-        if (!confirm(`You are syncing ${daysDiff} days of data. This may take a while. Continue?`)) {
-          return;
-        }
-      }
-    }
-
     setSyncingCalls(true);
     try {
-      // Convert dates to timezone-aware ISO strings if they exist
-      let startDateISO: string | undefined;
-      let endDateISO: string | undefined;
-
-      if (resyncRangeStart) {
-        startDateISO = createDayStart(resyncRangeStart, timezone);
-        endDateISO = resyncRangeEnd ? createDayEnd(resyncRangeEnd, timezone) : createDayEnd(resyncRangeStart, timezone);
-      }
+      // If Admin Override is enabled, default to a far past date to ensure full history is fetched
+      // Otherwise, leave undefined to let the backend determine the start date (incremental sync)
+      const startDateISO = adminOverride ? '2023-01-01T00:00:00Z' : undefined;
 
       console.log('Syncing calls with params:', {
         userId: userId,
-        startDate: startDateISO,
-        endDate: endDateISO,
         timezone,
         adminOverride: adminOverride,
-        adminUserId: currentUser?.id
+        adminUserId: currentUser?.id,
+        startDate: startDateISO
       });
 
       const { data, error } = await supabase.functions.invoke('sync-highlevel-calls', {
@@ -999,7 +973,6 @@ export function UserDetailsPage() {
         body: {
           userId: userId,
           startDate: startDateISO,
-          endDate: endDateISO,
           timezone: timezone,
           adminOverride: adminOverride,
           adminUserId: currentUser?.id,
@@ -1222,6 +1195,68 @@ export function UserDetailsPage() {
     } catch (error) {
       console.error('Error deleting call:', error);
       showError(error instanceof Error ? error.message : 'Failed to delete call');
+    }
+  };
+
+  const handleSelectCall = (callId: string, selected: boolean) => {
+    const newSelected = new Set(selectedCallIds);
+    if (selected) {
+      newSelected.add(callId);
+    } else {
+      newSelected.delete(callId);
+    }
+    setSelectedCallIds(newSelected);
+  };
+
+  const handleSelectAllCalls = (selected: boolean) => {
+    if (selected) {
+      const allIds = getFilteredCalls().map(c => c.id);
+      setSelectedCallIds(new Set(allIds));
+    } else {
+      setSelectedCallIds(new Set());
+    }
+  };
+
+  const handleBulkAction = async (action: 'delete' | 'make_free' | 'set_rate', rate?: number) => {
+    if (selectedCallIds.size === 0) return;
+    if (!confirm(`Are you sure you want to ${action.replace('_', ' ')} for ${selectedCallIds.size} calls?`)) return;
+
+    setProcessingBulkAction(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('No active session');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-bulk-update-calls`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            action,
+            callIds: Array.from(selectedCallIds),
+            rate,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to perform bulk action');
+      }
+
+      showSuccess(`Bulk action '${action}' completed successfully`);
+      setSelectedCallIds(new Set());
+      setShowSetRateModal(false);
+      setBulkRate('');
+      await loadCalls(); // Reload calls to reflect changes
+    } catch (error: any) {
+      console.error('Error performing bulk action:', error);
+      showError(error.message || 'Failed to perform bulk action');
+    } finally {
+      setProcessingBulkAction(false);
     }
   };
 
@@ -2438,8 +2473,35 @@ export function UserDetailsPage() {
 
             {/* Calls Table */}
             <div className="bg-white rounded-lg shadow">
-              <div className="p-6 border-b border-gray-200">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Call History</h3>
+                {selectedCallIds.size > 0 && (
+                  <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+                    <span className="text-sm font-medium text-blue-700">{selectedCallIds.size} selected</span>
+                    <div className="h-4 w-px bg-blue-200 mx-1" />
+                    <button
+                      onClick={() => handleBulkAction('make_free')}
+                      disabled={processingBulkAction}
+                      className="text-xs font-medium text-blue-700 hover:text-blue-900 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                    >
+                      Make Free
+                    </button>
+                    <button
+                      onClick={() => setShowSetRateModal(true)}
+                      disabled={processingBulkAction}
+                      className="text-xs font-medium text-blue-700 hover:text-blue-900 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                    >
+                      Set Rate
+                    </button>
+                    <button
+                      onClick={() => handleBulkAction('delete')}
+                      disabled={processingBulkAction}
+                      className="text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="overflow-x-auto">
                 {loadingCalls ? (
@@ -2454,6 +2516,14 @@ export function UserDetailsPage() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                          <input
+                            type="checkbox"
+                            checked={getFilteredCalls().length > 0 && selectedCallIds.size === getFilteredCalls().length}
+                            onChange={(e) => handleSelectAllCalls(e.target.checked)}
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                        </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Date/Time
                         </th>
@@ -2479,7 +2549,15 @@ export function UserDetailsPage() {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {getFilteredCalls().map((call) => (
-                        <tr key={call.id}>
+                        <tr key={call.id} className={selectedCallIds.has(call.id) ? 'bg-blue-50' : ''}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedCallIds.has(call.id)}
+                              onChange={(e) => handleSelectCall(call.id, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {formatDateEST(new Date(call.call_started_at), 'MMM d, yyyy h:mm a')}
                           </td>
@@ -3195,46 +3273,6 @@ export function UserDetailsPage() {
                 </div>
               )}
 
-              {/* Date Range Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Date Range
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowResyncDatePicker(true)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-left hover:bg-gray-50 transition-colors"
-                  >
-                    {resyncRangeStart && resyncRangeEnd ? (
-                      <span className="text-gray-900">
-                        {formatDateEST(resyncRangeStart, 'MMM d, yyyy')} - {formatDateEST(resyncRangeEnd, 'MMM d, yyyy')}
-                      </span>
-                    ) : resyncRangeStart ? (
-                      <span className="text-gray-900">{formatDateEST(resyncRangeStart, 'MMM d, yyyy')}</span>
-                    ) : (
-                      <span className="text-gray-500 italic">Auto (Latest Call)</span>
-                    )}
-                  </button>
-                  {(resyncRangeStart || resyncRangeEnd) && (
-                    <button
-                      onClick={() => {
-                        setResyncRangeStart(null);
-                        setResyncRangeEnd(null);
-                      }}
-                      className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-500"
-                      title="Clear Date Range"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {resyncRangeStart
-                    ? `Times: 00:00:00 to 23:59:59 in ${getFullTimezoneDisplay(locationTimezone || 'America/New_York')}`
-                    : "Will fetch calls starting from the most recent call in the database."}
-                </p>
-              </div>
-
               {/* Admin Override Checkbox */}
               <div className="flex items-start gap-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                 <input
@@ -3277,7 +3315,7 @@ export function UserDetailsPage() {
               </button>
               <button
                 onClick={handleResyncCalls}
-                disabled={syncingCalls || !resyncRangeStart}
+                disabled={syncingCalls}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 {syncingCalls ? (
@@ -3294,20 +3332,70 @@ export function UserDetailsPage() {
         </div>
       )}
 
-      {/* Date Range Picker for Resync */}
-      {showResyncDatePicker && (
-        <DateRangePicker
-          startDate={resyncRangeStart}
-          endDate={resyncRangeEnd}
-          onDateRangeChange={(start, end) => {
-            setResyncRangeStart(start);
-            setResyncRangeEnd(end);
-            setShowResyncDatePicker(false);
-          }}
-          onClose={() => setShowResyncDatePicker(false)}
-          timezone={locationTimezone}
-          showTimezoneInfo={true}
-        />
+      {/* Set Rate Modal */}
+      {showSetRateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-gray-900">Set Bulk Rate</h3>
+              <button
+                onClick={() => {
+                  setShowSetRateModal(false);
+                  setBulkRate('');
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                Set a new rate (cents per minute) for the {selectedCallIds.size} selected calls.
+                Costs will be recalculated based on duration.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rate (cents/min)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={bulkRate}
+                  onChange={(e) => setBulkRate(e.target.value)}
+                  placeholder="5.00"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowSetRateModal(false);
+                  setBulkRate('');
+                }}
+                disabled={processingBulkAction}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleBulkAction('set_rate', parseFloat(bulkRate))}
+                disabled={processingBulkAction || !bulkRate || isNaN(parseFloat(bulkRate))}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {processingBulkAction ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  'Update Costs'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <NotificationModal

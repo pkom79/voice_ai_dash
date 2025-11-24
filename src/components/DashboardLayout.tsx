@@ -224,74 +224,75 @@ export function DashboardLayout() {
 
       {/* Main content */}
       <div className="lg:pl-64">
-        {/* Impersonation Banner */}
-        {isImpersonating && (
-          <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 flex items-center justify-between text-sm text-amber-900">
-            <div className="flex items-center gap-2">
-              <Eye className="w-4 h-4" />
-              <span className="font-medium">
-                Viewing as {profile?.first_name} {profile?.last_name}
-                {profile?.business_name ? ` (${profile.business_name})` : ''}
-              </span>
-            </div>
-            <button
-              onClick={stopImpersonation}
-              className="flex items-center gap-1 px-3 py-1 bg-amber-200 hover:bg-amber-300 rounded text-amber-900 font-medium transition-colors"
-            >
-              <XCircle className="w-4 h-4" />
-              Exit Impersonation
-            </button>
-          </div>
-        )}
-
-        {/* Header */}
-        <header className="sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between h-20 px-4 lg:px-8">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden text-gray-500 hover:text-gray-700"
-            >
-              <Menu className="h-6 w-6" />
-            </button>
-
-            <div className="flex items-center gap-4 ml-auto">
-              {/* Sync Status - Only for Clients */}
-              {profile?.role !== 'admin' && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
-                    Last synced: {getLastSyncDisplay()}
-                  </span>
-                  <button
-                    onClick={() => syncData()}
-                    disabled={isSyncing}
-                    className={`p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors ${isSyncing ? 'animate-spin' : ''
-                      }`}
-                    title="Sync Data"
-                  >
-                    <RefreshCw className="h-5 w-5" />
-                  </button>
-                </div>
-              )}
-
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {/* Impersonation Banner */}
+          {isImpersonating && (
+            <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 flex items-center justify-between text-sm text-amber-900 sticky top-0 z-[60]">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4" />
+                <span className="font-medium">
+                  Viewing as {profile?.first_name} {profile?.last_name}
+                  {profile?.business_name ? ` (${profile.business_name})` : ''}
+                </span>
+              </div>
               <button
-                onClick={toggleTheme}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                onClick={stopImpersonation}
+                className="flex items-center gap-1 px-3 py-1 bg-amber-200 hover:bg-amber-300 rounded text-amber-900 font-medium transition-colors"
               >
-                {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                <XCircle className="w-4 h-4" />
+                Exit Impersonation
               </button>
             </div>
-          </div>
-        </header>
+          )}
 
-        <main className="p-4 lg:p-8">
-          <Outlet />
-        </main>
+          {/* Header */}
+          <header className="sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between h-20 px-4 lg:px-8">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden text-gray-500 hover:text-gray-700"
+              >
+                <Menu className="h-6 w-6" />
+              </button>
+
+              <div className="flex items-center gap-4 ml-auto">
+                {/* Sync Status - Only for Clients */}
+                {profile?.role !== 'admin' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
+                      Last synced: {getLastSyncDisplay()}
+                    </span>
+                    <button
+                      onClick={() => syncData()}
+                      disabled={isSyncing}
+                      className={`p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors ${isSyncing ? 'animate-spin' : ''
+                        }`}
+                      title="Sync Data"
+                    >
+                      <RefreshCw className="h-5 w-5" />
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  onClick={toggleTheme}
+                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <main className="p-4 lg:p-8">
+            <Outlet />
+          </main>
+        </div>
+
+        <SupportModal
+          isOpen={showSupportModal}
+          onClose={() => setShowSupportModal(false)}
+        />
       </div>
-
-      <SupportModal
-        isOpen={showSupportModal}
-        onClose={() => setShowSupportModal(false)}
-      />
-    </div>
-  );
+      );
 }

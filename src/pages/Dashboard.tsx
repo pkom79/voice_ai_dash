@@ -10,7 +10,7 @@ import { FirstLoginBillingModal } from '../components/FirstLoginBillingModal';
 import { getSupabaseFunctionUrl } from '../utils/supabaseFunctions';
 
 export function Dashboard() {
-  const { profile, user } = useAuth();
+  const { profile, user, isImpersonating } = useAuth();
   const { lastSyncTime } = useSync();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -73,6 +73,13 @@ export function Dashboard() {
       loadDashboardData();
     }
   }, [lastSyncTime]);
+
+  // Close billing modal if we stop impersonating or become admin
+  useEffect(() => {
+    if (profile?.role === 'admin' && !isImpersonating) {
+      setShowBillingModal(false);
+    }
+  }, [profile, isImpersonating]);
 
   const checkBillingStatus = async () => {
     if (isAdminView || !effectiveUserId || profile?.role === 'admin') {
