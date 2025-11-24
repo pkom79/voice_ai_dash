@@ -236,7 +236,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         from: 'Voice AI Dash <no-reply@notifications.voiceaidash.app>',
         to: [userEmail],
-        subject: 'Account Setup Invitation',
+        subject: 'SmartCompany AI Invitation',
         html: htmlContent,
       }),
     });
