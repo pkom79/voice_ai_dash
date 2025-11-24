@@ -22,6 +22,7 @@ import {
   Phone,
   BarChart3,
   RefreshCw,
+  Shield,
 } from 'lucide-react';
 import { CreateUserModal } from '../components/admin/CreateUserModal';
 import { UserSessionsModal } from '../components/admin/UserSessionsModal';
