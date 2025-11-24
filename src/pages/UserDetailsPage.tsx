@@ -45,6 +45,7 @@ interface BillingData {
   grace_until: string | null;
   inbound_rate_cents: number;
   outbound_rate_cents: number;
+  stripe_customer_id: string | null;
 }
 
 type TabType = 'profile' | 'api' | 'billing' | 'call-analytics' | 'activity';
@@ -132,6 +133,8 @@ export function UserDetailsPage() {
   const [showSetRateModal, setShowSetRateModal] = useState(false);
   const [bulkRate, setBulkRate] = useState('');
   const [processingBulkAction, setProcessingBulkAction] = useState(false);
+  const [stripeCustomerId, setStripeCustomerId] = useState('');
+  const [savingStripeCustomerId, setSavingStripeCustomerId] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -161,6 +164,12 @@ export function UserDetailsPage() {
       setOutboundRate((billingData.outbound_rate_cents / 100).toFixed(2));
     }
   }, [showChangePlanModal, billingData]);
+
+  useEffect(() => {
+    if (billingData) {
+      setStripeCustomerId(billingData.stripe_customer_id || '');
+    }
+  }, [billingData]);
 
   const loadUser = async () => {
     if (!userId) return;
@@ -1164,6 +1173,30 @@ export function UserDetailsPage() {
     }
   };
 
+  const handleSaveStripeCustomerId = async () => {
+    if (!userId) return;
+
+    const trimmed = stripeCustomerId.trim();
+
+    setSavingStripeCustomerId(true);
+    try {
+      const { error } = await supabase
+        .from('billing_accounts')
+        .update({ stripe_customer_id: trimmed || null })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      showSuccess('Stripe customer ID updated');
+      await loadBillingData();
+    } catch (error: any) {
+      console.error('Error saving Stripe customer ID:', error);
+      showError(error.message || 'Failed to save Stripe customer ID');
+    } finally {
+      setSavingStripeCustomerId(false);
+    }
+  };
+
   const handleDeleteCall = (callId: string) => {
     setCallToDelete(callId);
   };
@@ -2055,6 +2088,47 @@ export function UserDetailsPage() {
                         )}
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Stripe Customer ID */}
+                <div className="bg-white rounded-lg shadow">
+                  <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Stripe Customer</h3>
+                    {billingData?.stripe_customer_id && (
+                      <span className="text-xs text-gray-500">Linked</span>
+                    )}
+                  </div>
+                  <div className="p-6 space-y-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Stripe Customer ID <span className="text-xs font-normal text-gray-500">(cus_...)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={stripeCustomerId}
+                      onChange={(e) => setStripeCustomerId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="cus_..."
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleSaveStripeCustomerId}
+                        disabled={savingStripeCustomerId}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {savingStripeCustomerId ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save Customer ID'
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Link an existing Stripe customer to this account for portal access and billing sync.
+                    </p>
                   </div>
                 </div>
 
