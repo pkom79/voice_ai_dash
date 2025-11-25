@@ -492,14 +492,9 @@ export function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {statCards.map((stat) => (
-          <div key={stat.name} className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-6">
-            <div className="flex items-center mb-4">
-              <div className={`${stat.color} p-3 rounded-lg hidden sm:block`}>
-                <stat.icon className="h-6 w-6 text-white" />
-              </div>
-            </div>
+          <div key={stat.name} className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-4 sm:p-6">
             <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{stat.name}</h3>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
           </div>

@@ -437,15 +437,15 @@ export function AdminUsersPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">User Management</h1>
-          <p className="text-sm text-gray-600">Manage users, connections, agents, and billing</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">User Management</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Manage users, connections, agents, and billing</p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setShowAdmins(!showAdmins)}
             className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm border rounded-lg transition-colors ${showAdmins
-              ? 'bg-purple-50 border-purple-200 text-purple-700'
-              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              ? 'bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300'
+              : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
               }`}
           >
             <Shield className="h-4 w-4" />
@@ -461,54 +461,54 @@ export function AdminUsersPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
+        <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2 mb-4">
-            <Users className="h-5 w-5 text-blue-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Users ({filteredUsers.length})</h2>
+            <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Users ({filteredUsers.length})</h2>
           </div>
 
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
               placeholder="Search users..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             />
           </div>
         </div>
 
-        <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
+        <div className="divide-y divide-gray-200 dark:divide-gray-700 max-h-[600px] overflow-y-auto">
           {loading ? (
             <div className="p-12 text-center">
-              <Loader2 className="h-8 w-8 text-blue-600 mx-auto mb-2 animate-spin" />
-              <p className="text-gray-600">Loading users...</p>
+              <Loader2 className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2 animate-spin" />
+              <p className="text-gray-600 dark:text-gray-400">Loading users...</p>
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">No users found</div>
+            <div className="p-12 text-center text-gray-500 dark:text-gray-400">No users found</div>
           ) : (
             filteredUsers.map((user) => (
               <div
                 key={user.id}
-                className="p-4 hover:bg-gray-50 transition-colors"
+                className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-1">
                     {/* Business Name - Prominent Display */}
                     {user.business_name && (
-                      <h3 className="font-semibold text-gray-900 text-base mb-0.5">
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-base mb-0.5">
                         {user.business_name}
                       </h3>
                     )}
 
                     {/* User Name - Secondary */}
                     <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
                         {user.first_name} {user.last_name}
                       </p>
-                      <span className="text-xs text-gray-400 uppercase font-medium">
+                      <span className="text-xs text-gray-400 dark:text-gray-500 uppercase font-medium">
                         {user.role}
                       </span>
                     </div>
@@ -517,57 +517,57 @@ export function AdminUsersPage() {
                     <div className="flex flex-wrap items-center gap-1.5 mt-2">
                       {/* Account Status */}
                       {!user.is_active ? (
-                        <span className="px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded uppercase">
+                        <span className="px-2 py-0.5 text-xs font-bold bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded uppercase">
                           SUSPENDED
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
+                        <span className="px-2 py-0.5 text-xs font-bold bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded uppercase">
                           ACTIVE
                         </span>
                       )}
 
                       {/* Billing Plan Tags */}
                       {user.inboundPlan === 'inbound_unlimited' && (
-                        <span className="px-2 py-0.5 text-xs font-bold bg-blue-100 text-blue-700 rounded uppercase">
+                        <span className="px-2 py-0.5 text-xs font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded uppercase">
                           INBOUND UNL
                         </span>
                       )}
                       {user.inboundPlan === 'inbound_pay_per_use' && (
-                        <span className="px-2 py-0.5 text-xs font-bold bg-cyan-100 text-cyan-700 rounded uppercase">
+                        <span className="px-2 py-0.5 text-xs font-bold bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 rounded uppercase">
                           INBOUND PPU
                         </span>
                       )}
                       {user.outboundPlan === 'outbound_pay_per_use' && (
-                        <span className="px-2 py-0.5 text-xs font-bold bg-teal-100 text-teal-700 rounded uppercase">
+                        <span className="px-2 py-0.5 text-xs font-bold bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 rounded uppercase">
                           OUTBOUND PPU
                         </span>
                       )}
 
                       {/* Billing Status */}
                       {user.billingStatus === 'LOW BALANCE' && (
-                        <span className="px-2 py-0.5 text-xs font-bold bg-orange-100 text-orange-700 rounded uppercase">
+                        <span className="px-2 py-0.5 text-xs font-bold bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 rounded uppercase">
                           LOW BALANCE
                         </span>
                       )}
 
                       {/* Integration Status */}
                       {user.hasConnection && (
-                        <span className="px-2 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700 rounded uppercase">
+                        <span className="px-2 py-0.5 text-xs font-bold bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded uppercase">
                           HL CONNECTED
                         </span>
                       )}
                       {user.hasExpiredToken && (
-                        <span className="px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded uppercase">
+                        <span className="px-2 py-0.5 text-xs font-bold bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded uppercase">
                           TOKEN EXPIRED
                         </span>
                       )}
                       {user.hasAgents && (
-                        <span className="px-2 py-0.5 text-xs font-bold bg-indigo-100 text-indigo-700 rounded uppercase">
+                        <span className="px-2 py-0.5 text-xs font-bold bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded uppercase">
                           {user.agentCount === 1 ? 'AGENT' : `AGENTS (${user.agentCount})`}
                         </span>
                       )}
                       {user.hasPhoneNumbers && (
-                        <span className="px-2 py-0.5 text-xs font-bold bg-purple-100 text-purple-700 rounded uppercase">
+                        <span className="px-2 py-0.5 text-xs font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded uppercase">
                           PHONE
                         </span>
                       )}
@@ -575,7 +575,7 @@ export function AdminUsersPage() {
 
                     {/* Last Login */}
                     {user.last_login && (
-                      <p className="text-xs text-gray-500 mt-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                         Last login: {formatDateEST(new Date(user.last_login), 'MMM d, yyyy')}
                       </p>
                     )}
@@ -587,7 +587,7 @@ export function AdminUsersPage() {
                       <button
                         onClick={() => handleSendInvite(user.id)}
                         disabled={sendingInvite === user.id}
-                        className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white border border-gray-300 text-gray-700 text-xs sm:text-sm font-medium rounded-md sm:rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap flex items-center justify-center gap-1.5"
+                        className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-medium rounded-md sm:rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors whitespace-nowrap flex items-center justify-center gap-1.5"
                       >
                         {sendingInvite === user.id ? (
                           <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
@@ -626,7 +626,7 @@ export function AdminUsersPage() {
                           },
                         });
                       }}
-                      className="px-2.5 py-1 sm:px-3 sm:py-1.5 text-red-600 text-xs sm:text-sm font-medium border border-red-300 rounded-md sm:rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
+                      className="px-2.5 py-1 sm:px-3 sm:py-1.5 text-red-600 dark:text-red-400 text-xs sm:text-sm font-medium border border-red-300 dark:border-red-600 rounded-md sm:rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors whitespace-nowrap"
                     >
                       Remove
                     </button>

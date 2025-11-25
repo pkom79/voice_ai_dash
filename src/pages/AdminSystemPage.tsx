@@ -117,18 +117,18 @@ export function AdminSystemPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">System</h1>
-        <p className="text-sm text-gray-500">System monitoring and diagnostics</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">System</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400">System monitoring and diagnostics</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="border-b border-gray-200 overflow-x-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
           <nav className="flex -mb-px min-w-max">
             <button
               onClick={() => setActiveTab('connections')}
               className={`px-4 sm:px-6 py-2.5 sm:py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'connections'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
                 }`}
             >
               <div className="flex items-center gap-1.5 sm:gap-2">
@@ -139,8 +139,8 @@ export function AdminSystemPage() {
             <button
               onClick={() => setActiveTab('audit')}
               className={`px-4 sm:px-6 py-2.5 sm:py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'audit'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
                 }`}
             >
               <div className="flex items-center gap-1.5 sm:gap-2">
@@ -151,16 +151,16 @@ export function AdminSystemPage() {
           </nav>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {activeTab === 'audit' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <div className="flex flex-wrap gap-4 bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
                 <div className="flex-1 min-w-[200px]">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Action Type</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Action Type</label>
                   <select
                     value={auditFilters.action || ''}
                     onChange={(e) => setAuditFilters(prev => ({ ...prev, action: e.target.value || undefined }))}
-                    className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">All Actions</option>
                     <option value="login">Login</option>
@@ -279,35 +279,35 @@ export function AdminSystemPage() {
                 </div>
               </div>
 
-              <div className="overflow-hidden border border-gray-200 rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+              <div className="overflow-hidden border border-gray-200 dark:border-gray-700 rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700/50">
                     <tr>
                       <th className="w-10 px-4 py-3"></th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                         Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                         Admin
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                         Action
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                         Target User
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
                     {loadingAudit ? (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                           Loading audit logs...
                         </td>
                       </tr>
                     ) : auditLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                           No audit logs found matching your filters
                         </td>
                       </tr>
@@ -316,7 +316,7 @@ export function AdminSystemPage() {
                         <>
                           <tr
                             key={log.id}
-                            className={`hover:bg-gray-50 cursor-pointer ${expandedLogId === log.id ? 'bg-gray-50' : ''}`}
+                            className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${expandedLogId === log.id ? 'bg-gray-50 dark:bg-gray-700/50' : ''}`}
                             onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
                           >
                             <td className="px-4 py-4 text-gray-400">
@@ -326,31 +326,31 @@ export function AdminSystemPage() {
                                 <ChevronRight className="h-4 w-4" />
                               )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                               {formatDateEST(new Date(log.created_at), 'MMM d, yyyy h:mm a')}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                               {log.admin
                                 ? `${log.admin.first_name} ${log.admin.last_name}`
                                 : 'System'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700 uppercase">
+                              <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 uppercase">
                                 {log.action.replace(/_/g, ' ')}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                               {log.target
                                 ? `${log.target.first_name} ${log.target.last_name}`
                                 : 'SYSTEM'}
                             </td>
                           </tr>
                           {expandedLogId === log.id && (
-                            <tr className="bg-gray-50">
-                              <td colSpan={5} className="px-6 py-4 border-t border-gray-200">
-                                <div className="text-sm text-gray-700">
+                            <tr className="bg-gray-50 dark:bg-gray-700/50">
+                              <td colSpan={5} className="px-6 py-4 border-t border-gray-200 dark:border-gray-600">
+                                <div className="text-sm text-gray-700 dark:text-gray-300">
                                   <h4 className="font-medium mb-2">Action Details</h4>
-                                  <pre className="bg-gray-100 p-4 rounded-lg overflow-x-auto text-xs font-mono">
+                                  <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto text-xs font-mono">
                                     {JSON.stringify(log.details || {}, null, 2)}
                                   </pre>
                                 </div>
@@ -368,51 +368,51 @@ export function AdminSystemPage() {
 
           {activeTab === 'connections' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="relative max-w-md w-full">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
                   <input
                     type="text"
                     placeholder="Search users..."
                     value={connectionSearch}
                     onChange={(e) => setConnectionSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   />
                 </div>
                 <button
                   onClick={() => loadConnections()}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <RefreshCw className={`h-4 w-4 ${loadingConnections ? 'animate-spin' : ''}`} />
                   Refresh
                 </button>
               </div>
 
-              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+              <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 dark:bg-gray-700/50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                         User Account
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                         HL Connection
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                         HL Token Health
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
                     {loadingConnections ? (
                       <tr>
-                        <td colSpan={3} className="px-6 py-12 text-center text-gray-500">
+                        <td colSpan={3} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                           Loading connections...
                         </td>
                       </tr>
                     ) : filteredConnections.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="px-6 py-12 text-center text-gray-500">
+                        <td colSpan={3} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                           No users found
                         </td>
                       </tr>
@@ -422,17 +422,17 @@ export function AdminSystemPage() {
                         const isTokenHealthy = conn.token_status === 'valid';
 
                         return (
-                          <tr key={conn.user_id} className="hover:bg-gray-50">
+                          <tr key={conn.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
-                                <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-medium mr-3">
+                                <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-medium mr-3">
                                   {conn.first_name[0]}{conn.last_name[0]}
                                 </div>
                                 <div>
-                                  <div className="text-sm font-medium text-gray-900">
+                                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {conn.first_name} {conn.last_name}
                                   </div>
-                                  <div className="text-sm text-gray-500">
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">
                                     {conn.email}
                                   </div>
                                 </div>

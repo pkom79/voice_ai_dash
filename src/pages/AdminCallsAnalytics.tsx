@@ -342,30 +342,30 @@ export function AdminCallsAnalytics() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Call Analytics</h1>
-        <p className="text-sm text-gray-600">Comprehensive call monitoring and analytics</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Call Analytics</h1>
+        <p className="text-sm text-gray-600 dark:text-gray-400">Comprehensive call monitoring and analytics</p>
       </div>
 
       {/* Global Controls */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-4 sm:p-6">
         {/* Top Row: Direction Toggle | Date Range */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-4">
           {/* Direction Toggle */}
           <div className="flex">
             <button
               onClick={() => setDirection('inbound')}
-              className={`px-6 py-2 rounded-l-lg border transition-colors ${direction === 'inbound'
+              className={`px-4 sm:px-6 py-2 rounded-l-lg border transition-colors text-sm ${direction === 'inbound'
                 ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
                 }`}
             >
               Inbound
             </button>
             <button
               onClick={() => setDirection('outbound')}
-              className={`px-6 py-2 rounded-r-lg border-t border-r border-b transition-colors ${direction === 'outbound'
+              className={`px-4 sm:px-6 py-2 rounded-r-lg border-t border-r border-b transition-colors text-sm ${direction === 'outbound'
                 ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
                 }`}
             >
               Outbound
@@ -375,10 +375,10 @@ export function AdminCallsAnalytics() {
           {/* Date Range Picker Button */}
           <button
             onClick={() => setShowDatePicker(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm"
           >
-            <Calendar className="h-4 w-4 text-gray-500" />
-            <span className="text-gray-700">
+            <Calendar className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+            <span className="text-gray-700 dark:text-gray-300">
               {startDate && endDate
                 ? `${formatDateEST(startDate, 'MMM d, yyyy')} - ${formatDateEST(endDate, 'MMM d, yyyy')}`
                 : 'Select Date Range'}
@@ -390,11 +390,11 @@ export function AdminCallsAnalytics() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* User Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">User</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">User</label>
             <select
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-full px-3 py-2 h-[42px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 h-[42px] border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
               <option value="all">All Users</option>
               {users.map((user) => (
@@ -407,11 +407,11 @@ export function AdminCallsAnalytics() {
 
           {/* Agent Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Agent</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agent</label>
             <select
               value={selectedAgentId}
               onChange={(e) => setSelectedAgentId(e.target.value)}
-              className="w-full px-3 py-2 h-[42px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 h-[42px] border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
               <option value="all">All Agents</option>
               {getAvailableAgents().map((agent) => (
@@ -424,57 +424,44 @@ export function AdminCallsAnalytics() {
 
           {/* Search */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-gray-500" />
               <input
                 type="text"
                 placeholder="Contact, phone, action..." value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
               />
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-between mt-4">
-          <p className="text-sm text-gray-600">
-
-          </p>
+        <div className="flex items-center justify-end mt-4">
           <button
             onClick={exportToCSV}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+            className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
           >
             <Download className="h-4 w-4" />
-            Export CSV
+            <span className="hidden sm:inline">Export</span> CSV
           </button>
         </div>
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-blue-500 p-3 rounded-lg">
-              <Phone className="h-6 w-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Total Calls</h3>
-          <p className="text-2xl font-bold text-gray-900">{metrics.totalCalls}</p>
-          <p className="text-sm text-gray-500 mt-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-4 sm:p-6">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Calls</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{metrics.totalCalls}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {metrics.inboundCalls} in / {metrics.outboundCalls} out
           </p>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-green-500 p-3 rounded-lg">
-              <TrendingUp className="h-6 w-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Actions Triggered</h3>
-          <p className="text-2xl font-bold text-gray-900">{metrics.actionsTriggered}</p>
-          <p className="text-sm text-gray-500 mt-1">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-4 sm:p-6">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Actions Triggered</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{metrics.actionsTriggered}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {metrics.totalCalls > 0
               ? `${Math.round((metrics.actionsTriggered / metrics.totalCalls) * 100)}%`
               : '0%'}{' '}
@@ -482,105 +469,95 @@ export function AdminCallsAnalytics() {
           </p>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-yellow-500 p-3 rounded-lg">
-              <Clock className="h-6 w-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Avg Duration</h3>
-          <p className="text-2xl font-bold text-gray-900">{formatDuration(metrics.avgDuration)}</p>
-          <p className="text-sm text-gray-500 mt-1">Total: {formatDuration(metrics.totalDuration)}</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-4 sm:p-6">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Avg Duration</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatDuration(metrics.avgDuration)}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Total: {formatDuration(metrics.totalDuration)}</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-purple-500 p-3 rounded-lg">
-              <DollarSign className="h-6 w-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Total Cost</h3>
-          <p className="text-2xl font-bold text-gray-900">${metrics.totalCost.toFixed(2)}</p>
-          <p className="text-sm text-gray-500 mt-1">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 p-4 sm:p-6">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Cost</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">${metrics.totalCost.toFixed(2)}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Avg: ${metrics.totalCalls > 0 ? (metrics.totalCost / metrics.totalCalls).toFixed(2) : '0.00'}
           </p>
         </div>
       </div>
 
       {/* Call Details Table (Simplified version - full table would continue here) */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Call Details</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50 overflow-hidden">
+        <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Call Details</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Date & Time
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Direction
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Duration
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Cost
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Call ID
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Contact
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   User
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Agent
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Content
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     No calls found matching your filters
                   </td>
                 </tr>
               ) : (
                 filteredCalls.slice(0, 50).map((call) => (
-                  <tr key={call.id} className="hover:bg-gray-50">
+                  <tr key={call.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     {/* Date & Time */}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                       <div>{formatDateEST(new Date(call.call_started_at), 'MMM d, yyyy')}</div>
-                      <div className="text-gray-500">
+                      <div className="text-gray-500 dark:text-gray-400">
                         {formatDateEST(new Date(call.call_started_at), 'h:mm a')}
                       </div>
                     </td>
                     {/* Direction */}
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 py-1 text-xs font-medium rounded-full ${call.direction === 'inbound'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-green-100 text-green-800'
+                          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
+                          : 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300'
                           }`}
                       >
                         {call.direction.toUpperCase()}
                       </span>
                     </td>
                     {/* Duration */}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                       {formatDuration(call.duration_seconds)}
                     </td>
                     {/* Cost */}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                       {(call.display_cost === 'INCLUDED' || billingPlans[call.user_id] === 'inbound_unlimited') ? (
-                        <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
+                        <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded uppercase">
                           INCLUDED
                         </span>
                       ) : (
@@ -588,31 +565,31 @@ export function AdminCallsAnalytics() {
                       )}
                     </td>
                     {/* Call ID */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-xs text-gray-600 font-mono">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 font-mono">
                         {call.highlevel_call_id}
                       </div>
                     </td>
                     {/* Contact */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                         {formatContactName(call.contact_name)}
                       </div>
-                      <div className="text-sm text-gray-500 font-mono">{call.from_number}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 font-mono">{call.from_number}</div>
                     </td>
                     {/* User */}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                       {(() => {
                         const user = getUserForAgent(call.agent_id);
                         return user ? `${user.first_name} ${user.last_name}` : 'N/A';
                       })()}
                     </td>
                     {/* Agent */}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                       {getAgentLabelForCall(call)}
                     </td>
                     {/* Content */}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">
                         {call.summary && (
                           <button
@@ -620,7 +597,7 @@ export function AdminCallsAnalytics() {
                               setSelectedCall(call);
                               setShowModal('summary');
                             }}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded"
                             title="View Summary"
                           >
                             <FileText className="h-4 w-4" />
@@ -632,7 +609,7 @@ export function AdminCallsAnalytics() {
                               setSelectedCall(call);
                               setShowModal('transcript');
                             }}
-                            className="p-1 text-green-600 hover:bg-green-50 rounded"
+                            className="p-1 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/50 rounded"
                             title="View Transcript"
                           >
                             <FileText className="h-4 w-4" />
@@ -644,7 +621,7 @@ export function AdminCallsAnalytics() {
                               setSelectedCall(call);
                               setShowModal('recording');
                             }}
-                            className="p-1 text-purple-600 hover:bg-purple-50 rounded"
+                            className="p-1 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/50 rounded"
                             title="Play Recording"
                           >
                             <Volume2 className="h-4 w-4" />
@@ -655,7 +632,7 @@ export function AdminCallsAnalytics() {
                             setSelectedCall(call);
                             setShowModal('notes');
                           }}
-                          className="p-1 text-gray-600 hover:bg-gray-50 rounded"
+                          className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
                           title="Add Notes"
                         >
                           <StickyNote className="h-4 w-4" />
@@ -686,9 +663,9 @@ export function AdminCallsAnalytics() {
       {/* Modals */}
       {showModal && selectedCall && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
                 {showModal === 'summary' && 'Call Summary'}
                 {showModal === 'transcript' && 'Call Transcript'}
                 {showModal === 'notes' && 'Call Notes'}
@@ -699,14 +676,14 @@ export function AdminCallsAnalytics() {
                   setShowModal(null);
                   setSelectedCall(null);
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
-              {showModal === 'summary' && <p className="text-gray-700">{selectedCall.summary}</p>}
+            <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+              {showModal === 'summary' && <p className="text-gray-700 dark:text-gray-300">{selectedCall.summary}</p>}
               {showModal === 'transcript' && (
                 <div className="space-y-3">
                   {(selectedCall.transcript || '')
@@ -728,7 +705,7 @@ export function AdminCallsAnalytics() {
                             className={
                               'max-w-[80%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap ' +
                               (isHuman
-                                ? 'bg-gray-200 text-gray-900'
+                                ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-gray-100'
                                 : 'bg-[#2563eb] text-white')
                             }
                           >
@@ -761,7 +738,7 @@ export function AdminCallsAnalytics() {
                     callDate={selectedCall.call_started_at}
                   />
                 ) : (
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     Recording details are not available for this call.
                   </p>
                 )
@@ -770,7 +747,7 @@ export function AdminCallsAnalytics() {
                 <div>
                   <textarea
                     defaultValue={selectedCall.notes || ''}
-                    className="w-full h-48 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full h-48 p-4 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     placeholder="Add notes about this call..."
                     id="call-notes"
                   />
