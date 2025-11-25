@@ -25,6 +25,7 @@ jobs:
           RESPONSE=$(curl -X POST "$SUPABASE_URL/functions/v1/check-expired-tokens" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
             -d "{}" \
             -w "\nHTTP_STATUS:%{http_code}" \
             -s)

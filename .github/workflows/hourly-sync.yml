@@ -75,6 +75,7 @@ jobs:
           RESPONSE=$(curl -X POST "$SUPABASE_URL/functions/v1/sync-all-active-users" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
             -d "{\"batch\": $BATCH, \"dryRun\": $DRY_RUN, \"force\": $FORCE}" \
             -w "\nHTTP_STATUS:%{http_code}" \
             -s)

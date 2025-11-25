@@ -48,6 +48,7 @@ jobs:
           RESPONSE=$(curl -X POST "$SUPABASE_URL/functions/v1/refresh-expiring-tokens" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
             -d "{\"hoursAhead\": $HOURS_AHEAD, \"scheduledBy\": \"github_actions\", \"dryRun\": $DRY_RUN}" \
             -w "\nHTTP_STATUS:%{http_code}" \
             -s)
