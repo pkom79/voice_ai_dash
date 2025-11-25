@@ -1,0 +1,129 @@
+name: Hourly Call Sync
+
+# Runs every 15 minutes, syncing a different quarter of users each time
+# This ensures all users are synced once per hour while staying within rate limits
+
+on:
+  schedule:
+    # Every 15 minutes: :00, :15, :30, :45
+    - cron: '0,15,30,45 * * * *'
+
+  # Allow manual trigger from GitHub Actions UI for testing
+  workflow_dispatch:
+    inputs:
+      batch:
+        description: 'Batch number (1-4) to sync. If empty, calculated from current time.'
+        required: false
+        default: ''
+      dryRun:
+        description: 'Dry run mode (test without actually syncing)'
+        required: false
+        default: 'false'
+      force:
+        description: 'Force sync even for users with consecutive failures'
+        required: false
+        default: 'false'
+
+jobs:
+  sync-users:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Calculate batch number
+        id: batch
+        run: |
+          # Calculate batch from current minute: 0-14=1, 15-29=2, 30-44=3, 45-59=4
+          MINUTE=$(date -u +"%M")
+          MINUTE_INT=$((10#$MINUTE))
+          
+          if [ -n "${{ github.event.inputs.batch }}" ]; then
+            BATCH="${{ github.event.inputs.batch }}"
+          elif [ $MINUTE_INT -lt 15 ]; then
+            BATCH=1
+          elif [ $MINUTE_INT -lt 30 ]; then
+            BATCH=2
+          elif [ $MINUTE_INT -lt 45 ]; then
+            BATCH=3
+          else
+            BATCH=4
+          fi
+          
+          echo "batch=$BATCH" >> $GITHUB_OUTPUT
+          echo "Calculated batch: $BATCH (minute: $MINUTE_INT)"
+
+      - name: Sync active users (Batch ${{ steps.batch.outputs.batch }})
+        env:
+          SUPABASE_URL: https://pjlrcchptrkymevoiolu.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "Starting hourly sync job..."
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          
+          BATCH="${{ steps.batch.outputs.batch }}"
+          DRY_RUN="${{ github.event.inputs.dryRun || 'false' }}"
+          FORCE="${{ github.event.inputs.force || 'false' }}"
+          
+          echo "Configuration:"
+          echo "  Batch: $BATCH of 4"
+          echo "  Dry run: $DRY_RUN"
+          echo "  Force: $FORCE"
+          echo ""
+
+          RESPONSE=$(curl -X POST "$SUPABASE_URL/functions/v1/sync-all-active-users" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -d "{\"batch\": $BATCH, \"dryRun\": $DRY_RUN, \"force\": $FORCE}" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            -s)
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS/d')
+
+          echo "Response from edge function:"
+          echo "$BODY" | jq '.' || echo "$BODY"
+          echo ""
+
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            SUCCESS_COUNT=$(echo "$BODY" | jq -r '.successCount // 0')
+            FAILURE_COUNT=$(echo "$BODY" | jq -r '.failureCount // 0')
+            SKIPPED_COUNT=$(echo "$BODY" | jq -r '.skippedCount // 0')
+            USERS_PROCESSED=$(echo "$BODY" | jq -r '.usersProcessed // 0')
+
+            echo "✅ Sync batch $BATCH completed successfully"
+            echo "   Users processed: $USERS_PROCESSED"
+            echo "   Successful: $SUCCESS_COUNT"
+            echo "   Failed: $FAILURE_COUNT"
+            echo "   Skipped (due to failures): $SKIPPED_COUNT"
+
+            if [ "$SKIPPED_COUNT" -gt 0 ]; then
+              echo "⚠️  $SKIPPED_COUNT user(s) skipped due to consecutive failures"
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "ℹ️  This was a dry run - no users were actually synced"
+            fi
+          else
+            echo "❌ Sync job failed with HTTP status: $HTTP_STATUS"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+      - name: Create job summary
+        if: always()
+        run: |
+          echo "# 🔄 Hourly Sync Job (Batch ${{ steps.batch.outputs.batch }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ **Status:** Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See logs above for detailed results." >> $GITHUB_STEP_SUMMARY

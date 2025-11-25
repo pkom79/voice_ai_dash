@@ -135,6 +135,8 @@ export function UserDetailsPage() {
   const [processingBulkAction, setProcessingBulkAction] = useState(false);
   const [stripeCustomerId, setStripeCustomerId] = useState('');
   const [savingStripeCustomerId, setSavingStripeCustomerId] = useState(false);
+  const [resettingSyncFailures, setResettingSyncFailures] = useState(false);
+  const [syncFailureCount, setSyncFailureCount] = useState(0);
 
   useEffect(() => {
     if (!userId) {
@@ -318,6 +320,16 @@ export function UserDetailsPage() {
         const agents = userAgents?.map(ua => ua.agents).filter(Boolean) || [];
         setAssignedAgents(agents);
       }
+
+      // Load sync failure count
+      const { count: failureCount } = await supabase
+        .from('user_integration_errors')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('error_source', 'sync-all-active-users')
+        .eq('resolved', false);
+      
+      setSyncFailureCount(failureCount || 0);
     } catch (error) {
       console.error('Error loading API data:', error);
     } finally {
@@ -339,6 +351,29 @@ export function UserDetailsPage() {
       showError(error.message || 'Failed to refresh token');
     } finally {
       setRefreshingToken(false);
+    }
+  };
+
+  const handleResetSyncFailures = async () => {
+    if (!userId) return;
+    setResettingSyncFailures(true);
+    try {
+      const { error } = await supabase
+        .from('user_integration_errors')
+        .update({ resolved: true, resolved_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('error_source', 'sync-all-active-users')
+        .eq('resolved', false);
+
+      if (error) throw error;
+
+      setSyncFailureCount(0);
+      showSuccess('Sync failures reset - automatic syncing will resume');
+    } catch (error: any) {
+      console.error('Error resetting sync failures:', error);
+      showError(error.message || 'Failed to reset sync failures');
+    } finally {
+      setResettingSyncFailures(false);
     }
   };
 
@@ -1955,6 +1990,34 @@ export function UserDetailsPage() {
                           Disconnect HighLevel
                         </button>
                       </div>
+                      {/* Sync Failure Reset - only show when there are failures */}
+                      {syncFailureCount >= 3 && (
+                        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <div className="flex items-center gap-2 mb-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            <span className="text-sm font-medium text-amber-800">
+                              Automatic sync paused ({syncFailureCount} consecutive failures)
+                            </span>
+                          </div>
+                          <button
+                            onClick={handleResetSyncFailures}
+                            disabled={resettingSyncFailures}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium disabled:opacity-50"
+                          >
+                            {resettingSyncFailures ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Resetting...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="h-4 w-4" />
+                                Reset Sync Failures
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

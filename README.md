@@ -2410,6 +2410,118 @@ curl -X POST "https://your-project.supabase.co/functions/v1/check-service-interr
 - `supabase/functions/send-weekly-summaries/index.ts`
 - `supabase/functions/check-service-interruption-warnings/index.ts`
 
+---
+
+## Scheduled Jobs & GitHub Actions
+
+### Overview
+
+The application uses GitHub Actions workflows to run scheduled jobs that invoke Supabase Edge Functions. All workflows support manual triggering via `workflow_dispatch` for testing.
+
+### Token Refresh System
+
+**Workflow**: `.github/workflows/nightly-token-refresh.yml`
+
+**Schedule**: Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
+
+**Edge Function**: `refresh-expiring-tokens`
+
+**Purpose**: Proactively refreshes HighLevel OAuth tokens before they expire. HighLevel access tokens are valid for 24 hours, so refreshing every 6 hours with a 12-hour lookahead ensures tokens never expire.
+
+**Features**:
+- **Retry Logic**: 3 attempts with exponential backoff (2s, 4s delays)
+- **Permanent Failure Detection**: Stops retrying for invalid grants or revoked tokens
+- **Admin Notifications**: Emails admins when token refresh fails
+- **Dry Run Mode**: Test without actually refreshing tokens
+
+**Manual Trigger**:
+```bash
+# Via GitHub CLI
+gh workflow run nightly-token-refresh.yml --field hoursAhead=12 --field dryRun=false
+```
+
+### Hourly Call Sync System
+
+**Workflow**: `.github/workflows/hourly-sync.yml`
+
+**Schedule**: Every 15 minutes (staggered batches)
+
+**Edge Function**: `sync-all-active-users`
+
+**Purpose**: Automatically syncs call data from HighLevel for all active users, keeping the dashboard data fresh without requiring manual syncs.
+
+**Staggered Execution**:
+- Users are divided into 4 batches based on user ID hash
+- Each batch runs at a different quarter of each hour:
+  - Batch 1: :00 minutes
+  - Batch 2: :15 minutes
+  - Batch 3: :30 minutes
+  - Batch 4: :45 minutes
+- This ensures all users are synced once per hour while respecting API rate limits
+
+**Failure Tracking**:
+- Sync failures are logged to `user_integration_errors` table
+- After 3 consecutive failures, user is skipped from automatic sync
+- Admin receives email notification when user is first skipped
+- Failed users resume automatic sync after admin clicks "Reset Sync Failures" button
+
+**Configuration**:
+- `MAX_CONSECUTIVE_FAILURES`: 3 (failures before skipping)
+- `DELAY_BETWEEN_USERS_MS`: 2000ms (rate limiting)
+- `MAX_RETRIES`: 2 (retries per user per batch)
+
+**Manual Trigger**:
+```bash
+# Sync a specific batch
+gh workflow run hourly-sync.yml --field batch=1 --field dryRun=false
+
+# Force sync all users (ignore failure count)
+gh workflow run hourly-sync.yml --field force=true
+```
+
+### Admin Reset Sync Failures
+
+When a user accumulates 3+ consecutive sync failures, they are automatically skipped from hourly syncs. To re-enable:
+
+1. Navigate to Admin Users → Select User → API tab
+2. If sync failures exist, a warning banner appears:
+   - "Automatic sync paused (X consecutive failures)"
+3. Click "Reset Sync Failures" button
+4. User will be included in the next scheduled sync batch
+
+### Connection Health Check
+
+**Workflow**: `.github/workflows/check-connection-health.yml`
+
+**Schedule**: Hourly at :15 minutes
+
+**Edge Function**: `check-expired-tokens`
+
+**Purpose**: Monitors OAuth connections for expired tokens and integration errors, notifying admins of any issues requiring attention.
+
+### Other Scheduled Jobs
+
+| Workflow | Schedule | Function | Purpose |
+|----------|----------|----------|---------|
+| `low-balance-alerts.yml` | Every 6 hours | `check-low-balance-alerts` | Warn PPU users of low wallet balance |
+| `insufficient-balance-alerts.yml` | Daily 06:00 UTC | `check-insufficient-balance-alerts` | Monthly balance check (1st of month) |
+| `service-interruption-warnings.yml` | Daily 07:00 UTC | `check-service-interruption-warnings` | Warn accounts at risk of suspension |
+| `daily-summaries.yml` | Daily 11:00 UTC | `send-daily-summaries` | Send daily activity summaries |
+| `weekly-summaries.yml` | Monday 11:00 UTC | `send-weekly-summaries` | Send weekly activity summaries |
+| `monthly-ppu-billing.yml` | 1st of month 05:00 UTC | `process-monthly-ppu-billing` | Process monthly PPU billing |
+
+### Deploying New Edge Functions
+
+When adding a new scheduled edge function:
+
+1. Create the function in `supabase/functions/<function-name>/index.ts`
+2. Deploy to Supabase:
+   ```bash
+   supabase functions deploy <function-name>
+   ```
+3. Create GitHub workflow in `.github/workflows/<workflow-name>.yml`
+4. Add `SUPABASE_SERVICE_ROLE_KEY` secret to GitHub repository settings
+
 **UI Updates:**
 - `src/pages/ProfilePage.tsx` - Added conditional notification preferences
 
