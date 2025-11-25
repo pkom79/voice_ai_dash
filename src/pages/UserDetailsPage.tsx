@@ -1364,13 +1364,13 @@ export function UserDetailsPage() {
       </button>
 
       {/* Header */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="mb-6 flex items-start justify-between">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
               {user.first_name} {user.last_name}
             </h1>
-            <p className="text-gray-600 mt-1">{user.business_name}</p>
+            <p className="text-sm text-gray-600 mt-1">{user.business_name}</p>
           </div>
 
           {/* Impersonate Button */}
@@ -1382,7 +1382,7 @@ export function UserDetailsPage() {
                   navigate('/');
                 }
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors"
+              className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors self-start"
             >
               <Eye className="w-4 h-4" />
               Impersonate User
@@ -1391,15 +1391,15 @@ export function UserDetailsPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="border-b border-gray-200">
-          <nav className="flex gap-6">
+        <div className="border-b border-gray-200 -mx-4 sm:-mx-6 px-4 sm:px-6">
+          <nav className="flex gap-1 sm:gap-6 overflow-x-auto pb-px -mb-px scrollbar-hide">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-3 border-b-2 font-medium transition-colors ${activeTab === tab.id
+                  className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 border-b-2 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === tab.id
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                     }`}
@@ -1492,8 +1492,8 @@ export function UserDetailsPage() {
 
                 {/* Account Status Control */}
                 <div className="pt-4 pb-2 border-t border-gray-200">
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <div className="flex items-center justify-between">
+                  <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div>
                         <h3 className="text-sm font-medium text-gray-900">Account Status Control</h3>
                         <p className="text-xs text-gray-500 mt-1">
@@ -1507,7 +1507,7 @@ export function UserDetailsPage() {
                           setSuspendAction(user.is_active ? 'suspend' : 'activate');
                           setShowSuspendModal(true);
                         }}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${user.is_active
+                        className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded-lg font-medium transition-colors shrink-0 ${user.is_active
                           ? 'bg-red-600 text-white hover:bg-red-700'
                           : 'bg-green-600 text-white hover:bg-green-700'
                           }`}

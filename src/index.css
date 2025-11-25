@@ -18,9 +18,20 @@
     from {
       opacity: 0;
     }
+
     to {
       opacity: 1;
     }
+  }
+
+  /* Hide scrollbar for horizontal scrolling tabs */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -72,23 +83,59 @@
   }
 
   /* Common backgrounds */
-  .dark .bg-white { background-color: #0f172a; }
-  .dark .bg-gray-50 { background-color: #111827; }
-  .dark .bg-gray-100 { background-color: #1f2937; }
-  .dark .bg-gray-200 { background-color: #1f2937; }
-  .dark .bg-gray-300 { background-color: #334155; }
+  .dark .bg-white {
+    background-color: #0f172a;
+  }
+
+  .dark .bg-gray-50 {
+    background-color: #111827;
+  }
+
+  .dark .bg-gray-100 {
+    background-color: #1f2937;
+  }
+
+  .dark .bg-gray-200 {
+    background-color: #1f2937;
+  }
+
+  .dark .bg-gray-300 {
+    background-color: #334155;
+  }
 
   /* Text colors */
-  .dark .text-gray-900 { color: #e5e7eb; }
-  .dark .text-gray-800 { color: #e2e8f0; }
-  .dark .text-gray-700 { color: #cbd5e1; }
-  .dark .text-gray-600 { color: #cbd5e1; }
-  .dark .text-gray-500 { color: #94a3b8; }
+  .dark .text-gray-900 {
+    color: #e5e7eb;
+  }
+
+  .dark .text-gray-800 {
+    color: #e2e8f0;
+  }
+
+  .dark .text-gray-700 {
+    color: #cbd5e1;
+  }
+
+  .dark .text-gray-600 {
+    color: #cbd5e1;
+  }
+
+  .dark .text-gray-500 {
+    color: #94a3b8;
+  }
 
   /* Borders */
-  .dark .border-gray-100 { border-color: #1f2937; }
-  .dark .border-gray-200 { border-color: #1f2937; }
-  .dark .border-gray-300 { border-color: #334155; }
+  .dark .border-gray-100 {
+    border-color: #1f2937;
+  }
+
+  .dark .border-gray-200 {
+    border-color: #1f2937;
+  }
+
+  .dark .border-gray-300 {
+    border-color: #334155;
+  }
 
   /* Form controls */
   .dark input,
@@ -111,5 +158,39 @@
     outline: none;
     border-color: #3b82f6;
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+  }
+}
+
+/* Reusable button components for mobile responsiveness */
+@layer components {
+
+  /* Base button - smaller on mobile, normal on sm+ */
+  .btn-base {
+    @apply px-3 py-1.5 sm:px-4 sm:py-2 text-sm font-medium rounded-lg transition-colors;
+  }
+
+  /* Primary blue button */
+  .btn-primary {
+    @apply btn-base bg-blue-600 text-white hover:bg-blue-700;
+  }
+
+  /* Secondary/outline button */
+  .btn-secondary {
+    @apply btn-base bg-white border border-gray-300 text-gray-700 hover:bg-gray-50;
+  }
+
+  /* Danger button */
+  .btn-danger {
+    @apply btn-base bg-red-600 text-white hover:bg-red-700;
+  }
+
+  /* Danger outline button */
+  .btn-danger-outline {
+    @apply btn-base text-red-600 border border-red-300 hover:bg-red-50;
+  }
+
+  /* Success button */
+  .btn-success {
+    @apply btn-base bg-green-600 text-white hover:bg-green-700;
   }
 }

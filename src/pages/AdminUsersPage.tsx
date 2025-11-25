@@ -435,28 +435,28 @@ export function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-          <p className="text-gray-600">Manage users, connections, agents, and billing</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">User Management</h1>
+          <p className="text-sm text-gray-600">Manage users, connections, agents, and billing</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setShowAdmins(!showAdmins)}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${showAdmins
+            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm border rounded-lg transition-colors ${showAdmins
               ? 'bg-purple-50 border-purple-200 text-purple-700'
               : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
               }`}
           >
             <Shield className="h-4 w-4" />
-            {showAdmins ? 'Hide Admins' : 'Show Admins'}
+            <span className="hidden xs:inline">{showAdmins ? 'Hide' : 'Show'}</span> Admins
           </button>
           <button
             onClick={() => setShowCreateUserModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <UserPlus className="h-4 w-4" />
-            Create New User
+            <span className="hidden xs:inline">Create</span> <span className="hidden sm:inline">New</span> User
           </button>
         </div>
       </div>
@@ -582,28 +582,29 @@ export function AdminUsersPage() {
                   </div>
 
                   {/* Right Side Actions */}
-                  <div className="flex flex-col gap-2 ml-4">
+                  <div className="flex flex-col gap-1.5 sm:gap-2 ml-2 sm:ml-4 shrink-0">
                     {!user.last_login && (
                       <button
                         onClick={() => handleSendInvite(user.id)}
                         disabled={sendingInvite === user.id}
-                        className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap flex items-center justify-center gap-2"
+                        className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white border border-gray-300 text-gray-700 text-xs sm:text-sm font-medium rounded-md sm:rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap flex items-center justify-center gap-1.5"
                       >
                         {sendingInvite === user.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
                         ) : (
-                          <Mail className="h-4 w-4" />
+                          <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         )}
-                        Send Invite
+                        <span className="hidden sm:inline">Send</span> Invite
                       </button>
                     )}
                     <button
                       onClick={() => {
                         window.location.href = `/admin/users/${user.id}?userId=${user.id}`;
                       }}
-                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+                      className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-blue-600 text-white text-xs sm:text-sm font-medium rounded-md sm:rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
                     >
-                      View Details
+                      <span className="sm:hidden">Details</span>
+                      <span className="hidden sm:inline">View Details</span>
                     </button>
                     <button
                       onClick={() => {
@@ -625,9 +626,9 @@ export function AdminUsersPage() {
                           },
                         });
                       }}
-                      className="px-4 py-2 text-red-600 text-sm font-medium border border-red-300 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
+                      className="px-2.5 py-1 sm:px-3 sm:py-1.5 text-red-600 text-xs sm:text-sm font-medium border border-red-300 rounded-md sm:rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
                     >
-                      Remove User
+                      Remove
                     </button>
                   </div>
                 </div>

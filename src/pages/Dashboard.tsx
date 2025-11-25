@@ -382,8 +382,8 @@ export function Dashboard() {
   return (
     <div className="space-y-6 dark:text-gray-100">
       {isAdminView && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <div className="flex items-center justify-between">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 sm:p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
               <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               <div>
@@ -395,7 +395,7 @@ export function Dashboard() {
             </div>
             <button
               onClick={() => navigate('/admin/users')}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-600 transition-colors"
+              className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:py-2 text-sm bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-600 transition-colors self-start sm:self-auto"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Users
@@ -405,7 +405,7 @@ export function Dashboard() {
       )}
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
           {isAdminView ? `Dashboard for ${viewingUserName || 'User'}` : `Welcome back, ${profile?.first_name}!`}
         </h1>
         <p className="text-gray-600 dark:text-gray-400">

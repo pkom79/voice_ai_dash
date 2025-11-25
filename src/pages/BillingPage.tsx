@@ -427,11 +427,9 @@ export function BillingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Billing</h1>
-          <p className="text-gray-600 dark:text-gray-400">Manage your account and payments</p>
-        </div>
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Billing</h1>
+        <p className="text-sm text-gray-600 dark:text-gray-400">Manage your account and payments</p>
       </div>
 
       {showSuccessAlert && (

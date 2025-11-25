@@ -396,8 +396,8 @@ export function ProfilePage() {
             <button
               onClick={() => setActiveTab('profile')}
               className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'profile'
-                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
                 }`}
             >
               <div className="flex items-center gap-2">
@@ -408,8 +408,8 @@ export function ProfilePage() {
             <button
               onClick={() => setActiveTab('notifications')}
               className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'notifications'
-                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
                 }`}
             >
               <div className="flex items-center gap-2">
@@ -420,8 +420,8 @@ export function ProfilePage() {
             <button
               onClick={() => setActiveTab('security')}
               className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'security'
-                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
                 }`}
             >
               <div className="flex items-center gap-2">
@@ -798,32 +798,34 @@ export function ProfilePage() {
                 </div>
               </form>
 
-              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">Password Reset</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Send a password recovery link to{' '}
-                    <span className="font-medium text-gray-900 dark:text-white">{user?.email}</span>
-                  </p>
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">Password Reset</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Send a password recovery link to{' '}
+                      <span className="font-medium text-gray-900 dark:text-white">{user?.email}</span>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSendPasswordReset}
+                    disabled={sendingPasswordReset || !user?.email}
+                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-start sm:self-auto shrink-0"
+                  >
+                    {sendingPasswordReset ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="h-4 w-4" />
+                        <span className="hidden sm:inline">Send Recovery</span> Link
+                      </>
+                    )}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSendPasswordReset}
-                  disabled={sendingPasswordReset || !user?.email}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {sendingPasswordReset ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="h-4 w-4" />
-                      Send Recovery Link
-                    </>
-                  )}
-                </button>
               </div>
             </div>
           )}
