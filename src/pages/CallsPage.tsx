@@ -67,7 +67,15 @@ export function CallsPage() {
   const [direction, setDirection] = useState<'inbound' | 'outbound'>('inbound');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAgent, setSelectedAgent] = useState<string>('all');
-  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
+  // Default to Month to Date (same as Dashboard)
+  const getMonthStart = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  };
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: getMonthStart(),
+    end: new Date()
+  });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [availableAgents, setAvailableAgents] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
@@ -385,10 +393,10 @@ export function CallsPage() {
         </div>
         <button
           onClick={exportToCSV}
-          className="flex items-center gap-2 px-4 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
         >
           <Download className="h-4 w-4" />
-          <span className="hidden sm:inline">Export CSV</span>
+          Export CSV
         </button>
       </div>
 

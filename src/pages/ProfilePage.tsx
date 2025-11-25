@@ -588,17 +588,18 @@ export function ProfilePage() {
                       key={email.id}
                       className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4"
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                          <span className="font-medium text-gray-900 dark:text-white">{email.email}</span>
+                      {/* Email header - stacks on mobile */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Mail className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                          <span className="font-medium text-gray-900 dark:text-white truncate">{email.email}</span>
                           {email.is_primary && (
-                            <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full">
+                            <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full flex-shrink-0">
                               Primary
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 self-start sm:self-auto flex-shrink-0">
                           <button
                             type="button"
                             onClick={() => handleSendTestEmail(email.email)}

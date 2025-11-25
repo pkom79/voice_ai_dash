@@ -1647,17 +1647,18 @@ export function UserDetailsPage() {
                       key={emailRecord.id}
                       className="bg-white rounded-lg shadow border border-gray-200 p-4"
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-gray-400" />
-                          <span className="font-medium text-gray-900">{emailRecord.email}</span>
+                      {/* Email header - stacks on mobile */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Mail className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                          <span className="font-medium text-gray-900 truncate">{emailRecord.email}</span>
                           {emailRecord.is_primary && (
-                            <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                            <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full flex-shrink-0">
                               Primary
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 self-start sm:self-auto flex-shrink-0">
                           <button
                             type="button"
                             onClick={() => handleSendTestEmail(emailRecord.email)}

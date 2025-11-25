@@ -227,17 +227,17 @@ export function DashboardLayout() {
         <div className="flex-1 flex flex-col overflow-hidden relative">
           {/* Impersonation Banner */}
           {isImpersonating && (
-            <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 flex items-center justify-between text-sm text-amber-900 sticky top-0 z-[60]">
-              <div className="flex items-center gap-2">
-                <Eye className="w-4 h-4" />
-                <span className="font-medium">
+            <div className="bg-amber-100 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-700 px-3 sm:px-4 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm text-amber-900 dark:text-amber-200 sticky top-0 z-[60]">
+              <div className="flex items-center gap-2 min-w-0">
+                <Eye className="w-4 h-4 flex-shrink-0" />
+                <span className="font-medium truncate">
                   Viewing as {profile?.first_name} {profile?.last_name}
                   {profile?.business_name ? ` (${profile.business_name})` : ''}
                 </span>
               </div>
               <button
                 onClick={stopImpersonation}
-                className="flex items-center gap-1 px-3 py-1 bg-amber-200 hover:bg-amber-300 rounded text-amber-900 font-medium transition-colors"
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-200 dark:bg-amber-800 hover:bg-amber-300 dark:hover:bg-amber-700 rounded text-amber-900 dark:text-amber-100 font-medium transition-colors text-sm self-start sm:self-auto flex-shrink-0"
               >
                 <XCircle className="w-4 h-4" />
                 Exit Impersonation
