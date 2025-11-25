@@ -353,7 +353,7 @@ export function AdminSystemPage() {
               </span>
               {getCategoryBadge(log.category, log.eventType)}
               {log.source && getSourceBadge(log.source)}
-              {log.severity && log.eventType !== 'connection_event' && getSeverityBadge(log.severity)}
+              {log.severity && log.eventType !== 'connection_event' && log.eventType !== 'integration_error' && getSeverityBadge(log.severity)}
               {log.eventType === 'connection_event' && getConnectionEventBadge(log.title)}
             </div>
             
