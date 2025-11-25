@@ -237,7 +237,7 @@ export function DashboardLayout() {
               </div>
               <button
                 onClick={stopImpersonation}
-                className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-200 dark:bg-amber-800 hover:bg-amber-300 dark:hover:bg-amber-700 rounded text-amber-900 dark:text-amber-100 font-medium transition-colors text-sm self-start sm:self-auto flex-shrink-0"
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-200 dark:bg-amber-800 hover:bg-amber-300 dark:hover:bg-amber-700 rounded text-amber-900 dark:text-amber-100 font-medium transition-colors text-sm self-center flex-shrink-0"
               >
                 <XCircle className="w-4 h-4" />
                 Exit Impersonation
