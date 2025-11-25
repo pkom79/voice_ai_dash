@@ -328,7 +328,7 @@ export function UserDetailsPage() {
         .eq('user_id', userId)
         .eq('error_source', 'sync-all-active-users')
         .eq('resolved', false);
-      
+
       setSyncFailureCount(failureCount || 0);
     } catch (error) {
       console.error('Error loading API data:', error);

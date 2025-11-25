@@ -25,11 +25,11 @@ async function refreshTokenWithRetry(
   serviceRoleKey: string
 ): Promise<{ success: boolean; data?: any; error?: string; attempts: number }> {
   let lastError: string = '';
-  
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       console.log(`Attempt ${attempt}/${MAX_RETRIES} to refresh token for user ${userEmail}`);
-      
+
       const refreshResponse = await fetch(
         `${supabaseUrl}/functions/v1/oauth-refresh`,
         {
@@ -50,21 +50,21 @@ async function refreshTokenWithRetry(
 
       const errorText = await refreshResponse.text();
       lastError = errorText;
-      
+
       // Check for permanent failures - don't retry these
-      const isPermanentFailure = 
-        errorText.includes('invalid_grant') || 
+      const isPermanentFailure =
+        errorText.includes('invalid_grant') ||
         errorText.includes('Invalid JWT') ||
         errorText.includes('revoked') ||
         errorText.includes('unauthorized_client');
-      
+
       if (isPermanentFailure) {
         console.log(`Permanent failure for user ${userEmail}, not retrying: ${errorText.substring(0, 200)}`);
         return { success: false, error: errorText, attempts: attempt };
       }
-      
+
       console.log(`Attempt ${attempt} failed for user ${userEmail}: ${errorText.substring(0, 200)}`);
-      
+
       // Wait before next retry (if not last attempt)
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_DELAYS[attempt - 1] || RETRY_DELAYS[RETRY_DELAYS.length - 1];
@@ -74,7 +74,7 @@ async function refreshTokenWithRetry(
     } catch (fetchError) {
       lastError = fetchError instanceof Error ? fetchError.message : 'Network error';
       console.log(`Attempt ${attempt} threw exception for user ${userEmail}: ${lastError}`);
-      
+
       // Wait before next retry (if not last attempt)
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_DELAYS[attempt - 1] || RETRY_DELAYS[RETRY_DELAYS.length - 1];
@@ -83,7 +83,7 @@ async function refreshTokenWithRetry(
       }
     }
   }
-  
+
   return { success: false, error: lastError, attempts: MAX_RETRIES };
 }
 
