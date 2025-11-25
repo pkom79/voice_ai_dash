@@ -51,14 +51,22 @@ export function AdminSystemPage() {
         endDate.setHours(23, 59, 59, 999);
       }
 
-      const logs = await adminService.getUnifiedAuditLogs({
+      const result = await adminService.getUnifiedAuditLogs({
         startDate: auditFilters.startDate,
         endDate: endDate,
         limit: 200,
       });
-      setAuditLogs(logs);
+      // Handle both possible return types (array or { logs, counts })
+      if (Array.isArray(result)) {
+        setAuditLogs(result);
+      } else if (result && 'logs' in result) {
+        setAuditLogs(result.logs || []);
+      } else {
+        setAuditLogs([]);
+      }
     } catch (error) {
       console.error('Error loading unified audit logs:', error);
+      setAuditLogs([]);
     } finally {
       setLoadingAudit(false);
     }
@@ -139,9 +147,9 @@ export function AdminSystemPage() {
 
   // Filter logs based on sub-tab, search, source, and event type
   const filteredLogs = auditLogs.filter(log => {
-    // Sub-tab filter
-    if (auditSubTab === 'connections' && log.source_table !== 'user_connection_events') return false;
-    if (auditSubTab === 'errors' && log.source_table !== 'user_integration_errors') return false;
+    // Sub-tab filter (using category from UnifiedAuditLog)
+    if (auditSubTab === 'connections' && log.category !== 'connections') return false;
+    if (auditSubTab === 'errors' && log.category !== 'errors') return false;
     
     // Source filter
     if (sourceFilter !== 'all') {
@@ -153,25 +161,25 @@ export function AdminSystemPage() {
     
     // Event type filter
     if (eventTypeFilter !== 'all') {
-      const eventName = log.event_name.toLowerCase();
+      const titleLower = log.title.toLowerCase();
       if (eventTypeFilter === 'sync') {
-        if (!eventName.includes('sync')) return false;
+        if (!titleLower.includes('sync')) return false;
       } else if (eventTypeFilter === 'token') {
-        if (!eventName.includes('token') && !eventName.includes('refresh') && !eventName.includes('oauth')) return false;
+        if (!titleLower.includes('token') && !titleLower.includes('refresh') && !titleLower.includes('oauth')) return false;
       } else if (eventTypeFilter === 'admin') {
-        if (log.source_table !== 'audit_logs') return false;
+        if (log.eventType !== 'admin_action') return false;
       } else if (eventTypeFilter === 'activity') {
-        if (log.source_table !== 'user_activity_logs') return false;
+        if (log.eventType !== 'activity') return false;
       }
     }
     
     // Search filter
     if (auditSearch) {
       const searchLower = auditSearch.toLowerCase();
-      const matchesEvent = log.event_name?.toLowerCase().includes(searchLower);
-      const matchesUser = log.user_name?.toLowerCase().includes(searchLower);
+      const matchesTitle = log.title?.toLowerCase().includes(searchLower);
+      const matchesUser = log.user?.name?.toLowerCase().includes(searchLower);
       const matchesDescription = log.description?.toLowerCase().includes(searchLower);
-      if (!matchesEvent && !matchesUser && !matchesDescription) return false;
+      if (!matchesTitle && !matchesUser && !matchesDescription) return false;
     }
     
     return true;
@@ -179,8 +187,8 @@ export function AdminSystemPage() {
 
   // Count logs by category for badges
   const allCount = auditLogs.length;
-  const connectionCount = auditLogs.filter(l => l.source_table === 'user_connection_events').length;
-  const errorCount = auditLogs.filter(l => l.source_table === 'user_integration_errors').length;
+  const connectionCount = auditLogs.filter(l => l.category === 'connections').length;
+  const errorCount = auditLogs.filter(l => l.category === 'errors').length;
 
   const filteredConnections = connections.filter(c =>
     `${c.first_name} ${c.last_name} ${c.email}`.toLowerCase().includes(connectionSearch.toLowerCase())
@@ -276,14 +284,21 @@ export function AdminSystemPage() {
     );
   };
 
-  const getTableSourceBadge = (table: string) => {
-    const tableStyles: Record<string, { label: string; style: string }> = {
-      audit_logs: { label: 'Admin', style: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' },
-      user_activity_logs: { label: 'Activity', style: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' },
-      user_connection_events: { label: 'Connection', style: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' },
-      user_integration_errors: { label: 'Error', style: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' },
+  const getCategoryBadge = (category: string, eventType: string) => {
+    const categoryStyles: Record<string, { label: string; style: string }> = {
+      admin: { label: 'Admin', style: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' },
+      activity: { label: 'Activity', style: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' },
+      connections: { label: 'Connection', style: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' },
+      errors: { label: 'Error', style: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' },
     };
-    const config = tableStyles[table] || { label: 'Unknown', style: 'bg-gray-100 text-gray-600' };
+    // Map eventType to category for display
+    let displayCategory = category;
+    if (eventType === 'admin_action') displayCategory = 'admin';
+    else if (eventType === 'activity') displayCategory = 'activity';
+    else if (eventType === 'connection_event') displayCategory = 'connections';
+    else if (eventType === 'integration_error') displayCategory = 'errors';
+    
+    const config = categoryStyles[displayCategory] || { label: 'Unknown', style: 'bg-gray-100 text-gray-600' };
     return (
       <span className={`px-2 py-0.5 text-xs font-medium rounded ${config.style}`}>
         {config.label}
@@ -294,15 +309,15 @@ export function AdminSystemPage() {
   const renderLogItem = (log: UnifiedAuditLog) => {
     const isExpanded = expandedItems.has(log.id);
     
-    // Determine icon based on source table
+    // Determine icon based on eventType
     const getIcon = () => {
-      if (log.source_table === 'user_connection_events') {
-        return getConnectionEventIcon(log.event_name);
+      if (log.eventType === 'connection_event') {
+        return getConnectionEventIcon(log.title);
       }
-      if (log.source_table === 'user_integration_errors') {
+      if (log.eventType === 'integration_error') {
         return <AlertCircle className="h-5 w-5 text-red-500" />;
       }
-      if (log.source_table === 'audit_logs') {
+      if (log.eventType === 'admin_action') {
         return <Shield className="h-5 w-5 text-indigo-500" />;
       }
       return getSeverityIcon(log.severity || 'info');
@@ -334,12 +349,12 @@ export function AdminSystemPage() {
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className="font-medium text-gray-900 dark:text-white">
-                {log.event_name.replace(/_/g, ' ')}
+                {log.title}
               </span>
-              {getTableSourceBadge(log.source_table)}
+              {getCategoryBadge(log.category, log.eventType)}
               {log.source && getSourceBadge(log.source)}
-              {log.severity && log.source_table !== 'user_connection_events' && getSeverityBadge(log.severity)}
-              {log.source_table === 'user_connection_events' && getConnectionEventBadge(log.event_name)}
+              {log.severity && log.eventType !== 'connection_event' && getSeverityBadge(log.severity)}
+              {log.eventType === 'connection_event' && getConnectionEventBadge(log.title)}
             </div>
             
             {log.description && (
@@ -351,12 +366,12 @@ export function AdminSystemPage() {
             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                {formatDateEST(new Date(log.created_at), 'MMM d, yyyy h:mm:ss a')}
+                {formatDateEST(new Date(log.timestamp), 'MMM d, yyyy h:mm:ss a')}
               </span>
-              {log.user_name && (
+              {log.user?.name && (
                 <span className="flex items-center gap-1">
                   <User className="h-3 w-3" />
-                  {log.user_name}
+                  {log.user.name}
                 </span>
               )}
             </div>
