@@ -30,7 +30,6 @@ async function refreshTokenWithRetry(
     try {
       console.log(`Attempt ${attempt}/${MAX_RETRIES} to refresh token for user ${userEmail}`);
       console.log(`Calling oauth-refresh at: ${supabaseUrl}/functions/v1/oauth-refresh`);
-      console.log(`Using service role key (first 20 chars): ${serviceRoleKey.substring(0, 20)}...`);
 
       const refreshResponse = await fetch(
         `${supabaseUrl}/functions/v1/oauth-refresh`,
@@ -38,6 +37,7 @@ async function refreshTokenWithRetry(
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "apikey": serviceRoleKey,
             "Authorization": `Bearer ${serviceRoleKey}`,
           },
           body: JSON.stringify({ userId }),
@@ -246,6 +246,7 @@ Deno.serve(async (req: Request) => {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
+                "apikey": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
                 "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
               },
               body: JSON.stringify({ jobRunId }),

@@ -284,6 +284,7 @@ async function syncUserWithRetry(
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "apikey": serviceKey,
                     "Authorization": `Bearer ${serviceKey}`,
                 },
                 body: JSON.stringify({
@@ -419,6 +420,7 @@ async function notifyAdminsAboutSkippedUsers(
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "apikey": serviceKey,
                     "Authorization": `Bearer ${serviceKey}`,
                 },
                 body: JSON.stringify({
