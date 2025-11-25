@@ -29,6 +29,8 @@ async function refreshTokenWithRetry(
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       console.log(`Attempt ${attempt}/${MAX_RETRIES} to refresh token for user ${userEmail}`);
+      console.log(`Calling oauth-refresh at: ${supabaseUrl}/functions/v1/oauth-refresh`);
+      console.log(`Using service role key (first 20 chars): ${serviceRoleKey.substring(0, 20)}...`);
 
       const refreshResponse = await fetch(
         `${supabaseUrl}/functions/v1/oauth-refresh`,
@@ -41,6 +43,8 @@ async function refreshTokenWithRetry(
           body: JSON.stringify({ userId }),
         }
       );
+
+      console.log(`oauth-refresh response status: ${refreshResponse.status}`);
 
       if (refreshResponse.ok) {
         const refreshData = await refreshResponse.json();
