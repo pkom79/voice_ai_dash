@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, User, Plug2, DollarSign, Phone, Activity, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2, Eye } from 'lucide-react';
+import { ArrowLeft, User, Plug2, DollarSign, Phone, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2, Eye } from 'lucide-react';
 import { format, startOfToday, endOfToday } from 'date-fns';
 import { formatDateEST } from '../utils/formatting';
 import { getLocationTimezone } from '../utils/timezone';
 import { NotificationModal } from '../components/NotificationModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import DateRangePicker from '../components/DateRangePicker';
-import { ActivityTab } from '../components/ActivityTab';
 import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../contexts/AuthContext';
 import { oauthService } from '../services/oauth';
@@ -48,7 +47,7 @@ interface BillingData {
   stripe_customer_id: string | null;
 }
 
-type TabType = 'profile' | 'api' | 'billing' | 'call-analytics' | 'activity';
+type TabType = 'profile' | 'api' | 'billing' | 'call-analytics';
 
 export function UserDetailsPage() {
   const navigate = useNavigate();
@@ -1349,7 +1348,6 @@ export function UserDetailsPage() {
     { id: 'api', label: apiLabel, icon: Plug2 },
     { id: 'billing', label: 'Billing', icon: DollarSign },
     { id: 'call-analytics', label: 'Call Analytics', icon: Phone },
-    { id: 'activity', label: 'Activity', icon: Activity },
   ] as const;
 
   return (
@@ -2816,10 +2814,6 @@ export function UserDetailsPage() {
               </div>
             </div>
           </div>
-        )}
-
-        {activeTab === 'activity' && userId && (
-          <ActivityTab userId={userId} />
         )}
 
 
