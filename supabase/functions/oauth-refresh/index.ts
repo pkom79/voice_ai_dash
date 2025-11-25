@@ -118,6 +118,9 @@ Deno.serve(async (req: Request) => {
 
     // Refresh the token with HighLevel
     console.log("Refreshing HighLevel OAuth token for user:", userId);
+    console.log("Token data - location_id:", tokenData.location_id, "token_expires_at:", tokenData.token_expires_at);
+    console.log("Refresh token (first 20 chars):", tokenData.refresh_token?.substring(0, 20) + "...");
+    console.log("Is service role call:", isServiceRoleCall);
 
     // Get redirect URI from environment
     const redirectUri = Deno.env.get("HIGHLEVEL_REDIRECT_URI") || "https://voiceaidash.app/oauth/callback";
@@ -125,6 +128,7 @@ Deno.serve(async (req: Request) => {
     // Determine user_type based on stored token data
     // If we have a location_id, it's a Location level token. Otherwise assume Company.
     const userType = tokenData.location_id ? "Location" : "Company";
+    console.log("Using user_type:", userType, "redirect_uri:", redirectUri);
 
     const refreshResponse = await fetch(tokenUrl, {
       method: "POST",
@@ -141,9 +145,12 @@ Deno.serve(async (req: Request) => {
       }).toString(),
     });
 
+    console.log("HighLevel response status:", refreshResponse.status);
+
     if (!refreshResponse.ok) {
       const errorText = await refreshResponse.text();
       console.error("HighLevel token refresh failed:", errorText);
+      console.error("Full request params - client_id:", clientId?.substring(0, 10) + "...", "user_type:", userType);
       return new Response(
         JSON.stringify({ error: "Failed to refresh token with HighLevel", details: errorText }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }

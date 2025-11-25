@@ -64,18 +64,23 @@ jobs:
             TOKENS_REFRESHED=$(echo "$BODY" | jq -r '.tokensRefreshed // 0')
             TOKENS_FAILED=$(echo "$BODY" | jq -r '.tokensFailed // 0')
 
-            echo "✅ Token refresh job completed successfully"
+            echo "Token refresh job completed"
             echo "   Tokens checked: $TOKENS_CHECKED"
             echo "   Tokens refreshed: $TOKENS_REFRESHED"
             echo "   Tokens failed: $TOKENS_FAILED"
 
-            if [ "$TOKENS_FAILED" -gt 0 ]; then
-              echo "⚠️  Warning: $TOKENS_FAILED token(s) failed to refresh"
-              echo "   Admin notification has been sent via email"
-            fi
-
             if [ "$DRY_RUN" = "true" ]; then
               echo "ℹ️  This was a dry run - no tokens were actually refreshed"
+              echo "✅ Dry run completed successfully"
+            elif [ "$TOKENS_FAILED" -gt 0 ]; then
+              echo "❌ ERROR: $TOKENS_FAILED token(s) failed to refresh"
+              echo "   Admin notification has been sent via email"
+              echo "   Failing the job to trigger alerts"
+              exit 1
+            elif [ "$TOKENS_CHECKED" -eq 0 ]; then
+              echo "✅ No tokens needed refreshing"
+            else
+              echo "✅ All tokens refreshed successfully"
             fi
           else
             echo "❌ Token refresh job failed with HTTP status: $HTTP_STATUS"
