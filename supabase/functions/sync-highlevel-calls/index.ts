@@ -873,6 +873,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const pageSize = 50; // HighLevel limit is 50
+    let tokenRefreshAttempted = false; // Track if we've already tried refreshing the token
+    
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
       const chunk = chunks[chunkIndex];
       let page = 1;
@@ -893,7 +895,7 @@ Deno.serve(async (req: Request) => {
         syncLogger.logs.push(`[API REQUEST] Chunk ${chunkIndex + 1}/${chunks.length} Page ${page} Range: ${chunk.start} to ${chunk.end}`);
         console.log(`[SYNC] Calling HighLevel API: ${apiUrl}`);
 
-        const response = await fetch(apiUrl, {
+        let response = await fetch(apiUrl, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             Version: "2021-07-28",
@@ -902,6 +904,50 @@ Deno.serve(async (req: Request) => {
 
         const apiCallTime = Date.now() - apiCallStart;
         totalApiTime += apiCallTime;
+
+        // Handle 401 errors by attempting to refresh the token once
+        if (response.status === 401 && !tokenRefreshAttempted) {
+          tokenRefreshAttempted = true;
+          syncLogger.logs.push(`[AUTH] Received 401 from HighLevel, attempting token refresh...`);
+          console.log(`[SYNC] Got 401, attempting token refresh for user ${userId}`);
+
+          try {
+            const refreshResponse = await fetch(
+              `${Deno.env.get("SUPABASE_URL")}/functions/v1/oauth-refresh`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "apikey": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+                  "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                },
+                body: JSON.stringify({ userId }),
+              }
+            );
+
+            if (refreshResponse.ok) {
+              const refreshData = await refreshResponse.json();
+              accessToken = refreshData.access_token;
+              syncLogger.logs.push(`[AUTH] Token refreshed successfully, retrying API call...`);
+              console.log(`[SYNC] Token refreshed successfully, retrying...`);
+
+              // Retry the same request with the new token
+              response = await fetch(apiUrl, {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  Version: "2021-07-28",
+                },
+              });
+            } else {
+              const refreshError = await refreshResponse.text();
+              syncLogger.logs.push(`[AUTH] Token refresh failed: ${refreshError}`);
+              console.error(`[SYNC] Token refresh failed:`, refreshError);
+            }
+          } catch (refreshErr) {
+            syncLogger.logs.push(`[AUTH] Token refresh error: ${refreshErr instanceof Error ? refreshErr.message : 'Unknown error'}`);
+            console.error(`[SYNC] Token refresh exception:`, refreshErr);
+          }
+        }
 
         if (!response.ok) {
           const errorText = await response.text();
