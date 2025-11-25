@@ -1882,13 +1882,13 @@ export function UserDetailsPage() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="p-6">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Left Column: Connection Details */}
                       <div className="space-y-4">
                         <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Connection Details</h4>
-                        
+
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Location
@@ -1952,7 +1952,7 @@ export function UserDetailsPage() {
                             {assignedAgents.length} {assignedAgents.length === 1 ? 'agent' : 'agents'}
                           </span>
                         </div>
-                        
+
                         <button
                           onClick={handleOpenAgentManagement}
                           className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
@@ -2078,7 +2078,7 @@ export function UserDetailsPage() {
                           Disconnect
                         </button>
                       </div>
-                      
+
                       {/* Sync Failure Reset - only show when there are failures */}
                       {syncFailureCount >= 3 && (
                         <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">

@@ -7,6 +7,34 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+// Helper function to log connection events
+async function logConnectionEvent(
+  supabase: any,
+  userId: string,
+  eventType: string,
+  locationId: string | null,
+  locationName: string | null,
+  tokenExpiresAt: string | null,
+  errorMessage: string | null,
+  metadata: Record<string, any>,
+  source: string
+) {
+  try {
+    await supabase.rpc('log_connection_event', {
+      p_user_id: userId,
+      p_event_type: eventType,
+      p_location_id: locationId,
+      p_location_name: locationName,
+      p_token_expires_at: tokenExpiresAt,
+      p_error_message: errorMessage,
+      p_metadata: metadata,
+      p_source: source,
+    });
+  } catch (error) {
+    console.error('Failed to log connection event:', error);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -147,10 +175,27 @@ Deno.serve(async (req: Request) => {
 
     console.log("HighLevel response status:", refreshResponse.status);
 
+    // Determine source based on who called the function
+    const source = isServiceRoleCall ? 'auto' : 'manual';
+
     if (!refreshResponse.ok) {
       const errorText = await refreshResponse.text();
       console.error("HighLevel token refresh failed:", errorText);
       console.error("Full request params - client_id:", clientId?.substring(0, 10) + "...", "user_type:", userType);
+      
+      // Log the refresh failure
+      await logConnectionEvent(
+        supabase,
+        userId,
+        'refresh_failed',
+        tokenData.location_id,
+        tokenData.location_name || null,
+        tokenData.token_expires_at,
+        `Token refresh failed: ${errorText.substring(0, 200)}`,
+        { status: refreshResponse.status, isServiceRoleCall },
+        source
+      );
+
       return new Response(
         JSON.stringify({ error: "Failed to refresh token with HighLevel", details: errorText }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -180,6 +225,19 @@ Deno.serve(async (req: Request) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Log successful token refresh
+    await logConnectionEvent(
+      supabase,
+      userId,
+      'token_refreshed',
+      tokenData.location_id,
+      tokenData.location_name || null,
+      expiresAt,
+      null,
+      { expiresIn: refreshData.expires_in, isServiceRoleCall },
+      source
+    );
 
     return new Response(
       JSON.stringify({

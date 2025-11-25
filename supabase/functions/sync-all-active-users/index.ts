@@ -19,6 +19,31 @@ const DELAY_BETWEEN_USERS_MS = 2000;
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 3000;
 
+// Helper to log audit event for batch sync job
+async function logAuditEvent(
+    supabase: any,
+    action: string,
+    details: Record<string, any>,
+    source: string = 'github_action',
+    severity: string = 'info'
+) {
+    try {
+        // Use direct insert since this is a system-level action without a target user
+        await supabase
+            .from('audit_logs')
+            .insert({
+                admin_user_id: null, // System action
+                action: action,
+                target_user_id: null,
+                details: details,
+                source: source,
+                severity: severity,
+            });
+    } catch (error) {
+        console.error('Failed to log audit event:', error);
+    }
+}
+
 Deno.serve(async (req: Request) => {
     if (req.method === "OPTIONS") {
         return new Response(null, { status: 200, headers: corsHeaders });
@@ -36,6 +61,15 @@ Deno.serve(async (req: Request) => {
             await req.json().catch(() => ({}));
 
         console.log(`Starting sync-all-active-users - batch: ${batch}, dryRun: ${dryRun}, force: ${force}`);
+
+        // Log batch sync started
+        await logAuditEvent(
+            supabase,
+            'batch_sync_started',
+            { batch, dryRun, force },
+            'github_action',
+            'info'
+        );
 
         // Validate batch number
         if (batch < 1 || batch > 4) {
@@ -177,6 +211,24 @@ Deno.serve(async (req: Request) => {
         }
 
         console.log(`Sync batch ${batch} completed - success: ${successCount}, failed: ${failureCount}, skipped: ${skippedUsers.length}`);
+
+        // Log batch sync completed
+        await logAuditEvent(
+            supabase,
+            'batch_sync_completed',
+            {
+                batch,
+                dryRun,
+                totalEligible: eligibleUsers.length,
+                batchSize: batchUsers.length,
+                usersProcessed: usersToSync.length,
+                successCount,
+                failureCount,
+                skippedCount: skippedUsers.length,
+            },
+            'github_action',
+            failureCount > 0 ? 'warning' : 'info'
+        );
 
         return new Response(
             JSON.stringify({

@@ -125,25 +125,25 @@ export function ActivityTab({ userId }: ActivityTabProps) {
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return <XCircle className="h-5 w-5 text-red-600" />;
+        return <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />;
       case 'error':
-        return <AlertCircle className="h-5 w-5 text-red-500" />;
+        return <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400" />;
       case 'warning':
-        return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
+        return <AlertTriangle className="h-5 w-5 text-amber-500 dark:text-amber-400" />;
       default:
-        return <Info className="h-5 w-5 text-blue-600" />;
+        return <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
     }
   };
 
   const getSeverityBadge = (severity: string) => {
     const styles = {
-      critical: 'bg-red-100 text-red-700',
-      error: 'bg-red-50 text-red-600',
-      warning: 'bg-yellow-100 text-yellow-700',
-      info: 'bg-blue-100 text-blue-700',
+      critical: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+      error: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+      warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+      info: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
     };
     return (
-      <span className={`px-2 py-0.5 text-xs font-bold rounded uppercase ${styles[severity as keyof typeof styles] || styles.info}`}>
+      <span className={`px-2 py-0.5 text-xs font-medium rounded uppercase ${styles[severity as keyof typeof styles] || styles.info}`}>
         {severity}
       </span>
     );
@@ -152,31 +152,31 @@ export function ActivityTab({ userId }: ActivityTabProps) {
   const getConnectionEventIcon = (eventType: string) => {
     switch (eventType) {
       case 'connected':
-        return <Link2 className="h-5 w-5 text-green-600" />;
+        return <Link2 className="h-5 w-5 text-green-600 dark:text-green-400" />;
       case 'disconnected':
-        return <Unlink className="h-5 w-5 text-red-600" />;
+        return <Unlink className="h-5 w-5 text-red-600 dark:text-red-400" />;
       case 'token_refreshed':
-        return <RefreshCw className="h-5 w-5 text-blue-600" />;
+        return <RefreshCw className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
       case 'token_expired':
-        return <Clock className="h-5 w-5 text-yellow-600" />;
+        return <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />;
       case 'refresh_failed':
-        return <XCircle className="h-5 w-5 text-red-600" />;
+        return <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />;
       default:
-        return <Activity className="h-5 w-5 text-gray-600" />;
+        return <Activity className="h-5 w-5 text-gray-600 dark:text-gray-400" />;
     }
   };
 
   const getConnectionEventBadge = (eventType: string) => {
     const styles = {
-      connected: 'bg-green-100 text-green-700',
-      disconnected: 'bg-red-100 text-red-700',
-      token_refreshed: 'bg-blue-100 text-blue-700',
-      token_expired: 'bg-yellow-100 text-yellow-700',
-      refresh_failed: 'bg-red-100 text-red-700',
-      connection_attempted: 'bg-gray-100 text-gray-700',
+      connected: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
+      disconnected: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+      token_refreshed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+      token_expired: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+      refresh_failed: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+      connection_attempted: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
     };
     return (
-      <span className={`px-2 py-0.5 text-xs font-bold rounded uppercase ${styles[eventType as keyof typeof styles] || 'bg-gray-100 text-gray-700'}`}>
+      <span className={`px-2 py-0.5 text-xs font-medium rounded uppercase ${styles[eventType as keyof typeof styles] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
         {eventType.replace('_', ' ')}
       </span>
     );
@@ -208,25 +208,25 @@ export function ActivityTab({ userId }: ActivityTabProps) {
   const renderActivityLog = (log: ActivityLog) => {
     const isExpanded = expandedItems.has(log.id);
     return (
-      <div key={log.id} className="border-b border-gray-200 last:border-0">
-        <div className="p-4 hover:bg-gray-50 transition-colors">
+      <div key={log.id} className="border-b border-gray-200 dark:border-gray-700 last:border-0">
+        <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
           <div className="flex items-start gap-3">
             {getSeverityIcon(log.severity)}
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-medium text-gray-900">{log.event_name}</h4>
+                <h4 className="font-medium text-gray-900 dark:text-white">{log.event_name}</h4>
                 {getSeverityBadge(log.severity)}
-                <span className="px-2 py-0.5 text-xs font-bold bg-gray-100 text-gray-700 rounded uppercase">
+                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded uppercase">
                   {log.event_category}
                 </span>
               </div>
-              <p className="text-sm text-gray-600 mb-2">{log.description}</p>
-              <div className="flex items-center gap-4 text-xs text-gray-500">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{log.description}</p>
+              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                 <span>{formatDateEST(new Date(log.created_at))}</span>
                 {Object.keys(log.metadata || {}).length > 0 && (
                   <button
                     onClick={() => toggleExpanded(log.id)}
-                    className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
+                    className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                   >
                     {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     {isExpanded ? 'Hide' : 'View'} Details
@@ -234,9 +234,9 @@ export function ActivityTab({ userId }: ActivityTabProps) {
                 )}
               </div>
               {isExpanded && Object.keys(log.metadata || {}).length > 0 && (
-                <div className="mt-3 p-3 bg-gray-50 rounded border border-gray-200">
-                  <p className="text-xs font-semibold text-gray-700 mb-2">Event Metadata:</p>
-                  <pre className="text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap">
+                <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700">
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Event Metadata:</p>
+                  <pre className="text-xs text-gray-600 dark:text-gray-400 overflow-x-auto whitespace-pre-wrap">
                     {JSON.stringify(log.metadata, null, 2)}
                   </pre>
                 </div>
@@ -251,32 +251,32 @@ export function ActivityTab({ userId }: ActivityTabProps) {
   const renderConnectionEvent = (conn: ConnectionEvent) => {
     const isExpanded = expandedItems.has(conn.id);
     return (
-      <div key={conn.id} className="border-b border-gray-200 last:border-0">
-        <div className="p-4 hover:bg-gray-50 transition-colors">
+      <div key={conn.id} className="border-b border-gray-200 dark:border-gray-700 last:border-0">
+        <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
           <div className="flex items-start gap-3">
             {getConnectionEventIcon(conn.event_type)}
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-medium text-gray-900">HighLevel Connection Event</h4>
+                <h4 className="font-medium text-gray-900 dark:text-white">Connection Event</h4>
                 {getConnectionEventBadge(conn.event_type)}
               </div>
               {conn.location_name && (
-                <p className="text-sm text-gray-600 mb-1">Location: {conn.location_name}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Location: {conn.location_name}</p>
               )}
               {conn.error_message && (
-                <p className="text-sm text-red-600 mb-1">Error: {conn.error_message}</p>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-1">Error: {conn.error_message}</p>
               )}
               {conn.token_expires_at && (
-                <p className="text-sm text-gray-600 mb-1">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                   Token Expires: {formatDateEST(new Date(conn.token_expires_at))}
                 </p>
               )}
-              <div className="flex items-center gap-4 text-xs text-gray-500">
+              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                 <span>{formatDateEST(new Date(conn.created_at))}</span>
                 {Object.keys(conn.metadata || {}).length > 0 && (
                   <button
                     onClick={() => toggleExpanded(conn.id)}
-                    className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
+                    className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                   >
                     {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     {isExpanded ? 'Hide' : 'View'} Details
@@ -284,9 +284,9 @@ export function ActivityTab({ userId }: ActivityTabProps) {
                 )}
               </div>
               {isExpanded && Object.keys(conn.metadata || {}).length > 0 && (
-                <div className="mt-3 p-3 bg-gray-50 rounded border border-gray-200">
-                  <p className="text-xs font-semibold text-gray-700 mb-2">Connection Metadata:</p>
-                  <pre className="text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap">
+                <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700">
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Connection Metadata:</p>
+                  <pre className="text-xs text-gray-600 dark:text-gray-400 overflow-x-auto whitespace-pre-wrap">
                     {JSON.stringify(conn.metadata, null, 2)}
                   </pre>
                 </div>
@@ -301,38 +301,38 @@ export function ActivityTab({ userId }: ActivityTabProps) {
   const renderIntegrationError = (error: IntegrationError) => {
     const isExpanded = expandedItems.has(error.id);
     return (
-      <div key={error.id} className="border-b border-gray-200 last:border-0">
-        <div className="p-4 hover:bg-gray-50 transition-colors">
+      <div key={error.id} className="border-b border-gray-200 dark:border-gray-700 last:border-0">
+        <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-red-600" />
+            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-medium text-gray-900">{error.error_type.replace(/_/g, ' ').toUpperCase()}</h4>
+                <h4 className="font-medium text-gray-900 dark:text-white">{error.error_type.replace(/_/g, ' ').toUpperCase()}</h4>
                 {error.resolved ? (
-                  <span className="px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
+                  <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 rounded uppercase">
                     RESOLVED
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded uppercase">
+                  <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 rounded uppercase">
                     UNRESOLVED
                   </span>
                 )}
-                <span className="px-2 py-0.5 text-xs font-bold bg-gray-100 text-gray-700 rounded uppercase">
+                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded uppercase">
                   {error.error_source}
                 </span>
               </div>
-              <p className="text-sm text-red-600 mb-1">{error.error_message}</p>
+              <p className="text-sm text-red-600 dark:text-red-400 mb-1">{error.error_message}</p>
               {error.error_code && (
-                <p className="text-xs text-gray-500 mb-1">Error Code: {error.error_code}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Error Code: {error.error_code}</p>
               )}
               {error.retry_count > 0 && (
-                <p className="text-xs text-gray-500 mb-1">Retry Attempts: {error.retry_count}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Retry Attempts: {error.retry_count}</p>
               )}
-              <div className="flex items-center gap-4 text-xs text-gray-500">
+              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                 <span>{formatDateEST(new Date(error.created_at))}</span>
                 <button
                   onClick={() => toggleExpanded(error.id)}
-                  className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
+                  className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                 >
                   {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   {isExpanded ? 'Hide' : 'View'} Details
@@ -340,7 +340,7 @@ export function ActivityTab({ userId }: ActivityTabProps) {
                 {!error.resolved && (
                   <button
                     onClick={() => handleMarkResolved(error.id)}
-                    className="flex items-center gap-1 text-green-600 hover:text-green-700 font-medium"
+                    className="flex items-center gap-1 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium"
                   >
                     <CheckCircle2 className="h-4 w-4" />
                     Mark Resolved
@@ -350,25 +350,25 @@ export function ActivityTab({ userId }: ActivityTabProps) {
               {isExpanded && (
                 <div className="mt-3 space-y-3">
                   {Object.keys(error.request_data || {}).length > 0 && (
-                    <div className="p-3 bg-blue-50 rounded border border-blue-200">
-                      <p className="text-xs font-semibold text-blue-900 mb-2">Request Data:</p>
-                      <pre className="text-xs text-blue-700 overflow-x-auto whitespace-pre-wrap">
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded border border-blue-200 dark:border-blue-800">
+                      <p className="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-2">Request Data:</p>
+                      <pre className="text-xs text-blue-700 dark:text-blue-300 overflow-x-auto whitespace-pre-wrap">
                         {JSON.stringify(error.request_data, null, 2)}
                       </pre>
                     </div>
                   )}
                   {Object.keys(error.response_data || {}).length > 0 && (
-                    <div className="p-3 bg-red-50 rounded border border-red-200">
-                      <p className="text-xs font-semibold text-red-900 mb-2">Response Data:</p>
-                      <pre className="text-xs text-red-700 overflow-x-auto whitespace-pre-wrap">
+                    <div className="p-3 bg-red-50 dark:bg-red-900/30 rounded border border-red-200 dark:border-red-800">
+                      <p className="text-xs font-semibold text-red-900 dark:text-red-200 mb-2">Response Data:</p>
+                      <pre className="text-xs text-red-700 dark:text-red-300 overflow-x-auto whitespace-pre-wrap">
                         {JSON.stringify(error.response_data, null, 2)}
                       </pre>
                     </div>
                   )}
                   {error.stack_trace && (
-                    <div className="p-3 bg-gray-50 rounded border border-gray-200">
-                      <p className="text-xs font-semibold text-gray-700 mb-2">Stack Trace:</p>
-                      <pre className="text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap font-mono">
+                    <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700">
+                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Stack Trace:</p>
+                      <pre className="text-xs text-gray-600 dark:text-gray-400 overflow-x-auto whitespace-pre-wrap font-mono">
                         {error.stack_trace}
                       </pre>
                     </div>
@@ -383,26 +383,26 @@ export function ActivityTab({ userId }: ActivityTabProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="p-6 border-b border-gray-200">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-blue-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Activity Log</h2>
+            <Activity className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Activity Log</h2>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${showFilters
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
             >
               <Filter className="h-4 w-4" />
             </button>
             <button
               onClick={exportToJSON}
-              className="px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
               <Download className="h-4 w-4" />
             </button>
@@ -416,16 +416,16 @@ export function ActivityTab({ userId }: ActivityTabProps) {
         </div>
 
         {showFilters && (
-          <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Severity Filter
                 </label>
                 <select
                   value={filterSeverity}
                   onChange={(e) => setFilterSeverity(e.target.value as FilterSeverity)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="all">All Severities</option>
                   <option value="info">Info</option>
@@ -435,7 +435,7 @@ export function ActivityTab({ userId }: ActivityTabProps) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Include Resolved Errors
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -445,7 +445,7 @@ export function ActivityTab({ userId }: ActivityTabProps) {
                     onChange={(e) => setIncludeResolved(e.target.checked)}
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700">Show resolved errors</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Show resolved errors</span>
                 </label>
               </div>
             </div>
@@ -453,18 +453,18 @@ export function ActivityTab({ userId }: ActivityTabProps) {
         )}
 
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-gray-500" />
           <input
             type="text"
             placeholder="Search activity logs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             >
               <X className="h-5 w-5" />
             </button>
@@ -476,7 +476,7 @@ export function ActivityTab({ userId }: ActivityTabProps) {
             onClick={() => setActiveView('all')}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'all'
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
           >
             All Activity ({filteredLogs.length})
@@ -485,7 +485,7 @@ export function ActivityTab({ userId }: ActivityTabProps) {
             onClick={() => setActiveView('connections')}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'connections'
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
           >
             Connections ({filteredConnections.length})
@@ -494,7 +494,7 @@ export function ActivityTab({ userId }: ActivityTabProps) {
             onClick={() => setActiveView('errors')}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'errors'
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
           >
             Errors ({filteredErrors.filter(e => !e.resolved).length})
@@ -506,15 +506,15 @@ export function ActivityTab({ userId }: ActivityTabProps) {
         {loading ? (
           <div className="p-12 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-            <p className="text-gray-600">Loading activity logs...</p>
+            <p className="text-gray-600 dark:text-gray-400">Loading activity logs...</p>
           </div>
         ) : (
           <>
             {activeView === 'all' && (
               <>
                 {filteredLogs.length === 0 ? (
-                  <div className="p-12 text-center text-gray-500">
-                    <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <div className="p-12 text-center text-gray-500 dark:text-gray-400">
+                    <Activity className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
                     <p>No activity logs found</p>
                   </div>
                 ) : (
@@ -526,8 +526,8 @@ export function ActivityTab({ userId }: ActivityTabProps) {
             {activeView === 'connections' && (
               <>
                 {filteredConnections.length === 0 ? (
-                  <div className="p-12 text-center text-gray-500">
-                    <Link2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <div className="p-12 text-center text-gray-500 dark:text-gray-400">
+                    <Link2 className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
                     <p>No connection events found</p>
                   </div>
                 ) : (
@@ -539,8 +539,8 @@ export function ActivityTab({ userId }: ActivityTabProps) {
             {activeView === 'errors' && (
               <>
                 {filteredErrors.length === 0 ? (
-                  <div className="p-12 text-center text-gray-500">
-                    <CheckCircle2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <div className="p-12 text-center text-gray-500 dark:text-gray-400">
+                    <CheckCircle2 className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
                     <p>No integration errors found</p>
                   </div>
                 ) : (

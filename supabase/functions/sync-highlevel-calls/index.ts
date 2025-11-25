@@ -31,6 +31,57 @@ type EdgeSupabaseClient = SupabaseClient<any, any, any>;
 const HIGHLEVEL_BASE_URL = Deno.env.get("HIGHLEVEL_API_URL") || "https://services.leadconnectorhq.com";
 type AgentPhoneNumbers = Record<string, { id: string; phone_number: string }[]>;
 
+// Helper function to log activity events to the database
+async function logActivityEvent(
+  supabase: EdgeSupabaseClient,
+  userId: string,
+  eventName: string,
+  description: string,
+  metadata: Record<string, any> = {},
+  severity: 'info' | 'warning' | 'error' | 'critical' = 'info',
+  source: 'manual' | 'auto' | 'github_action' = 'manual'
+) {
+  try {
+    await supabase.rpc('log_user_activity', {
+      p_user_id: userId,
+      p_event_type: 'system_event',
+      p_event_category: 'sync',
+      p_event_name: eventName,
+      p_description: description,
+      p_metadata: metadata,
+      p_severity: severity,
+      p_source: source,
+    });
+  } catch (error) {
+    console.error('[SYNC] Failed to log activity event:', error);
+  }
+}
+
+// Helper function to log integration errors
+async function logIntegrationError(
+  supabase: EdgeSupabaseClient,
+  userId: string,
+  errorType: string,
+  errorMessage: string,
+  errorCode: string | null = null,
+  requestData: Record<string, any> = {},
+  responseData: Record<string, any> = {}
+) {
+  try {
+    await supabase.rpc('log_integration_error', {
+      p_user_id: userId,
+      p_error_type: errorType,
+      p_error_source: 'highlevel_api',
+      p_error_message: errorMessage,
+      p_error_code: errorCode,
+      p_request_data: requestData,
+      p_response_data: responseData,
+    });
+  } catch (error) {
+    console.error('[SYNC] Failed to log integration error:', error);
+  }
+}
+
 const normalizePhoneNumberValue = (value?: string | null): string => {
   if (!value) return "";
   const digits = value.replace(/[^0-9]/g, "");
@@ -588,6 +639,27 @@ Deno.serve(async (req: Request) => {
       syncLogger.logId = syncLogId;
     }
 
+    // Determine source for activity logging
+    const activitySource = normalizedSyncType === 'auto' ? 'auto' : 'manual';
+
+    // Log sync started event
+    await logActivityEvent(
+      supabase,
+      userId,
+      'sync_started',
+      `Call sync ${normalizedSyncType === 'auto' ? 'automatically ' : ''}started`,
+      {
+        syncType: normalizedSyncType,
+        syncLogId: syncLogId,
+        adminOverride: adminOverride,
+        startDate: startDate || null,
+        endDate: endDate || null,
+        timezone: timezone,
+      },
+      'info',
+      activitySource
+    );
+
     syncLogger.logs.push(`[START] Sync initiated - Type: ${normalizedSyncType}, Admin Override: ${adminOverride}`);
 
     console.log(`[SYNC] Looking up OAuth connection for user ${userId}`);
@@ -972,6 +1044,33 @@ Deno.serve(async (req: Request) => {
           const responseBody = JSON.stringify({ error: errorMsg, details: errorText });
           console.log(`[SYNC] Returning error response with status ${response.status}: ${responseBody.substring(0, 300)}`);
 
+          // Log the API error as an integration error
+          await logIntegrationError(
+            supabase,
+            userId,
+            'api_error',
+            errorMsg,
+            String(response.status),
+            { url: apiUrl, syncType: normalizedSyncType },
+            { status: response.status, body: errorText.substring(0, 500) }
+          );
+
+          // Log sync failed event
+          await logActivityEvent(
+            supabase,
+            userId,
+            'sync_failed',
+            `Call sync failed: ${errorMsg}`,
+            {
+              syncType: normalizedSyncType,
+              syncLogId: syncLogId,
+              errorStatus: response.status,
+              errorMessage: errorText.substring(0, 200),
+            },
+            'error',
+            activitySource
+          );
+
           if (syncLogId) {
             await supabase
               .from('call_sync_logs')
@@ -1341,6 +1440,25 @@ Deno.serve(async (req: Request) => {
         console.error('[SYNC] Failed to finalize sync log:', logUpdateError);
       }
     }
+
+    // Log sync completed event
+    await logActivityEvent(
+      supabase,
+      userId,
+      'sync_completed',
+      `Call sync completed: ${insertedCount} inserted, ${updatedCount} updated, ${skippedCount} skipped`,
+      {
+        syncType: normalizedSyncType,
+        syncLogId: syncLogId,
+        inserted: insertedCount,
+        updated: updatedCount,
+        skipped: skippedCount,
+        total: allRawCalls.length,
+        durationMs: syncDuration,
+      },
+      'info',
+      activitySource
+    );
 
     return new Response(
       JSON.stringify({

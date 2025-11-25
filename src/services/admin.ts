@@ -36,6 +36,22 @@ export interface BulkAssignmentResult {
   errors: string[];
 }
 
+// Unified audit log interface that combines all log sources
+export interface UnifiedAuditLog {
+  id: string;
+  timestamp: string;
+  eventType: 'admin_action' | 'connection_event' | 'activity' | 'integration_error';
+  category: string;
+  title: string;
+  description: string;
+  severity: 'info' | 'warning' | 'error' | 'critical';
+  source: 'manual' | 'auto' | 'github_action';
+  user?: { id: string; name: string } | null;
+  targetUser?: { id: string; name: string } | null;
+  metadata: Record<string, any>;
+  resolved?: boolean;
+}
+
 class AdminService {
   async generateInvitationToken(): Promise<string> {
     const array = new Uint8Array(32);
@@ -646,6 +662,326 @@ class AdminService {
       console.error('Error fetching audit logs:', error);
       return [];
     }
+  }
+
+  async getUnifiedAuditLogs(filters?: {
+    category?: 'all' | 'connections' | 'errors' | 'admin';
+    source?: 'all' | 'manual' | 'auto' | 'github_action';
+    severity?: string;
+    userId?: string;
+    search?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+  }): Promise<{ logs: UnifiedAuditLog[]; counts: { all: number; connections: number; errors: number } }> {
+    try {
+      const limit = filters?.limit || 100;
+      const logs: UnifiedAuditLog[] = [];
+
+      // 1. Fetch audit_logs (admin actions and system events)
+      if (!filters?.category || filters.category === 'all' || filters.category === 'admin') {
+        let auditQuery = supabase
+          .from('audit_logs')
+          .select(`
+            id, action, details, created_at, source, severity,
+            admin:admin_user_id(id, first_name, last_name),
+            target:target_user_id(id, first_name, last_name)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (filters?.source && filters.source !== 'all') {
+          auditQuery = auditQuery.eq('source', filters.source);
+        }
+        if (filters?.startDate) {
+          auditQuery = auditQuery.gte('created_at', filters.startDate.toISOString());
+        }
+        if (filters?.endDate) {
+          auditQuery = auditQuery.lte('created_at', filters.endDate.toISOString());
+        }
+
+        const { data: auditData } = await auditQuery;
+        
+        if (auditData) {
+          for (const log of auditData) {
+            const adminName = log.admin ? `${log.admin.first_name || ''} ${log.admin.last_name || ''}`.trim() : 'System';
+            const targetName = log.target ? `${log.target.first_name || ''} ${log.target.last_name || ''}`.trim() : null;
+            
+            logs.push({
+              id: log.id,
+              timestamp: log.created_at,
+              eventType: 'admin_action',
+              category: 'admin',
+              title: this.formatActionTitle(log.action),
+              description: this.formatActionDescription(log.action, adminName, targetName, log.details),
+              severity: (log.severity as 'info' | 'warning' | 'error' | 'critical') || 'info',
+              source: (log.source as 'manual' | 'auto' | 'github_action') || 'manual',
+              user: log.admin ? { id: log.admin.id, name: adminName } : null,
+              targetUser: log.target ? { id: log.target.id, name: targetName || '' } : null,
+              metadata: log.details || {},
+            });
+          }
+        }
+      }
+
+      // 2. Fetch user_connection_events
+      if (!filters?.category || filters.category === 'all' || filters.category === 'connections') {
+        let connQuery = supabase
+          .from('user_connection_events')
+          .select(`
+            id, event_type, location_id, location_name, token_expires_at, 
+            error_message, metadata, created_at, source,
+            user:user_id(id, first_name, last_name)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (filters?.source && filters.source !== 'all') {
+          connQuery = connQuery.eq('source', filters.source);
+        }
+        if (filters?.userId) {
+          connQuery = connQuery.eq('user_id', filters.userId);
+        }
+        if (filters?.startDate) {
+          connQuery = connQuery.gte('created_at', filters.startDate.toISOString());
+        }
+        if (filters?.endDate) {
+          connQuery = connQuery.lte('created_at', filters.endDate.toISOString());
+        }
+
+        const { data: connData } = await connQuery;
+        
+        if (connData) {
+          for (const event of connData) {
+            const userName = event.user ? `${event.user.first_name || ''} ${event.user.last_name || ''}`.trim() : 'Unknown';
+            
+            logs.push({
+              id: event.id,
+              timestamp: event.created_at,
+              eventType: 'connection_event',
+              category: 'connections',
+              title: this.formatConnectionTitle(event.event_type),
+              description: this.formatConnectionDescription(event.event_type, userName, event.location_name, event.error_message),
+              severity: event.error_message ? 'error' : 'info',
+              source: (event.source as 'manual' | 'auto' | 'github_action') || 'manual',
+              user: event.user ? { id: event.user.id, name: userName } : null,
+              targetUser: null,
+              metadata: { 
+                ...event.metadata, 
+                location_id: event.location_id, 
+                location_name: event.location_name,
+                token_expires_at: event.token_expires_at 
+              },
+            });
+          }
+        }
+      }
+
+      // 3. Fetch user_activity_logs (sync events, etc.)
+      if (!filters?.category || filters.category === 'all') {
+        let activityQuery = supabase
+          .from('user_activity_logs')
+          .select(`
+            id, event_type, event_category, event_name, description, 
+            metadata, severity, created_at, source,
+            user:user_id(id, first_name, last_name)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (filters?.source && filters.source !== 'all') {
+          activityQuery = activityQuery.eq('source', filters.source);
+        }
+        if (filters?.severity) {
+          activityQuery = activityQuery.eq('severity', filters.severity);
+        }
+        if (filters?.userId) {
+          activityQuery = activityQuery.eq('user_id', filters.userId);
+        }
+        if (filters?.startDate) {
+          activityQuery = activityQuery.gte('created_at', filters.startDate.toISOString());
+        }
+        if (filters?.endDate) {
+          activityQuery = activityQuery.lte('created_at', filters.endDate.toISOString());
+        }
+
+        const { data: activityData } = await activityQuery;
+        
+        if (activityData) {
+          for (const log of activityData) {
+            const userName = log.user ? `${log.user.first_name || ''} ${log.user.last_name || ''}`.trim() : 'Unknown';
+            
+            logs.push({
+              id: log.id,
+              timestamp: log.created_at,
+              eventType: 'activity',
+              category: log.event_category || 'activity',
+              title: this.formatActivityTitle(log.event_name),
+              description: log.description,
+              severity: (log.severity as 'info' | 'warning' | 'error' | 'critical') || 'info',
+              source: (log.source as 'manual' | 'auto' | 'github_action') || 'manual',
+              user: log.user ? { id: log.user.id, name: userName } : null,
+              targetUser: null,
+              metadata: log.metadata || {},
+            });
+          }
+        }
+      }
+
+      // 4. Fetch user_integration_errors
+      if (!filters?.category || filters.category === 'all' || filters.category === 'errors') {
+        let errorQuery = supabase
+          .from('user_integration_errors')
+          .select(`
+            id, error_type, error_source, error_message, error_code,
+            request_data, response_data, resolved, resolved_at, created_at,
+            user:user_id(id, first_name, last_name)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (filters?.userId) {
+          errorQuery = errorQuery.eq('user_id', filters.userId);
+        }
+        if (filters?.startDate) {
+          errorQuery = errorQuery.gte('created_at', filters.startDate.toISOString());
+        }
+        if (filters?.endDate) {
+          errorQuery = errorQuery.lte('created_at', filters.endDate.toISOString());
+        }
+
+        const { data: errorData } = await errorQuery;
+        
+        if (errorData) {
+          for (const err of errorData) {
+            const userName = err.user ? `${err.user.first_name || ''} ${err.user.last_name || ''}`.trim() : 'Unknown';
+            
+            logs.push({
+              id: err.id,
+              timestamp: err.created_at,
+              eventType: 'integration_error',
+              category: 'errors',
+              title: `${err.error_type}${err.error_code ? ` (${err.error_code})` : ''}`,
+              description: err.error_message,
+              severity: 'error',
+              source: 'auto', // Errors are typically from automated processes
+              user: err.user ? { id: err.user.id, name: userName } : null,
+              targetUser: null,
+              metadata: { 
+                error_source: err.error_source,
+                request_data: err.request_data, 
+                response_data: err.response_data 
+              },
+              resolved: err.resolved,
+            });
+          }
+        }
+      }
+
+      // Sort all logs by timestamp (newest first)
+      logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      // Apply search filter if provided
+      let filteredLogs = logs;
+      if (filters?.search) {
+        const searchLower = filters.search.toLowerCase();
+        filteredLogs = logs.filter(log => 
+          log.title.toLowerCase().includes(searchLower) ||
+          log.description.toLowerCase().includes(searchLower) ||
+          log.user?.name.toLowerCase().includes(searchLower) ||
+          log.targetUser?.name.toLowerCase().includes(searchLower)
+        );
+      }
+
+      // Calculate counts
+      const counts = {
+        all: filteredLogs.length,
+        connections: filteredLogs.filter(l => l.category === 'connections').length,
+        errors: filteredLogs.filter(l => l.category === 'errors').length,
+      };
+
+      // Apply limit
+      const limitedLogs = filteredLogs.slice(0, limit);
+
+      return { logs: limitedLogs, counts };
+    } catch (error) {
+      console.error('Error fetching unified audit logs:', error);
+      return { logs: [], counts: { all: 0, connections: 0, errors: 0 } };
+    }
+  }
+
+  // Helper methods for formatting log entries
+  private formatActionTitle(action: string): string {
+    const titles: Record<string, string> = {
+      'login': 'User Login',
+      'logout': 'User Logout',
+      'create_user': 'User Created',
+      'update_user': 'User Updated',
+      'delete_user': 'User Deleted',
+      'invite_user': 'User Invited',
+      'revoke_invitation': 'Invitation Revoked',
+      'impersonate_user': 'Impersonation Started',
+      'view_user_details': 'User Details Viewed',
+      'export_data': 'Data Exported',
+      'system_config_change': 'System Config Changed',
+      'batch_sync_started': 'Batch Sync Started',
+      'batch_sync_completed': 'Batch Sync Completed',
+    };
+    return titles[action] || action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  private formatActionDescription(action: string, adminName: string, targetName: string | null, details: any): string {
+    if (action === 'batch_sync_started') {
+      return `Automated batch sync started (batch ${details?.batch || '?'})`;
+    }
+    if (action === 'batch_sync_completed') {
+      return `Batch ${details?.batch || '?'} completed: ${details?.successCount || 0} success, ${details?.failureCount || 0} failed`;
+    }
+    if (targetName) {
+      return `${adminName} performed ${action.replace(/_/g, ' ')} on ${targetName}`;
+    }
+    return `${adminName} performed ${action.replace(/_/g, ' ')}`;
+  }
+
+  private formatConnectionTitle(eventType: string): string {
+    const titles: Record<string, string> = {
+      'connected': 'HighLevel Connected',
+      'disconnected': 'HighLevel Disconnected',
+      'token_refreshed': 'Token Refreshed',
+      'token_expired': 'Token Expired',
+      'refresh_failed': 'Token Refresh Failed',
+      'connection_attempted': 'Connection Attempted',
+    };
+    return titles[eventType] || eventType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  private formatConnectionDescription(eventType: string, userName: string, locationName: string | null, errorMessage: string | null): string {
+    const location = locationName ? ` (${locationName})` : '';
+    
+    if (errorMessage) {
+      return `${userName}${location}: ${errorMessage}`;
+    }
+    
+    const descriptions: Record<string, string> = {
+      'connected': `${userName} connected to HighLevel${location}`,
+      'disconnected': `${userName} disconnected from HighLevel${location}`,
+      'token_refreshed': `Token refreshed for ${userName}${location}`,
+      'token_expired': `Token expired for ${userName}${location}`,
+      'refresh_failed': `Token refresh failed for ${userName}${location}`,
+      'connection_attempted': `${userName} attempted to connect${location}`,
+    };
+    return descriptions[eventType] || `${userName}: ${eventType.replace(/_/g, ' ')}`;
+  }
+
+  private formatActivityTitle(eventName: string): string {
+    const titles: Record<string, string> = {
+      'sync_started': 'Call Sync Started',
+      'sync_completed': 'Call Sync Completed',
+      'sync_failed': 'Call Sync Failed',
+      'oauth_connect': 'OAuth Connected',
+      'oauth_disconnect': 'OAuth Disconnected',
+    };
+    return titles[eventName] || eventName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }
 
   async getConnectionsStatus(): Promise<any[]> {

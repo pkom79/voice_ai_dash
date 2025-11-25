@@ -1,16 +1,27 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { adminService } from '../services/admin';
-import { Shield, RefreshCw, Calendar, Search, User, ChevronDown, ChevronRight, X, Link2, CheckCircle2, XCircle } from 'lucide-react';
+import { adminService, UnifiedAuditLog } from '../services/admin';
+import { Shield, RefreshCw, Calendar, Search, User, ChevronDown, ChevronRight, X, Link2, CheckCircle2, XCircle, AlertCircle, AlertTriangle, Info, Activity, Unlink, Clock, Filter, Loader2, Wifi, WifiOff, Key, Timer } from 'lucide-react';
 import { formatDateEST } from '../utils/formatting';
 import DateRangePicker from '../components/DateRangePicker';
 
+// Types for unified audit logs
+type AuditSubTab = 'all' | 'connections' | 'errors';
+type AuditSource = 'all' | 'manual' | 'auto' | 'github_action';
+type EventTypeFilter = 'all' | 'sync' | 'token' | 'admin' | 'activity';
+
 export function AdminSystemPage() {
   const [activeTab, setActiveTab] = useState<'audit' | 'connections'>('connections');
-
-  // Audit Logs State
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const [loadingAudit, setLoadingAudit] = useState(true);
+  
+  // Unified Audit Logs State
+  const [auditLogs, setAuditLogs] = useState<UnifiedAuditLog[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  const [auditSubTab, setAuditSubTab] = useState<AuditSubTab>('all');
+  const [auditSearch, setAuditSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<AuditSource>('all');
+  const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeFilter>('all');
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [auditFilters, setAuditFilters] = useState<{
     action?: string;
     targetUserId?: string;
@@ -18,7 +29,7 @@ export function AdminSystemPage() {
     endDate?: Date;
   }>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Connections State
   const [connections, setConnections] = useState<any[]>([]);
@@ -31,60 +42,31 @@ export function AdminSystemPage() {
   const [showAuditUserDropdown, setShowAuditUserDropdown] = useState(false);
   const auditUserDropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (activeTab === 'audit') {
-      loadAuditLogs();
-      if (users.length === 0) loadUsers();
-    }
-  }, [activeTab, auditFilters]);
-
-  useEffect(() => {
-    if (activeTab === 'connections') {
-      loadConnections();
-    }
-  }, [activeTab]);
-
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (auditUserDropdownRef.current && !auditUserDropdownRef.current.contains(event.target as Node)) {
-        setShowAuditUserDropdown(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  const loadAuditLogs = async () => {
+  // Load audit logs with unified data
+  const loadAuditLogs = useCallback(async () => {
     setLoadingAudit(true);
     try {
-      // Ensure endDate covers the full day
       const endDate = auditFilters.endDate ? new Date(auditFilters.endDate) : undefined;
       if (endDate) {
         endDate.setHours(23, 59, 59, 999);
       }
 
-      const logs = await adminService.getAuditLogs({
-        action: auditFilters.action,
-        targetUserId: auditFilters.targetUserId,
+      const logs = await adminService.getUnifiedAuditLogs({
         startDate: auditFilters.startDate,
         endDate: endDate,
-        limit: 100,
+        limit: 200,
       });
       setAuditLogs(logs);
     } catch (error) {
-      console.error('Error loading audit logs:', error);
+      console.error('Error loading unified audit logs:', error);
     } finally {
       setLoadingAudit(false);
     }
-  };
+  }, [auditFilters]);
 
   const loadUsers = async () => {
     try {
       const { data, error } = await supabase.rpc('get_admin_user_list');
-
       if (error) throw error;
       setUsers(data || []);
     } catch (error) {
@@ -104,15 +86,298 @@ export function AdminSystemPage() {
     }
   };
 
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      loadAuditLogs();
+      if (users.length === 0) loadUsers();
+    }
+  }, [activeTab, auditFilters, loadAuditLogs]);
+
+  useEffect(() => {
+    if (activeTab === 'connections') {
+      loadConnections();
+    }
+  }, [activeTab]);
+
+  // Auto-refresh effect
+  useEffect(() => {
+    if (autoRefresh && activeTab === 'audit') {
+      autoRefreshIntervalRef.current = setInterval(() => {
+        loadAuditLogs();
+      }, 30000); // 30 seconds
+    }
+    return () => {
+      if (autoRefreshIntervalRef.current) {
+        clearInterval(autoRefreshIntervalRef.current);
+        autoRefreshIntervalRef.current = null;
+      }
+    };
+  }, [autoRefresh, activeTab, loadAuditLogs]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (auditUserDropdownRef.current && !auditUserDropdownRef.current.contains(event.target as Node)) {
+        setShowAuditUserDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleExpanded = (id: string) => {
+    setExpandedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Filter logs based on sub-tab, search, source, and event type
+  const filteredLogs = auditLogs.filter(log => {
+    // Sub-tab filter
+    if (auditSubTab === 'connections' && log.source_table !== 'user_connection_events') return false;
+    if (auditSubTab === 'errors' && log.source_table !== 'user_integration_errors') return false;
+    
+    // Source filter
+    if (sourceFilter !== 'all') {
+      const logSource = log.source || 'manual';
+      if (sourceFilter === 'github_action' && logSource !== 'github_action') return false;
+      if (sourceFilter === 'auto' && logSource !== 'auto') return false;
+      if (sourceFilter === 'manual' && logSource !== 'manual') return false;
+    }
+    
+    // Event type filter
+    if (eventTypeFilter !== 'all') {
+      const eventName = log.event_name.toLowerCase();
+      if (eventTypeFilter === 'sync') {
+        if (!eventName.includes('sync')) return false;
+      } else if (eventTypeFilter === 'token') {
+        if (!eventName.includes('token') && !eventName.includes('refresh') && !eventName.includes('oauth')) return false;
+      } else if (eventTypeFilter === 'admin') {
+        if (log.source_table !== 'audit_logs') return false;
+      } else if (eventTypeFilter === 'activity') {
+        if (log.source_table !== 'user_activity_logs') return false;
+      }
+    }
+    
+    // Search filter
+    if (auditSearch) {
+      const searchLower = auditSearch.toLowerCase();
+      const matchesEvent = log.event_name?.toLowerCase().includes(searchLower);
+      const matchesUser = log.user_name?.toLowerCase().includes(searchLower);
+      const matchesDescription = log.description?.toLowerCase().includes(searchLower);
+      if (!matchesEvent && !matchesUser && !matchesDescription) return false;
+    }
+    
+    return true;
+  });
+
+  // Count logs by category for badges
+  const allCount = auditLogs.length;
+  const connectionCount = auditLogs.filter(l => l.source_table === 'user_connection_events').length;
+  const errorCount = auditLogs.filter(l => l.source_table === 'user_integration_errors').length;
+
   const filteredConnections = connections.filter(c =>
     `${c.first_name} ${c.last_name} ${c.email}`.toLowerCase().includes(connectionSearch.toLowerCase())
   );
 
-  const filteredAuditUsers = users.filter(u =>
-    `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(auditUserSearch.toLowerCase())
-  );
+  // Helper functions for Activity Log-style rendering
+  const getSeverityIcon = (severity: string) => {
+    switch (severity) {
+      case 'critical':
+        return <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />;
+      case 'error':
+        return <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400" />;
+      case 'warning':
+        return <AlertTriangle className="h-5 w-5 text-amber-500 dark:text-amber-400" />;
+      case 'info':
+      default:
+        return <Info className="h-5 w-5 text-blue-500 dark:text-blue-400" />;
+    }
+  };
 
-  const selectedAuditUser = users.find(u => u.id === auditFilters.targetUserId);
+  const getSeverityBadge = (severity: string) => {
+    const styles: Record<string, string> = {
+      critical: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+      error: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+      warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+      info: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+    };
+    return (
+      <span className={`px-2 py-0.5 text-xs font-medium rounded ${styles[severity] || styles.info}`}>
+        {severity.toUpperCase()}
+      </span>
+    );
+  };
+
+  const getConnectionEventIcon = (eventType: string) => {
+    switch (eventType) {
+      case 'connected':
+        return <Wifi className="h-5 w-5 text-green-500" />;
+      case 'disconnected':
+        return <WifiOff className="h-5 w-5 text-red-500" />;
+      case 'token_refreshed':
+        return <Key className="h-5 w-5 text-blue-500" />;
+      case 'token_expired':
+        return <Timer className="h-5 w-5 text-amber-500" />;
+      case 'refresh_failed':
+        return <XCircle className="h-5 w-5 text-red-500" />;
+      case 'sync_started':
+      case 'sync_completed':
+        return <RefreshCw className="h-5 w-5 text-blue-500" />;
+      case 'sync_failed':
+        return <XCircle className="h-5 w-5 text-red-500" />;
+      case 'batch_sync_started':
+      case 'batch_sync_completed':
+        return <Activity className="h-5 w-5 text-purple-500" />;
+      default:
+        return <Activity className="h-5 w-5 text-gray-500" />;
+    }
+  };
+
+  const getConnectionEventBadge = (eventType: string) => {
+    const styles: Record<string, string> = {
+      connected: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
+      disconnected: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+      token_refreshed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+      token_expired: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+      refresh_failed: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+      sync_started: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+      sync_completed: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
+      sync_failed: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+      batch_sync_started: 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300',
+      batch_sync_completed: 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300',
+    };
+    const style = styles[eventType] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+    return (
+      <span className={`px-2 py-0.5 text-xs font-medium rounded ${style}`}>
+        {eventType.replace(/_/g, ' ').toUpperCase()}
+      </span>
+    );
+  };
+
+  const getSourceBadge = (source: string | undefined) => {
+    const sourceStyles: Record<string, string> = {
+      manual: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+      auto: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300',
+      github_action: 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300',
+    };
+    const sourceLabel = source === 'github_action' ? 'GitHub Action' : source || 'Manual';
+    const style = sourceStyles[source || 'manual'] || sourceStyles.manual;
+    return (
+      <span className={`px-2 py-0.5 text-xs font-medium rounded ${style}`}>
+        {sourceLabel.toUpperCase()}
+      </span>
+    );
+  };
+
+  const getTableSourceBadge = (table: string) => {
+    const tableStyles: Record<string, { label: string; style: string }> = {
+      audit_logs: { label: 'Admin', style: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' },
+      user_activity_logs: { label: 'Activity', style: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' },
+      user_connection_events: { label: 'Connection', style: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' },
+      user_integration_errors: { label: 'Error', style: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' },
+    };
+    const config = tableStyles[table] || { label: 'Unknown', style: 'bg-gray-100 text-gray-600' };
+    return (
+      <span className={`px-2 py-0.5 text-xs font-medium rounded ${config.style}`}>
+        {config.label}
+      </span>
+    );
+  };
+
+  const renderLogItem = (log: UnifiedAuditLog) => {
+    const isExpanded = expandedItems.has(log.id);
+    
+    // Determine icon based on source table
+    const getIcon = () => {
+      if (log.source_table === 'user_connection_events') {
+        return getConnectionEventIcon(log.event_name);
+      }
+      if (log.source_table === 'user_integration_errors') {
+        return <AlertCircle className="h-5 w-5 text-red-500" />;
+      }
+      if (log.source_table === 'audit_logs') {
+        return <Shield className="h-5 w-5 text-indigo-500" />;
+      }
+      return getSeverityIcon(log.severity || 'info');
+    };
+
+    return (
+      <div
+        key={log.id}
+        className={`border-b border-gray-200 dark:border-gray-700 last:border-b-0 ${
+          isExpanded ? 'bg-gray-50 dark:bg-gray-700/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
+        }`}
+      >
+        <div
+          className="flex items-start gap-3 p-4 cursor-pointer"
+          onClick={() => toggleExpanded(log.id)}
+        >
+          <div className="flex-shrink-0 mt-0.5">
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-gray-400" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-gray-400" />
+            )}
+          </div>
+          
+          <div className="flex-shrink-0 mt-0.5">
+            {getIcon()}
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className="font-medium text-gray-900 dark:text-white">
+                {log.event_name.replace(/_/g, ' ')}
+              </span>
+              {getTableSourceBadge(log.source_table)}
+              {log.source && getSourceBadge(log.source)}
+              {log.severity && log.source_table !== 'user_connection_events' && getSeverityBadge(log.severity)}
+              {log.source_table === 'user_connection_events' && getConnectionEventBadge(log.event_name)}
+            </div>
+            
+            {log.description && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1">
+                {log.description}
+              </p>
+            )}
+            
+            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {formatDateEST(new Date(log.created_at), 'MMM d, yyyy h:mm:ss a')}
+              </span>
+              {log.user_name && (
+                <span className="flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  {log.user_name}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {isExpanded && log.metadata && Object.keys(log.metadata).length > 0 && (
+          <div className="px-4 pb-4 ml-12">
+            <div className="bg-gray-100 dark:bg-gray-900 rounded-lg p-4">
+              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">
+                Details
+              </h4>
+              <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 overflow-x-auto whitespace-pre-wrap">
+                {JSON.stringify(log.metadata, null, 2)}
+              </pre>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -154,89 +419,108 @@ export function AdminSystemPage() {
         <div className="p-4 sm:p-6">
           {activeTab === 'audit' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-4 bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+              {/* Sub-tabs with count badges */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-4">
+                <button
+                  onClick={() => setAuditSubTab('all')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                    auditSubTab === 'all'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  All Activity
+                  <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-600 rounded">
+                    {allCount}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setAuditSubTab('connections')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                    auditSubTab === 'connections'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Connections
+                  <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-600 rounded">
+                    {connectionCount}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setAuditSubTab('errors')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                    auditSubTab === 'errors'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Errors
+                  {errorCount > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-red-200 dark:bg-red-800 text-red-700 dark:text-red-300 rounded">
+                      {errorCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Filters row */}
+              <div className="flex flex-wrap gap-3 bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                {/* Search */}
                 <div className="flex-1 min-w-[200px]">
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Action Type</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search events, users..."
+                      value={auditSearch}
+                      onChange={(e) => setAuditSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Source filter */}
+                <div className="min-w-[150px]">
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Source</label>
                   <select
-                    value={auditFilters.action || ''}
-                    onChange={(e) => setAuditFilters(prev => ({ ...prev, action: e.target.value || undefined }))}
+                    value={sourceFilter}
+                    onChange={(e) => setSourceFilter(e.target.value as AuditSource)}
                     className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="">All Actions</option>
-                    <option value="login">Login</option>
-                    <option value="logout">Logout</option>
-                    <option value="create_user">Create User</option>
-                    <option value="update_user">Update User</option>
-                    <option value="delete_user">Delete User</option>
-                    <option value="invite_user">Invite User</option>
-                    <option value="revoke_invitation">Revoke Invitation</option>
-                    <option value="impersonate_user">Impersonate User</option>
-                    <option value="view_user_details">View User Details</option>
-                    <option value="export_data">Export Data</option>
-                    <option value="system_config_change">System Config Change</option>
+                    <option value="all">All Sources</option>
+                    <option value="manual">Manual</option>
+                    <option value="auto">Auto</option>
+                    <option value="github_action">GitHub Action</option>
                   </select>
                 </div>
 
-                <div className="flex-1 min-w-[200px] relative" ref={auditUserDropdownRef}>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Target User</label>
-                  <div
-                    className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 bg-white cursor-pointer flex items-center justify-between"
-                    onClick={() => setShowAuditUserDropdown(!showAuditUserDropdown)}
+                {/* Event Type filter */}
+                <div className="min-w-[150px]">
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Event Type</label>
+                  <select
+                    value={eventTypeFilter}
+                    onChange={(e) => setEventTypeFilter(e.target.value as EventTypeFilter)}
+                    className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <span className={!selectedAuditUser ? 'text-gray-500' : 'text-gray-900'}>
-                      {selectedAuditUser
-                        ? `${selectedAuditUser.first_name} ${selectedAuditUser.last_name}`
-                        : 'All Users'}
-                    </span>
-                    <ChevronDown className="h-4 w-4 text-gray-400" />
-                  </div>
-
-                  {showAuditUserDropdown && (
-                    <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-                      <div className="p-2 sticky top-0 bg-white border-b border-gray-100">
-                        <input
-                          type="text"
-                          className="w-full border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Search users..."
-                          value={auditUserSearch}
-                          onChange={(e) => setAuditUserSearch(e.target.value)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </div>
-                      <div
-                        className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 text-gray-900"
-                        onClick={() => {
-                          setAuditFilters(prev => ({ ...prev, targetUserId: undefined }));
-                          setShowAuditUserDropdown(false);
-                        }}
-                      >
-                        All Users
-                      </div>
-                      {filteredAuditUsers.map((user) => (
-                        <div
-                          key={user.id}
-                          className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 text-gray-900"
-                          onClick={() => {
-                            setAuditFilters(prev => ({ ...prev, targetUserId: user.id }));
-                            setShowAuditUserDropdown(false);
-                          }}
-                        >
-                          {user.first_name} {user.last_name}
-                          <span className="block text-xs text-gray-500">{user.email}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                    <option value="all">All Types</option>
+                    <option value="sync">Sync Events</option>
+                    <option value="token">Token/OAuth Events</option>
+                    <option value="admin">Admin Actions</option>
+                    <option value="activity">User Activity</option>
+                  </select>
                 </div>
 
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Date Range</label>
+                {/* Date Range */}
+                <div className="min-w-[180px]">
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Date Range</label>
                   <div className="relative">
                     <button
                       onClick={() => setShowDatePicker(!showDatePicker)}
-                      className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50"
+                      className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600"
                     >
-                      <span className="text-gray-700">
+                      <span>
                         {auditFilters.startDate ? (
                           <>
                             {formatDateEST(auditFilters.startDate, 'MMM d')}
@@ -251,7 +535,7 @@ export function AdminSystemPage() {
                     {showDatePicker && (
                       <div className="absolute z-10 mt-1 right-0">
                         <div className="fixed inset-0" onClick={() => setShowDatePicker(false)} />
-                        <div className="relative bg-white shadow-lg rounded-lg p-4 border border-gray-200">
+                        <div className="relative bg-white dark:bg-gray-800 shadow-lg rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                           <DateRangePicker
                             startDate={auditFilters.startDate}
                             endDate={auditFilters.endDate}
@@ -266,103 +550,76 @@ export function AdminSystemPage() {
                   </div>
                 </div>
 
+                {/* Auto-refresh toggle */}
                 <div className="flex items-end">
+                  <label className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={autoRefresh}
+                      onChange={(e) => setAutoRefresh(e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Auto-refresh
+                  </label>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-end gap-2">
                   <button
                     onClick={() => {
                       setAuditFilters({});
-                      setAuditUserSearch('');
+                      setAuditSearch('');
+                      setSourceFilter('all');
+                      setEventTypeFilter('all');
                     }}
-                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                    className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-600 rounded-md transition-colors"
                   >
-                    Clear Filters
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => loadAuditLogs()}
+                    disabled={loadingAudit}
+                    className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${loadingAudit ? 'animate-spin' : ''}`} />
+                    Refresh
                   </button>
                 </div>
               </div>
 
-              <div className="overflow-hidden border border-gray-200 dark:border-gray-700 rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-700/50">
-                    <tr>
-                      <th className="w-10 px-4 py-3"></th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                        Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                        Admin
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                        Action
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                        Target User
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
-                    {loadingAudit ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                          Loading audit logs...
-                        </td>
-                      </tr>
-                    ) : auditLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                          No audit logs found matching your filters
-                        </td>
-                      </tr>
-                    ) : (
-                      auditLogs.map((log: any) => (
-                        <>
-                          <tr
-                            key={log.id}
-                            className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${expandedLogId === log.id ? 'bg-gray-50 dark:bg-gray-700/50' : ''}`}
-                            onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
-                          >
-                            <td className="px-4 py-4 text-gray-400">
-                              {expandedLogId === log.id ? (
-                                <ChevronDown className="h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4" />
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                              {formatDateEST(new Date(log.created_at), 'MMM d, yyyy h:mm a')}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                              {log.admin
-                                ? `${log.admin.first_name} ${log.admin.last_name}`
-                                : 'System'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 uppercase">
-                                {log.action.replace(/_/g, ' ')}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                              {log.target
-                                ? `${log.target.first_name} ${log.target.last_name}`
-                                : 'SYSTEM'}
-                            </td>
-                          </tr>
-                          {expandedLogId === log.id && (
-                            <tr className="bg-gray-50 dark:bg-gray-700/50">
-                              <td colSpan={5} className="px-6 py-4 border-t border-gray-200 dark:border-gray-600">
-                                <div className="text-sm text-gray-700 dark:text-gray-300">
-                                  <h4 className="font-medium mb-2">Action Details</h4>
-                                  <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto text-xs font-mono">
-                                    {JSON.stringify(log.details || {}, null, 2)}
-                                  </pre>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+              {/* Logs list */}
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                {loadingAudit ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                    <span className="ml-2 text-gray-500 dark:text-gray-400">Loading activity logs...</span>
+                  </div>
+                ) : filteredLogs.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <Activity className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                    <p>No activity logs found matching your filters</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700 max-h-[600px] overflow-y-auto">
+                    {filteredLogs.map(log => renderLogItem(log))}
+                  </div>
+                )}
               </div>
+
+              {/* Footer info */}
+              {!loadingAudit && filteredLogs.length > 0 && (
+                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                  <span>
+                    Showing {filteredLogs.length} of {auditLogs.length} events
+                  </span>
+                  {autoRefresh && (
+                    <span className="flex items-center gap-1">
+                      <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                      Auto-refreshing every 30s
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -465,7 +722,6 @@ export function AdminSystemPage() {
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>
