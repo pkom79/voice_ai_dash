@@ -420,6 +420,8 @@ function calculateCallCost(
 }
 
 Deno.serve(async (req: Request) => {
+  console.log("[SYNC] ========== FUNCTION ENTRY ==========");
+
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 200,
@@ -431,7 +433,7 @@ Deno.serve(async (req: Request) => {
   let syncLogId: string | null = null;
 
   try {
-    console.log("[SYNC] Function invoked");
+    console.log("[SYNC] Function invoked - processing request");
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -474,6 +476,7 @@ Deno.serve(async (req: Request) => {
 
     const allowedSyncTypes = ['manual', 'auto'];
     const normalizedSyncType = allowedSyncTypes.includes(syncType) ? syncType : 'manual';
+    console.log(`[SYNC] syncType="${syncType}" normalized to "${normalizedSyncType}" | userId="${userId}"`);
 
     if (!userId) {
       console.error("[SYNC] Missing userId");
@@ -911,11 +914,16 @@ Deno.serve(async (req: Request) => {
         const apiCallTime = Date.now() - apiCallStart;
         totalApiTime += apiCallTime;
 
+        // Log response status for debugging
+        console.log(`[SYNC] HighLevel API response status: ${response.status}, ok: ${response.ok}`);
+        syncLogger.logs.push(`[API RESPONSE] Status: ${response.status}`);
+
         // Handle 401 errors by attempting to refresh the token once
         if (response.status === 401 && !tokenRefreshAttempted) {
           tokenRefreshAttempted = true;
           syncLogger.logs.push(`[AUTH] Received 401 from HighLevel, attempting token refresh...`);
-          console.log(`[SYNC] Got 401, attempting token refresh for user ${userId}`);
+          console.log(`[SYNC] ====== 401 RETRY TRIGGERED ====== for user ${userId}`);
+          console.log(`[SYNC] tokenRefreshAttempted was false, now attempting refresh`);
 
           try {
             const refreshResponse = await fetch(
@@ -958,8 +966,11 @@ Deno.serve(async (req: Request) => {
         if (!response.ok) {
           const errorText = await response.text();
           const errorMsg = `HighLevel API error: ${response.status}`;
-          console.error(errorMsg, errorText);
+          console.error(`[SYNC] ${errorMsg}`, errorText);
           syncLogger.logs.push(`[ERROR] ${errorMsg}: ${errorText}`);
+
+          const responseBody = JSON.stringify({ error: errorMsg, details: errorText });
+          console.log(`[SYNC] Returning error response with status ${response.status}: ${responseBody.substring(0, 300)}`);
 
           if (syncLogId) {
             await supabase
@@ -973,7 +984,7 @@ Deno.serve(async (req: Request) => {
           }
 
           return new Response(
-            JSON.stringify({ error: errorMsg, details: errorText }),
+            responseBody,
             {
               status: response.status,
               headers: { ...corsHeaders, "Content-Type": "application/json" },

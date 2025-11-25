@@ -1862,78 +1862,167 @@ export function UserDetailsPage() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left Column: HighLevel Connection Info */}
+              <div className="space-y-6">
+                {/* HighLevel Integration Section */}
                 <div className="bg-white rounded-lg shadow">
                   <div className="p-6 border-b border-gray-200">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-gray-900">HighLevel Connected</h3>
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <Plug2 className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">HighLevel</h3>
+                          <p className="text-sm text-gray-500">Voice AI & Call Management</p>
+                        </div>
+                      </div>
                       <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
                         <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        Active
+                        Connected
                       </div>
                     </div>
                   </div>
-                  <div className="p-6 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Location
-                      </label>
-                      <div className="text-gray-900">
-                        {apiConnection.location_name || 'Unknown Location'}
+                  
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Left Column: Connection Details */}
+                      <div className="space-y-4">
+                        <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Connection Details</h4>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Location
+                          </label>
+                          <div className="text-gray-900">
+                            {apiConnection.location_name || 'Unknown Location'}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Location ID
+                          </label>
+                          <div className="text-sm text-gray-600 font-mono bg-gray-50 px-3 py-2 rounded border border-gray-200">
+                            {apiConnection.location_id || 'N/A'}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Connected Since
+                          </label>
+                          <div className="text-gray-900">
+                            {formatDateEST(new Date(apiConnection.created_at), 'MMM d, yyyy h:mm a')}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Last API Call
+                          </label>
+                          <div className="text-gray-900">
+                            {apiConnection.last_used_at
+                              ? formatDateEST(new Date(apiConnection.last_used_at), 'MMM d, yyyy h:mm a')
+                              : 'Never'}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Last time data was synced from HighLevel</p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Token Expires
+                          </label>
+                          <div className="flex items-center gap-2 text-gray-900">
+                            <span className={`w-2.5 h-2.5 rounded-full ${tokenIsExpired ? 'bg-red-500' : 'bg-green-500'}`} />
+                            <span className={tokenIsExpired ? 'text-red-600 font-semibold' : ''}>
+                              {tokenExpiresAt
+                                ? formatDateEST(tokenExpiresAt, 'MMM d, yyyy h:mm a')
+                                : 'Unknown'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {tokenIsExpired
+                              ? 'Token expired - refresh the token to restore syncing.'
+                              : 'Automatically refreshes when needed'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right Column: Assigned Agents */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Assigned Agents</h4>
+                          <span className="text-sm text-gray-600">
+                            {assignedAgents.length} {assignedAgents.length === 1 ? 'agent' : 'agents'}
+                          </span>
+                        </div>
+                        
+                        <button
+                          onClick={handleOpenAgentManagement}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                        >
+                          <Users className="h-4 w-4" />
+                          Manage Agents
+                        </button>
+
+                        {assignedAgents.length === 0 ? (
+                          <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                            <Users className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm">No agents assigned yet</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3 max-h-80 overflow-y-auto">
+                            {assignedAgents.map((agent) => (
+                              <div
+                                key={agent.id}
+                                className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition-colors"
+                              >
+                                <div className="flex items-start justify-between mb-1">
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-medium text-gray-900 truncate">{agent.name}</h4>
+                                    {agent.highlevel_agent_id && (
+                                      <p className="text-xs text-gray-500 truncate">ID: {agent.highlevel_agent_id}</p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <div className={`px-2 py-0.5 rounded text-xs font-medium ${agent.is_active
+                                      ? 'bg-green-100 text-green-700'
+                                      : 'bg-amber-100 text-amber-700'
+                                      }`}>
+                                      {agent.is_active ? 'Active' : 'Inactive'}
+                                    </div>
+                                    <button
+                                      onClick={() => handleRemoveAgent(agent.id)}
+                                      className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                      title="Remove agent"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                                {agent.inbound_phone_number && (
+                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <Phone className="h-3.5 w-3.5" />
+                                    <span className="truncate">{agent.inbound_phone_number}</span>
+                                  </div>
+                                )}
+                                {!agent.is_active && (
+                                  <div className="flex items-center gap-2 text-xs text-amber-600 mt-2 bg-amber-50 rounded px-2 py-1">
+                                    <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                                    <span>Agent no longer exists in HighLevel</span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Location ID
-                      </label>
-                      <div className="text-sm text-gray-600 font-mono bg-gray-50 px-3 py-2 rounded border border-gray-200">
-                        {apiConnection.location_id || 'N/A'}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Connected Since
-                      </label>
-                      <div className="text-gray-900">
-                        {formatDateEST(new Date(apiConnection.created_at), 'MMM d, yyyy h:mm a')}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Last API Call
-                      </label>
-                      <div className="text-gray-900">
-                        {apiConnection.last_used_at
-                          ? formatDateEST(new Date(apiConnection.last_used_at), 'MMM d, yyyy h:mm a')
-                          : 'Never'}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">Last time data was synced from HighLevel</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Token Expires
-                      </label>
-                      <div className="flex items-center gap-2 text-gray-900">
-                        <span className={`w-2.5 h-2.5 rounded-full ${tokenIsExpired ? 'bg-red-500' : 'bg-green-500'}`} />
-                        <span className={tokenIsExpired ? 'text-red-600 font-semibold' : ''}>
-                          {tokenExpiresAt
-                            ? formatDateEST(tokenExpiresAt, 'MMM d, yyyy h:mm a')
-                            : 'Unknown'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {tokenIsExpired
-                          ? 'Token expired - refresh the token to restore syncing.'
-                          : 'Automatically refreshes when needed'}
-                      </p>
-                    </div>
-                    <div className="pt-4 border-t border-gray-200 space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                    {/* Actions Section */}
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Actions</h4>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <button
                           onClick={loadApiData}
                           disabled={loadingApiData}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 text-sm"
                         >
                           {loadingApiData ? (
                             <>
@@ -1943,14 +2032,14 @@ export function UserDetailsPage() {
                           ) : (
                             <>
                               <RefreshCw className="h-4 w-4" />
-                              Refresh Connection Status
+                              Refresh Status
                             </>
                           )}
                         </button>
                         <button
                           onClick={handleRefreshToken}
                           disabled={refreshingToken || loadingApiData}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors font-medium disabled:opacity-50"
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors font-medium disabled:opacity-50 text-sm"
                         >
                           {refreshingToken ? (
                             <>
@@ -1964,12 +2053,10 @@ export function UserDetailsPage() {
                             </>
                           )}
                         </button>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <button
                           onClick={() => setShowResyncModal(true)}
                           disabled={syncingCalls}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 text-sm"
                         >
                           {syncingCalls ? (
                             <>
@@ -1979,21 +2066,22 @@ export function UserDetailsPage() {
                           ) : (
                             <>
                               <RefreshCw className="h-4 w-4" />
-                              Sync Calls from HighLevel
+                              Sync Calls
                             </>
                           )}
                         </button>
                         <button
                           onClick={() => setShowDisconnectModal(true)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium"
+                          className="flex items-center justify-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium text-sm"
                         >
                           <X className="h-4 w-4" />
-                          Disconnect HighLevel
+                          Disconnect
                         </button>
                       </div>
+                      
                       {/* Sync Failure Reset - only show when there are failures */}
                       {syncFailureCount >= 3 && (
-                        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                           <div className="flex items-center gap-2 mb-2">
                             <AlertTriangle className="h-4 w-4 text-amber-600" />
                             <span className="text-sm font-medium text-amber-800">
@@ -2023,78 +2111,14 @@ export function UserDetailsPage() {
                   </div>
                 </div>
 
-                {/* Right Column: Assigned Agents */}
-                <div className="bg-white rounded-lg shadow">
-                  <div className="p-6 border-b border-gray-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-semibold text-gray-900">Assigned Agents</h3>
-                      <div className="text-sm text-gray-600">
-                        {assignedAgents.length} {assignedAgents.length === 1 ? 'agent' : 'agents'}
-                      </div>
+                {/* Future Integrations Placeholder */}
+                <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-6">
+                  <div className="text-center">
+                    <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-3">
+                      <Plus className="h-6 w-6 text-gray-400" />
                     </div>
-                    <button
-                      onClick={handleOpenAgentManagement}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
-                    >
-                      <Users className="h-4 w-4" />
-                      Manage Agents
-                    </button>
-                  </div>
-                  <div className="p-6">
-                    {assignedAgents.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <Users className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                        <p>No agents assigned yet</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {assignedAgents.map((agent) => (
-                          <div
-                            key={agent.id}
-                            className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex-1">
-                                <h4 className="font-medium text-gray-900">{agent.name}</h4>
-                                {agent.highlevel_agent_id && (
-                                  <p className="text-xs text-gray-500 mt-0.5">ID: {agent.highlevel_agent_id}</p>
-                                )}
-                                {agent.description && (
-                                  <p className="text-sm text-gray-600 mt-1">{agent.description}</p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className={`px-2 py-1 rounded text-xs font-medium ${agent.is_active
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-amber-100 text-amber-700'
-                                  }`}>
-                                  {agent.is_active ? 'Active' : 'Inactive'}
-                                </div>
-                                <button
-                                  onClick={() => handleRemoveAgent(agent.id)}
-                                  className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                  title="Remove agent"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-                            {agent.inbound_phone_number && (
-                              <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
-                                <Phone className="h-4 w-4" />
-                                {agent.inbound_phone_number}
-                              </div>
-                            )}
-                            {!agent.is_active && (
-                              <div className="flex items-center gap-2 text-xs text-amber-600 mt-2 bg-amber-50 rounded px-2 py-1">
-                                <AlertTriangle className="h-3 w-3" />
-                                Agent no longer exists in HighLevel
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <h4 className="text-sm font-medium text-gray-700 mb-1">Additional Integrations</h4>
+                    <p className="text-sm text-gray-500">More API connections will be available here in the future</p>
                   </div>
                 </div>
               </div>

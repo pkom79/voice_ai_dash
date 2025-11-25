@@ -59,3 +59,12 @@ orioledb_version = ""
 
 [functions.stripe-webhook]
 verify_jwt = false
+
+[functions.sync-highlevel-calls]
+verify_jwt = false
+
+[functions.sync-all-active-users]
+verify_jwt = false
+
+[functions.oauth-refresh]
+verify_jwt = false

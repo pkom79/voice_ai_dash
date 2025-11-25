@@ -1,7 +1,7 @@
 # Voice AI Dash
 
-**Version:** 3.3.0
-**Last Updated:** November 15, 2025 (User Activity Tracking System)
+**Version:** 3.3.1
+**Last Updated:** November 25, 2025 (GitHub Actions Sync Fix)
 
 A comprehensive Voice AI Dashboard for managing HighLevel voice agents, call logs, billing, OAuth integrations, and user activity tracking.
 
@@ -2521,6 +2521,44 @@ When adding a new scheduled edge function:
    ```
 3. Create GitHub workflow in `.github/workflows/<workflow-name>.yml`
 4. Add `SUPABASE_SERVICE_ROLE_KEY` secret to GitHub repository settings
+
+### Troubleshooting GitHub Actions Sync Failures
+
+**Issue**: GitHub Actions sync jobs fail with `{"code":401,"message":"Invalid JWT"}` while manual "Sync Calls" button works.
+
+**Root Cause**: Supabase Edge Functions require **both** the `apikey` header AND the `Authorization` header when called from external sources (like GitHub Actions). The manual sync button in the browser automatically includes the `apikey` via the Supabase client, but raw `curl` calls need it explicitly.
+
+**Solution**: Ensure all GitHub workflow `curl` calls include both headers:
+
+```bash
+# CORRECT - Include both apikey and Authorization headers
+curl -X POST "$SUPABASE_URL/functions/v1/sync-all-active-users" \
+  -H "Content-Type: application/json" \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -d '{"batch": 1}'
+
+# WRONG - Missing apikey header (will fail with 401)
+curl -X POST "$SUPABASE_URL/functions/v1/sync-all-active-users" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -d '{"batch": 1}'
+```
+
+**Additional Safeguards Implemented**:
+
+1. **401 Retry Logic** in `sync-highlevel-calls`:
+   - If HighLevel API returns 401, automatically attempts to refresh the OAuth token
+   - Retries the failed API call with the new token
+   - Only attempts refresh once per sync to avoid loops
+
+2. **Retry Logic** in `sync-all-active-users`:
+   - Each user sync has 2 retry attempts with 3-second delays
+   - Helps recover from transient network/auth failures
+
+**Files Modified** (November 25, 2025):
+- All `.github/workflows/*.yml` files - Added `apikey` header to curl calls
+- `supabase/functions/sync-highlevel-calls/index.ts` - Added 401 retry with token refresh
 
 **UI Updates:**
 - `src/pages/ProfilePage.tsx` - Added conditional notification preferences
