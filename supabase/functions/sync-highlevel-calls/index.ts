@@ -681,13 +681,11 @@ Deno.serve(async (req: Request) => {
     }
 
     let accessToken = oauthData.access_token;
-    
-    // For auto syncs (GitHub Action), always refresh token proactively to ensure it's valid
-    // For manual syncs, only refresh if expired
-    const shouldRefreshToken = normalizedSyncType === 'auto' || new Date(oauthData.token_expires_at) <= new Date();
-    
-    if (shouldRefreshToken) {
-      syncLogger.logs.push(`[AUTH] ${normalizedSyncType === 'auto' ? 'Auto sync - proactively refreshing token' : 'Access token expired, refreshing'}...`);
+
+    // Only refresh token if it's actually expired
+    // The 401 retry logic will handle cases where the token is invalid but not expired
+    if (new Date(oauthData.token_expires_at) <= new Date()) {
+      syncLogger.logs.push(`[AUTH] Access token expired, refreshing...`);
 
       const refreshResponse = await fetch(
         `${Deno.env.get("SUPABASE_URL")}/functions/v1/oauth-refresh`,
@@ -708,36 +706,29 @@ Deno.serve(async (req: Request) => {
         syncLogger.logs.push(`[ERROR] ${errorMsg}`);
         console.error(`[SYNC] Token refresh failed for user ${userId}:`, refreshErrorText);
 
-        // For auto syncs, if refresh fails, still try with existing token
-        // The token might still be valid even if refresh failed
-        if (normalizedSyncType === 'auto') {
-          syncLogger.logs.push(`[AUTH] Refresh failed, attempting sync with existing token...`);
-          console.log(`[SYNC] Refresh failed, trying existing token for user ${userId}`);
-        } else {
-          if (syncLogId) {
-            await supabase
-              .from('call_sync_logs')
-              .update({
-                sync_status: 'failed',
-                sync_completed_at: new Date().toISOString(),
-                error_details: { message: errorMsg, logs: syncLogger.logs },
-              })
-              .eq('id', syncLogId);
-          }
-
-          return new Response(
-            JSON.stringify({ error: errorMsg }),
-            {
-              status: 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
+        if (syncLogId) {
+          await supabase
+            .from('call_sync_logs')
+            .update({
+              sync_status: 'failed',
+              sync_completed_at: new Date().toISOString(),
+              error_details: { message: errorMsg, logs: syncLogger.logs },
+            })
+            .eq('id', syncLogId);
         }
-      } else {
-        const refreshData = await refreshResponse.json();
-        accessToken = refreshData.access_token;
-        syncLogger.logs.push(`[AUTH] Token refreshed successfully`);
+
+        return new Response(
+          JSON.stringify({ error: errorMsg }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
+
+      const refreshData = await refreshResponse.json();
+      accessToken = refreshData.access_token;
+      syncLogger.logs.push(`[AUTH] Token refreshed successfully`);
     }
 
     if (accessToken && oauthData.location_id && agentsWithHighLevelIds.length > 0) {
