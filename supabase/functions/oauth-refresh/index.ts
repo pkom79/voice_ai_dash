@@ -182,7 +182,7 @@ Deno.serve(async (req: Request) => {
       const errorText = await refreshResponse.text();
       console.error("HighLevel token refresh failed:", errorText);
       console.error("Full request params - client_id:", clientId?.substring(0, 10) + "...", "user_type:", userType);
-      
+
       // Log the refresh failure
       await logConnectionEvent(
         supabase,

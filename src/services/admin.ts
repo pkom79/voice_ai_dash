@@ -701,12 +701,12 @@ class AdminService {
         }
 
         const { data: auditData } = await auditQuery;
-        
+
         if (auditData) {
           for (const log of auditData) {
             const adminName = log.admin ? `${log.admin.first_name || ''} ${log.admin.last_name || ''}`.trim() : 'System';
             const targetName = log.target ? `${log.target.first_name || ''} ${log.target.last_name || ''}`.trim() : null;
-            
+
             logs.push({
               id: log.id,
               timestamp: log.created_at,
@@ -750,11 +750,11 @@ class AdminService {
         }
 
         const { data: connData } = await connQuery;
-        
+
         if (connData) {
           for (const event of connData) {
             const userName = event.user ? `${event.user.first_name || ''} ${event.user.last_name || ''}`.trim() : 'Unknown';
-            
+
             logs.push({
               id: event.id,
               timestamp: event.created_at,
@@ -766,11 +766,11 @@ class AdminService {
               source: (event.source as 'manual' | 'auto' | 'github_action') || 'manual',
               user: event.user ? { id: event.user.id, name: userName } : null,
               targetUser: null,
-              metadata: { 
-                ...event.metadata, 
-                location_id: event.location_id, 
+              metadata: {
+                ...event.metadata,
+                location_id: event.location_id,
                 location_name: event.location_name,
-                token_expires_at: event.token_expires_at 
+                token_expires_at: event.token_expires_at
               },
             });
           }
@@ -806,11 +806,11 @@ class AdminService {
         }
 
         const { data: activityData } = await activityQuery;
-        
+
         if (activityData) {
           for (const log of activityData) {
             const userName = log.user ? `${log.user.first_name || ''} ${log.user.last_name || ''}`.trim() : 'Unknown';
-            
+
             logs.push({
               id: log.id,
               timestamp: log.created_at,
@@ -851,11 +851,11 @@ class AdminService {
         }
 
         const { data: errorData } = await errorQuery;
-        
+
         if (errorData) {
           for (const err of errorData) {
             const userName = err.user ? `${err.user.first_name || ''} ${err.user.last_name || ''}`.trim() : 'Unknown';
-            
+
             logs.push({
               id: err.id,
               timestamp: err.created_at,
@@ -867,10 +867,10 @@ class AdminService {
               source: 'auto', // Errors are typically from automated processes
               user: err.user ? { id: err.user.id, name: userName } : null,
               targetUser: null,
-              metadata: { 
+              metadata: {
                 error_source: err.error_source,
-                request_data: err.request_data, 
-                response_data: err.response_data 
+                request_data: err.request_data,
+                response_data: err.response_data
               },
               resolved: err.resolved,
             });
@@ -885,7 +885,7 @@ class AdminService {
       let filteredLogs = logs;
       if (filters?.search) {
         const searchLower = filters.search.toLowerCase();
-        filteredLogs = logs.filter(log => 
+        filteredLogs = logs.filter(log =>
           log.title.toLowerCase().includes(searchLower) ||
           log.description.toLowerCase().includes(searchLower) ||
           log.user?.name.toLowerCase().includes(searchLower) ||
@@ -957,11 +957,11 @@ class AdminService {
 
   private formatConnectionDescription(eventType: string, userName: string, locationName: string | null, errorMessage: string | null): string {
     const location = locationName ? ` (${locationName})` : '';
-    
+
     if (errorMessage) {
       return `${userName}${location}: ${errorMessage}`;
     }
-    
+
     const descriptions: Record<string, string> = {
       'connected': `${userName} connected to HighLevel${location}`,
       'disconnected': `${userName} disconnected from HighLevel${location}`,

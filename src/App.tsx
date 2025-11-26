@@ -1,6 +1,26 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SyncProvider } from './contexts/SyncContext';
+
+// Role-aware landing redirect component
+function RoleLandingRedirect() {
+  const { profile, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (profile?.role === 'admin') {
+    return <Navigate to="/admin/calls" replace />;
+  }
+
+  return <Navigate to="/dashboard" replace />;
+}
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { DashboardLayout } from './components/DashboardLayout';
 import { SignIn } from './pages/SignIn';
@@ -24,63 +44,63 @@ function App() {
       <AuthProvider>
         <SyncProvider>
           <Routes>
-          <Route path="/signin" element={<SignIn />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/accept-invitation" element={<AcceptInvitation />} />
-          <Route path="/oauth/callback" element={<OAuthCallback />} />
-
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="calls" element={<CallsPage />} />
-            <Route path="billing" element={<BillingPage />} />
-            <Route path="profile" element={<ProfilePage />} />
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/accept-invitation" element={<AcceptInvitation />} />
+            <Route path="/oauth/callback" element={<OAuthCallback />} />
 
             <Route
-              path="admin/users"
+              path="/"
               element={
-                <ProtectedRoute requireAdmin>
-                  <AdminUsersPage />
+                <ProtectedRoute>
+                  <DashboardLayout />
                 </ProtectedRoute>
               }
-            />
-            <Route
-              path="admin/users/:userId"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <UserDetailsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="admin/system"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <AdminSystemPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="admin/calls"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <AdminCallsAnalytics />
-                </ProtectedRoute>
-              }
-            />
-          </Route>
+            >
+              <Route index element={<RoleLandingRedirect />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="calls" element={<CallsPage />} />
+              <Route path="billing" element={<BillingPage />} />
+              <Route path="profile" element={<ProfilePage />} />
 
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+              <Route
+                path="admin/users"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <AdminUsersPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="admin/users/:userId"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <UserDetailsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="admin/system"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <AdminSystemPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="admin/calls"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <AdminCallsAnalytics />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
+
+            <Route path="*" element={<RoleLandingRedirect />} />
+          </Routes>
         </SyncProvider>
       </AuthProvider>
     </BrowserRouter>

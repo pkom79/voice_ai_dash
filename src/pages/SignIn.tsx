@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import logo from '../assets/Voice AI Dash Logo 800x800.png';
 
 export function SignIn() {
@@ -21,6 +22,22 @@ export function SignIn() {
 
     try {
       await signIn(email, password);
+
+      // Check user role to determine redirect destination
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (userProfile?.role === 'admin') {
+          navigate('/admin/calls', { replace: true });
+          return;
+        }
+      }
+
       navigate(from, { replace: true });
     } catch (err: any) {
       setError(err.message || 'Failed to sign in');

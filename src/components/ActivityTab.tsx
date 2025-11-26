@@ -394,8 +394,8 @@ export function ActivityTab({ userId }: ActivityTabProps) {
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${showFilters
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
             >
               <Filter className="h-4 w-4" />
@@ -475,8 +475,8 @@ export function ActivityTab({ userId }: ActivityTabProps) {
           <button
             onClick={() => setActiveView('all')}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'all'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
           >
             All Activity ({filteredLogs.length})
@@ -484,8 +484,8 @@ export function ActivityTab({ userId }: ActivityTabProps) {
           <button
             onClick={() => setActiveView('connections')}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'connections'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
           >
             Connections ({filteredConnections.length})
@@ -493,8 +493,8 @@ export function ActivityTab({ userId }: ActivityTabProps) {
           <button
             onClick={() => setActiveView('errors')}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeView === 'errors'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
           >
             Errors ({filteredErrors.filter(e => !e.resolved).length})

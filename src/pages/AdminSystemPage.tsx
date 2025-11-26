@@ -12,7 +12,7 @@ type EventTypeFilter = 'all' | 'sync' | 'token' | 'admin' | 'activity';
 
 export function AdminSystemPage() {
   const [activeTab, setActiveTab] = useState<'audit' | 'connections'>('connections');
-  
+
   // Unified Audit Logs State
   const [auditLogs, setAuditLogs] = useState<UnifiedAuditLog[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
@@ -150,7 +150,7 @@ export function AdminSystemPage() {
     // Sub-tab filter (using category from UnifiedAuditLog)
     if (auditSubTab === 'connections' && log.category !== 'connections') return false;
     if (auditSubTab === 'errors' && log.category !== 'errors') return false;
-    
+
     // Source filter
     if (sourceFilter !== 'all') {
       const logSource = log.source || 'manual';
@@ -158,7 +158,7 @@ export function AdminSystemPage() {
       if (sourceFilter === 'auto' && logSource !== 'auto') return false;
       if (sourceFilter === 'manual' && logSource !== 'manual') return false;
     }
-    
+
     // Event type filter
     if (eventTypeFilter !== 'all') {
       const titleLower = log.title.toLowerCase();
@@ -172,7 +172,7 @@ export function AdminSystemPage() {
         if (log.eventType !== 'activity') return false;
       }
     }
-    
+
     // Search filter
     if (auditSearch) {
       const searchLower = auditSearch.toLowerCase();
@@ -181,7 +181,7 @@ export function AdminSystemPage() {
       const matchesDescription = log.description?.toLowerCase().includes(searchLower);
       if (!matchesTitle && !matchesUser && !matchesDescription) return false;
     }
-    
+
     return true;
   });
 
@@ -297,7 +297,7 @@ export function AdminSystemPage() {
     else if (eventType === 'activity') displayCategory = 'activity';
     else if (eventType === 'connection_event') displayCategory = 'connections';
     else if (eventType === 'integration_error') displayCategory = 'errors';
-    
+
     const config = categoryStyles[displayCategory] || { label: 'Unknown', style: 'bg-gray-100 text-gray-600' };
     return (
       <span className={`px-2 py-0.5 text-xs font-medium rounded ${config.style}`}>
@@ -308,7 +308,7 @@ export function AdminSystemPage() {
 
   const renderLogItem = (log: UnifiedAuditLog) => {
     const isExpanded = expandedItems.has(log.id);
-    
+
     // Determine icon based on eventType
     const getIcon = () => {
       if (log.eventType === 'connection_event') {
@@ -326,9 +326,8 @@ export function AdminSystemPage() {
     return (
       <div
         key={log.id}
-        className={`border-b border-gray-200 dark:border-gray-700 last:border-b-0 ${
-          isExpanded ? 'bg-gray-50 dark:bg-gray-700/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
-        }`}
+        className={`border-b border-gray-200 dark:border-gray-700 last:border-b-0 ${isExpanded ? 'bg-gray-50 dark:bg-gray-700/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
+          }`}
       >
         <div
           className="flex items-start gap-3 p-4 cursor-pointer"
@@ -341,11 +340,11 @@ export function AdminSystemPage() {
               <ChevronRight className="h-4 w-4 text-gray-400" />
             )}
           </div>
-          
+
           <div className="flex-shrink-0 mt-0.5">
             {getIcon()}
           </div>
-          
+
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className="font-medium text-gray-900 dark:text-white">
@@ -356,13 +355,13 @@ export function AdminSystemPage() {
               {log.severity && log.eventType !== 'connection_event' && log.eventType !== 'integration_error' && getSeverityBadge(log.severity)}
               {log.eventType === 'connection_event' && getConnectionEventBadge(log.title)}
             </div>
-            
+
             {log.description && (
               <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1">
                 {log.description}
               </p>
             )}
-            
+
             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
@@ -377,7 +376,7 @@ export function AdminSystemPage() {
             </div>
           </div>
         </div>
-        
+
         {isExpanded && log.metadata && Object.keys(log.metadata).length > 0 && (
           <div className="px-4 pb-4 ml-12">
             <div className="bg-gray-100 dark:bg-gray-900 rounded-lg p-4">
@@ -438,11 +437,10 @@ export function AdminSystemPage() {
               <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-4">
                 <button
                   onClick={() => setAuditSubTab('all')}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    auditSubTab === 'all'
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${auditSubTab === 'all'
                       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
+                    }`}
                 >
                   All Activity
                   <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-600 rounded">
@@ -451,11 +449,10 @@ export function AdminSystemPage() {
                 </button>
                 <button
                   onClick={() => setAuditSubTab('connections')}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    auditSubTab === 'connections'
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${auditSubTab === 'connections'
                       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
+                    }`}
                 >
                   Connections
                   <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-600 rounded">
@@ -464,11 +461,10 @@ export function AdminSystemPage() {
                 </button>
                 <button
                   onClick={() => setAuditSubTab('errors')}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    auditSubTab === 'errors'
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${auditSubTab === 'errors'
                       ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
+                    }`}
                 >
                   Errors
                   {errorCount > 0 && (

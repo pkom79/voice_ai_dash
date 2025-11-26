@@ -49,6 +49,13 @@ export function Dashboard() {
     wallet_cents: number | null;
   } | null>(null);
 
+  // Redirect admins away from /dashboard unless they're viewing another user
+  useEffect(() => {
+    if (profile?.role === 'admin' && !viewingUserId) {
+      navigate('/admin/calls', { replace: true });
+    }
+  }, [profile?.role, viewingUserId, navigate]);
+
   useEffect(() => {
     loadDashboardData();
     loadAgents();
