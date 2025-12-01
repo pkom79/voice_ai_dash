@@ -22,10 +22,10 @@ begin
   where c.user_id = p_user_id;
 
   -- Total billed (all time) from billing_invoices that represent usage billing
-  select coalesce(sum(bi.amount_cents), 0)::bigint into v_total_billed_cents
+  select coalesce(sum(bi.subtotal_cents), 0)::bigint into v_total_billed_cents
   from billing_invoices bi
   where bi.user_id = p_user_id
-    and bi.status in ('open', 'paid')
+    and bi.status in ('finalized', 'paid')
     and (bi.metadata ->> 'manual_billing') is not null;
 
   -- Assign to output columns

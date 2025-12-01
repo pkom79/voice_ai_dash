@@ -260,13 +260,14 @@ Deno.serve(async (req: Request) => {
             // 3. Record invoice in DB
             const { error: invoiceDbError } = await supabase.from('billing_invoices').insert({
                 user_id: userId,
-                amount_cents: totalCostCents,
-                status: amountToChargeCents > 0 ? 'open' : 'paid', // If fully covered by wallet, it's paid
-                billing_period_start: start.toISOString(),
-                billing_period_end: end.toISOString(),
+                subtotal_cents: totalCostCents,
+                wallet_applied_cents: walletAppliedCents,
+                total_charged_cents: amountToChargeCents,
+                status: amountToChargeCents > 0 ? 'finalized' : 'paid', // If fully covered by wallet, it's paid
+                billing_cycle_start: start.toISOString(),
+                billing_cycle_end: end.toISOString(),
                 stripe_invoice_id: result.invoiceId,
                 metadata: {
-                    wallet_applied: walletAppliedCents,
                     manual_billing: true
                 }
             });
