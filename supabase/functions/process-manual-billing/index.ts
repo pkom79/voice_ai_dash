@@ -243,7 +243,7 @@ Deno.serve(async (req: Request) => {
                 // Calculate balance before and after
                 const balanceBeforeCents = walletBalanceCents + totalCostCents; // Effective balance before this charge
                 const balanceAfterCents = balanceBeforeCents - walletAppliedCents;
-                
+
                 const { error: walletError } = await supabase.rpc('log_wallet_transaction', {
                     p_user_id: userId,
                     p_type: 'usage_charge',
