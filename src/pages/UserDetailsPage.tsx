@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, User, Plug2, DollarSign, Phone, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2, Eye } from 'lucide-react';
+import { ArrowLeft, User, Plug2, DollarSign, Phone, Loader2, Mail, Plus, Trash2, Send, Users, Link, X, AlertTriangle, RefreshCw, Calendar, Filter, Search, Download, TrendingUp, Clock, Ban, CheckCircle2, Eye, Wallet, CreditCard } from 'lucide-react';
 import { format, startOfToday, endOfToday } from 'date-fns';
 import { formatDateEST } from '../utils/formatting';
 import { getLocationTimezone } from '../utils/timezone';
@@ -12,6 +12,7 @@ import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../contexts/AuthContext';
 import { oauthService } from '../services/oauth';
 import { adminService } from '../services/admin';
+import { ManualBillingModal } from '../components/admin/ManualBillingModal';
 
 interface UserData {
   id: string;
@@ -115,6 +116,7 @@ export function UserDetailsPage() {
   const [startDate, setStartDate] = useState<Date | null>(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [endDate, setEndDate] = useState<Date | null>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showManualBillingModal, setShowManualBillingModal] = useState(false);
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [suspendAction, setSuspendAction] = useState<'suspend' | 'activate'>('suspend');
   const [suspending, setSuspending] = useState(false);
@@ -2513,6 +2515,15 @@ export function UserDetailsPage() {
                     </span>
                   </button>
                 </div>
+
+                {/* Manual Billing Button */}
+                <button
+                  onClick={() => setShowManualBillingModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  <DollarSign className="h-4 w-4" />
+                  <span className="text-sm">Process Manual Bill</span>
+                </button>
               </div>
 
               {/* Second Row: Agent | Search */}
@@ -3573,6 +3584,22 @@ export function UserDetailsPage() {
         onCancel={() => setCallToDelete(null)}
         type="danger"
       />
+
+      {/* Manual Billing Modal */}
+      <ManualBillingModal
+        isOpen={showManualBillingModal}
+        onClose={() => setShowManualBillingModal(false)}
+        userId={userId!}
+        startDate={startDate || new Date()}
+        endDate={endDate || new Date()}
+        onSuccess={() => {
+          showNotification('Manual billing processed successfully', 'success');
+          loadBillingData();
+          loadCalls();
+        }}
+      />
     </div>
   );
 }
+
+

@@ -1370,6 +1370,8 @@ Deno.serve(async (req: Request) => {
           }
         }
 
+        let callId = existingCall?.id;
+
         if (existingCall) {
           const { error: updateError } = await supabase
             .from("calls")
@@ -1388,9 +1390,11 @@ Deno.serve(async (req: Request) => {
             updatedCount++;
           }
         } else {
-          const { error: insertError } = await supabase
+          const { data: insertedCall, error: insertError } = await supabase
             .from("calls")
-            .insert({ ...callData, to_number: toNumberSafe });
+            .insert({ ...callData, to_number: toNumberSafe })
+            .select('id')
+            .single();
 
           if (insertError) {
             skippedCount++;
@@ -1402,6 +1406,48 @@ Deno.serve(async (req: Request) => {
             });
           } else {
             insertedCount++;
+            callId = insertedCall.id;
+          }
+        }
+
+        // Create usage log entry if there's a cost and we have a valid call ID
+        if (callId && cost > 0 && displayCost !== 'INCLUDED') {
+          // Check if usage log already exists to avoid duplicates
+          const { data: existingLog } = await supabase
+            .from("usage_logs")
+            .select("id")
+            .eq("call_id", callId)
+            .maybeSingle();
+
+          if (!existingLog) {
+            const { error: usageLogError } = await supabase
+              .from("usage_logs")
+              .insert({
+                user_id: userId,
+                call_id: callId,
+                cost_cents: Math.round(cost * 100),
+                usage_type: direction,
+                created_at: callData.call_started_at,
+              });
+
+            if (usageLogError) {
+              console.error(`Error creating usage log for call ${callId}:`, usageLogError);
+              syncLogger.logs.push(`[ERROR] Failed to create usage log for call ${rawCall.id}: ${usageLogError.message}`);
+            }
+          } else {
+            // Update existing log if cost changed (e.g. rate change or duration update)
+            const { error: usageLogUpdateError } = await supabase
+              .from("usage_logs")
+              .update({
+                cost_cents: Math.round(cost * 100),
+                usage_type: direction,
+                created_at: callData.call_started_at,
+              })
+              .eq("id", existingLog.id);
+
+            if (usageLogUpdateError) {
+              console.error(`Error updating usage log for call ${callId}:`, usageLogUpdateError);
+            }
           }
         }
       } catch (error) {
