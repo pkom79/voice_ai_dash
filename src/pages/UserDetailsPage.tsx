@@ -3667,7 +3667,7 @@ export function UserDetailsPage() {
         startDate={startDate || new Date()}
         endDate={endDate || new Date()}
         onSuccess={() => {
-          showNotification('Manual billing processed successfully', 'success');
+          showSuccess('Manual billing processed successfully');
           loadBillingData();
           loadCalls();
         }}
