@@ -51,11 +51,15 @@ export function ManualBillingModal({
         setLoading(true);
         setError(null);
         try {
+            // Ensure end date covers the full day
+            const adjustedEndDate = new Date(endDate);
+            adjustedEndDate.setHours(23, 59, 59, 999);
+
             const { data, error } = await supabase.functions.invoke('process-manual-billing', {
                 body: {
                     userId,
                     startDate: startDate.toISOString(),
-                    endDate: endDate.toISOString(),
+                    endDate: adjustedEndDate.toISOString(),
                     dryRun: true,
                 },
             });
@@ -78,11 +82,15 @@ export function ManualBillingModal({
         setProcessing(true);
         setError(null);
         try {
+            // Ensure end date covers the full day
+            const adjustedEndDate = new Date(endDate);
+            adjustedEndDate.setHours(23, 59, 59, 999);
+
             const { error } = await supabase.functions.invoke('process-manual-billing', {
                 body: {
                     userId,
                     startDate: startDate.toISOString(),
-                    endDate: endDate.toISOString(),
+                    endDate: adjustedEndDate.toISOString(),
                     dryRun: false,
                 },
             });

@@ -224,12 +224,27 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Update billing account's month_spent_cents with the absolute total
-    console.log(`Updating billing account: setting month_spent_cents to ${totalNewCostCents} cents`);
+    // Recalculate month_spent_cents for the CURRENT billing cycle (1st of current month to now)
+    // This ensures that even if we recalculate past calls, the dashboard shows the correct current month spend.
+    const now = new Date();
+    const currentMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    
+    const { data: currentMonthUsage, error: usageError } = await supabase
+      .from('usage_logs')
+      .select('cost_cents')
+      .eq('user_id', userId)
+      .gte('created_at', currentMonthStart.toISOString());
+
+    let currentMonthSpentCents = 0;
+    if (!usageError && currentMonthUsage) {
+      currentMonthSpentCents = currentMonthUsage.reduce((sum, log) => sum + (log.cost_cents || 0), 0);
+    }
+
+    console.log(`Updating billing account: setting month_spent_cents to ${currentMonthSpentCents} cents (Current Cycle: ${currentMonthStart.toISOString()} - Now)`);
     const { error: billingUpdateError } = await supabase
       .from("billing_accounts")
       .update({
-        month_spent_cents: totalNewCostCents,
+        month_spent_cents: currentMonthSpentCents,
       })
       .eq("user_id", userId);
 

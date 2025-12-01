@@ -110,7 +110,7 @@ async function fetchUsageSummary(userId: string, start: Date, end: Date): Promis
         .select('cost_cents, seconds_used')
         .eq('user_id', userId)
         .gte('created_at', start.toISOString())
-        .lt('created_at', end.toISOString());
+        .lte('created_at', end.toISOString());
 
     if (error) {
         throw error;
