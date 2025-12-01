@@ -240,11 +240,17 @@ Deno.serve(async (req: Request) => {
 
             // 2. Deduct from wallet if needed
             if (walletAppliedCents > 0) {
+                // Calculate balance before and after
+                const balanceBeforeCents = walletBalanceCents + totalCostCents; // Effective balance before this charge
+                const balanceAfterCents = balanceBeforeCents - walletAppliedCents;
+                
                 const { error: walletError } = await supabase.rpc('log_wallet_transaction', {
                     p_user_id: userId,
+                    p_type: 'usage_charge',
                     p_amount_cents: -walletAppliedCents,
-                    p_description: `Manual usage charge: ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`,
-                    p_transaction_type: 'usage_charge',
+                    p_balance_before_cents: balanceBeforeCents,
+                    p_balance_after_cents: balanceAfterCents,
+                    p_reason: `Manual usage charge: ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`,
                     p_metadata: {
                         period_start: start.toISOString(),
                         period_end: end.toISOString(),
@@ -254,7 +260,7 @@ Deno.serve(async (req: Request) => {
                 if (walletError) throw walletError;
 
                 // Update local wallet balance for response
-                result.walletBalanceCents -= walletAppliedCents;
+                result.walletBalanceCents = balanceAfterCents;
             }
 
             // 3. Record invoice in DB
