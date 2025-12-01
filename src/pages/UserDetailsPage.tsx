@@ -2118,7 +2118,6 @@ export function UserDetailsPage() {
                     )}
                   </div>
                 </div>
-              </div>
 
               {/* Future Integrations Placeholder */}
               <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-6">
@@ -2161,7 +2160,7 @@ export function UserDetailsPage() {
                       Outstanding Balance
                     </label>
                     <div className="text-2xl font-bold text-gray-900">
-                      ${Math.abs(Math.min(0, billingData.wallet_cents / 100)).toFixed(2)}
+                      ${outstandingBalanceCents !== null ? (outstandingBalanceCents / 100).toFixed(2) : '0.00'}
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
                       Total unpaid charges (all time)
