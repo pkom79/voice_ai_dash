@@ -56,7 +56,9 @@ Deno.serve(async (req: Request) => {
     const alertsSent: any[] = [];
 
     for (const account of billingAccounts || []) {
-      if (account.month_spent_cents <= account.wallet_cents) {
+      // Since wallet_cents is the Net Balance (Credits - Usage),
+      // we only alert if the balance is zero or negative.
+      if (account.wallet_cents > 0) {
         continue;
       }
 

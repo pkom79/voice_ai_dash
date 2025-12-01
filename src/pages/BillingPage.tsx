@@ -570,7 +570,7 @@ export function BillingPage() {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Usage & Balances</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Monitor wallet funds and current usage.</p>
           </div>
-          <div className="p-5 grid md:grid-cols-2 gap-4">
+          <div className="p-5 grid md:grid-cols-3 gap-4">
             <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-lg">
@@ -597,14 +597,25 @@ export function BillingPage() {
             </div>
 
             <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+              <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg mb-4 w-fit">
+                <Activity className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Outstanding Balance</h3>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                $0.00
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Unpaid usage across all periods</p>
+            </div>
+
+            <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4">
               <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-lg mb-4 w-fit">
                 <Activity className="h-6 w-6 text-purple-600 dark:text-purple-400" />
               </div>
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Current Balance</h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Current Usage</h3>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
                 ${Math.max(0, (billingAccount?.month_spent_cents || 0) / 100).toFixed(2)}
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Usage this period</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Usage this period (not reduced by payments)</p>
             </div>
           </div>
         </div>

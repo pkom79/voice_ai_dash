@@ -178,8 +178,16 @@ Deno.serve(async (req: Request) => {
         const walletBalanceCents = account.wallet_cents || 0;
 
         // Calculate application
-        const walletAppliedCents = Math.min(walletBalanceCents, totalCostCents);
-        const amountToChargeCents = totalCostCents - walletAppliedCents;
+        // Since the wallet balance is calculated dynamically (Credits - All Usage),
+        // the current walletBalanceCents ALREADY reflects the deduction of this usage.
+        // To determine how much credit was available to cover this usage, we add it back.
+        const effectiveBalanceCents = walletBalanceCents + totalCostCents;
+
+        // We can apply credits up to the effective balance, but not more than the cost
+        const walletAppliedCents = Math.max(0, Math.min(effectiveBalanceCents, totalCostCents));
+
+        // The remainder is what needs to be charged
+        const amountToChargeCents = Math.max(0, totalCostCents - walletAppliedCents);
 
         const result = {
             userId,
