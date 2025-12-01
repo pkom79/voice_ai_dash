@@ -40,10 +40,12 @@ export function ManualBillingModal({
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [preview, setPreview] = useState<BillingPreview | null>(null);
+    const [showConfirmation, setShowConfirmation] = useState(false);
 
     useEffect(() => {
         if (isOpen && userId) {
             fetchPreview();
+            setShowConfirmation(false);
         }
     }, [isOpen, userId, startDate, endDate]);
 
@@ -75,7 +77,8 @@ export function ManualBillingModal({
     };
 
     const handleProcess = async () => {
-        if (!confirm('Are you sure you want to process this charge? This will charge the user\'s card or deduct from their wallet.')) {
+        if (!showConfirmation) {
+            setShowConfirmation(true);
             return;
         }
 
@@ -192,6 +195,12 @@ export function ManualBillingModal({
                             </div>
                         </div>
                     ) : null}
+
+                    {showConfirmation && (
+                        <div className="p-3 text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-md">
+                            Are you sure you want to process this charge? This will charge the user's card or deduct from their wallet.
+                        </div>
+                    )}
                 </div>
 
                 <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
@@ -205,10 +214,12 @@ export function ManualBillingModal({
                     <button
                         onClick={handleProcess}
                         disabled={loading || processing || !preview}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            showConfirmation ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
                     >
                         {processing && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Process Payment
+                        {showConfirmation ? 'Confirm Charge' : 'Process Payment'}
                     </button>
                 </div>
             </div>

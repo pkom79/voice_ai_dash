@@ -139,6 +139,12 @@ export function UserDetailsPage() {
   const [resettingSyncFailures, setResettingSyncFailures] = useState(false);
   const [syncFailureCount, setSyncFailureCount] = useState(0);
   const [outstandingBalanceCents, setOutstandingBalanceCents] = useState<number | null>(null);
+  const [bulkActionConfirmation, setBulkActionConfirmation] = useState<{
+    isOpen: boolean;
+    action: 'delete' | 'make_free' | 'set_rate' | null;
+    rate?: number;
+  }>({ isOpen: false, action: null });
+  const [emailToDelete, setEmailToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -220,11 +226,18 @@ export function UserDetailsPage() {
       setBillingData(billing as BillingData);
 
       // Load billing summary (Outstanding Balance)
-      const { data: summary, error: summaryError } = await supabase.rpc('get_billing_summary', {
-        p_user_id: userId,
-      });
-      if (!summaryError && summary && Array.isArray(summary) && summary.length > 0) {
-        setOutstandingBalanceCents(summary[0].outstanding_balance_cents ?? 0);
+      try {
+        const { data: summary, error: summaryError } = await supabase.rpc('get_billing_summary', {
+          p_user_id: userId,
+        });
+        
+        if (summaryError) {
+          console.error('Error fetching billing summary:', summaryError);
+        } else if (summary && Array.isArray(summary) && summary.length > 0) {
+          setOutstandingBalanceCents(summary[0].outstanding_balance_cents ?? 0);
+        }
+      } catch (err) {
+        console.error('Exception fetching billing summary:', err);
       }
 
       // Load latest invitation info (if any)
@@ -523,10 +536,12 @@ export function UserDetailsPage() {
     }
   };
 
-  const handleRemoveEmail = async (emailId: string) => {
-    if (!window.confirm('Are you sure you want to remove this email address?')) {
-      return;
-    }
+  const handleRemoveEmail = (emailId: string) => {
+    setEmailToDelete(emailId);
+  };
+
+  const executeRemoveEmail = async () => {
+    if (!emailToDelete) return;
 
     setSaving(true);
 
@@ -534,7 +549,7 @@ export function UserDetailsPage() {
       const { error: deleteError } = await supabase
         .from('user_notification_emails')
         .delete()
-        .eq('id', emailId);
+        .eq('id', emailToDelete);
 
       if (deleteError) throw deleteError;
 
@@ -545,6 +560,7 @@ export function UserDetailsPage() {
       showError(error.message || 'Failed to remove email address');
     } finally {
       setSaving(false);
+      setEmailToDelete(null);
     }
   };
 
@@ -1295,10 +1311,20 @@ export function UserDetailsPage() {
     }
   };
 
-  const handleBulkAction = async (action: 'delete' | 'make_free' | 'set_rate', rate?: number) => {
+  const handleBulkAction = (action: 'delete' | 'make_free' | 'set_rate', rate?: number) => {
     if (selectedCallIds.size === 0) return;
-    if (!confirm(`Are you sure you want to ${action.replace('_', ' ')} for ${selectedCallIds.size} calls?`)) return;
+    setBulkActionConfirmation({
+      isOpen: true,
+      action,
+      rate
+    });
+  };
 
+  const executeBulkAction = async () => {
+    const { action, rate } = bulkActionConfirmation;
+    if (!action) return;
+
+    setBulkActionConfirmation(prev => ({ ...prev, isOpen: false }));
     setProcessingBulkAction(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -3597,6 +3623,18 @@ export function UserDetailsPage() {
     type={notification.type}
   />
 
+  {/* Delete Email Confirmation Modal */}
+  <ConfirmationModal
+    isOpen={!!emailToDelete}
+    title="Remove Email Address"
+    message="Are you sure you want to remove this email address?"
+    confirmText="Remove"
+    cancelText="Cancel"
+    onConfirm={executeRemoveEmail}
+    onCancel={() => setEmailToDelete(null)}
+    type="danger"
+  />
+
   {/* Delete Call Confirmation Modal */ }
   <ConfirmationModal
     isOpen={!!callToDelete}
@@ -3607,6 +3645,18 @@ export function UserDetailsPage() {
     onConfirm={executeDeleteCall}
     onCancel={() => setCallToDelete(null)}
     type="danger"
+  />
+
+  {/* Bulk Action Confirmation Modal */}
+  <ConfirmationModal
+    isOpen={bulkActionConfirmation.isOpen}
+    title={`Confirm ${bulkActionConfirmation.action?.replace('_', ' ') || 'Action'}`}
+    message={`Are you sure you want to ${bulkActionConfirmation.action?.replace('_', ' ')} for ${selectedCallIds.size} calls?`}
+    confirmText="Confirm"
+    cancelText="Cancel"
+    onConfirm={executeBulkAction}
+    onCancel={() => setBulkActionConfirmation(prev => ({ ...prev, isOpen: false }))}
+    type="warning"
   />
 
   {/* Manual Billing Modal */ }
