@@ -2127,7 +2127,9 @@ export function UserDetailsPage() {
                     <Plus className="h-6 w-6 text-gray-400" />
                   </div>
                   <h4 className="text-sm font-medium text-gray-700 mb-1">Additional Integrations</h4>
-                  <p className="text-sm text-gray-500">More API connections will be available here in the future</p>
+                  <p className="text-sm text-gray-500">
+                    More API connections will be available here in the future.
+                  </p>
                 </div>
               </div>
             </div>
