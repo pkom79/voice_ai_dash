@@ -246,7 +246,7 @@ Deno.serve(async (req: Request) => {
 
                 const { error: walletError } = await supabase.rpc('log_wallet_transaction', {
                     p_user_id: userId,
-                    p_type: 'usage_charge',
+                    p_type: 'deduction',
                     p_amount_cents: -walletAppliedCents,
                     p_balance_before_cents: balanceBeforeCents,
                     p_balance_after_cents: balanceAfterCents,
