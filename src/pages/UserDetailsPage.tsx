@@ -2120,20 +2120,20 @@ export function UserDetailsPage() {
                 </div>
               </div>
 
-                {/* Future Integrations Placeholder */}
-            <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-6">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-3">
-                  <Plus className="h-6 w-6 text-gray-400" />
+              {/* Future Integrations Placeholder */}
+              <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-6">
+                <div className="text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-3">
+                    <Plus className="h-6 w-6 text-gray-400" />
+                  </div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-1">Additional Integrations</h4>
+                  <p className="text-sm text-gray-500">More API connections will be available here in the future</p>
                 </div>
-                <h4 className="text-sm font-medium text-gray-700 mb-1">Additional Integrations</h4>
-                <p className="text-sm text-gray-500">More API connections will be available here in the future</p>
               </div>
             </div>
-          </div>
-            )}
-      </>
-        )}
+          )}
+        </>
+      )}
 
       {activeTab === 'billing' && (
         <div className="space-y-6">
