@@ -105,15 +105,23 @@ async function createStripeInvoice(
 }
 
 async function fetchUsageSummary(userId: string, start: Date, end: Date): Promise<UsageSummary> {
+    console.log(`Fetching usage for user ${userId} from ${start.toISOString()} to ${end.toISOString()}`);
+
     const { data, error } = await supabase
         .from('usage_logs')
-        .select('cost_cents, seconds_used')
+        .select('cost_cents, seconds_used, created_at')
         .eq('user_id', userId)
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
 
     if (error) {
+        console.error('Error fetching usage logs:', error);
         throw error;
+    }
+
+    console.log(`Found ${data?.length || 0} usage logs`);
+    if (data && data.length > 0) {
+        console.log('Sample log:', data[0]);
     }
 
     let totalCents = 0;

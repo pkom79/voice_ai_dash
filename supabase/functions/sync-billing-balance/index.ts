@@ -45,58 +45,81 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Syncing billing balance for user: ${userId}`);
 
-    // Get all calls for this user and sum the costs (exclude INCLUDED calls)
+    // 1. Calculate Total Usage Cost (Lifetime)
     const { data: calls, error: callsError } = await supabase
       .from("calls")
-      .select("cost, display_cost")
+      .select("cost, display_cost, call_started_at")
       .eq("user_id", userId);
 
-    if (callsError) {
-      console.error("Error fetching calls:", callsError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch calls", details: callsError }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
+    if (callsError) throw callsError;
 
-    // Calculate total cost in cents (exclude INCLUDED calls)
-    const totalCostCents = (calls || [])
+    const totalUsageCents = (calls || [])
       .filter((call) => call.display_cost !== 'INCLUDED')
       .reduce((sum, call) => sum + Math.round((call.cost || 0) * 100), 0);
 
-    console.log(`Total cost calculated: ${totalCostCents} cents ($${(totalCostCents / 100).toFixed(2)})`);
+    // 2. Calculate Total Credits/Debits from Wallet Transactions (excluding usage deductions)
+    const { data: transactions, error: txError } = await supabase
+      .from("wallet_transactions")
+      .select("type, amount_cents")
+      .eq("user_id", userId);
 
-    // Update billing account's month_spent_cents
+    if (txError) throw txError;
+
+    let totalCreditsCents = 0;
+    let totalDebitsCents = 0;
+
+    (transactions || []).forEach(tx => {
+      if (['top_up', 'admin_credit'].includes(tx.type)) {
+        totalCreditsCents += tx.amount_cents;
+      } else if (['admin_debit', 'refund'].includes(tx.type)) {
+        totalDebitsCents += tx.amount_cents;
+      }
+      // We ignore 'deduction' type as we are recalculating usage from calls directly
+    });
+
+    // 3. Calculate New Wallet Balance
+    // Balance = Credits - Non-Usage Debits - Total Usage
+    const newWalletCents = totalCreditsCents - totalDebitsCents - totalUsageCents;
+
+    // 4. Calculate Current Month Usage
+    const now = new Date();
+    const currentMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+    const currentMonthUsageCents = (calls || [])
+      .filter(call => {
+        if (call.display_cost === 'INCLUDED') return false;
+        const callDate = new Date(call.call_started_at);
+        return callDate >= currentMonthStart;
+      })
+      .reduce((sum, call) => sum + Math.round((call.cost || 0) * 100), 0);
+
+    console.log(`Billing Sync Results:
+      Total Usage: $${(totalUsageCents / 100).toFixed(2)}
+      Total Credits: $${(totalCreditsCents / 100).toFixed(2)}
+      Total Debits: $${(totalDebitsCents / 100).toFixed(2)}
+      New Wallet Balance: $${(newWalletCents / 100).toFixed(2)}
+      Current Month Usage: $${(currentMonthUsageCents / 100).toFixed(2)}
+    `);
+
+    // 5. Update Billing Account
     const { error: updateError } = await supabase
       .from("billing_accounts")
       .update({
-        month_spent_cents: totalCostCents,
+        month_spent_cents: currentMonthUsageCents,
+        wallet_cents: newWalletCents,
       })
       .eq("user_id", userId);
 
-    if (updateError) {
-      console.error("Error updating billing account:", updateError);
-      return new Response(
-        JSON.stringify({ error: "Failed to update billing account", details: updateError }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    console.log(`Successfully updated month_spent_cents to ${totalCostCents} cents`);
+    if (updateError) throw updateError;
 
     return new Response(
       JSON.stringify({
         success: true,
-        totalCostCents,
-        totalCostDollars: (totalCostCents / 100).toFixed(2),
+        totalCostCents: currentMonthUsageCents, // Return current month for compatibility
+        totalCostDollars: (currentMonthUsageCents / 100).toFixed(2),
+        walletBalanceDollars: (newWalletCents / 100).toFixed(2),
         callsCount: calls?.length || 0,
-        message: `Billing balance updated successfully`,
+        message: `Billing balance synced. Wallet: $${(newWalletCents / 100).toFixed(2)}, Month: $${(currentMonthUsageCents / 100).toFixed(2)}`,
       }),
       {
         status: 200,

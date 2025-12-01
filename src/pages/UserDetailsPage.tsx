@@ -2147,13 +2147,13 @@ export function UserDetailsPage() {
                   <div className="p-6 grid md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Accrued Usage Cost
+                        Outstanding Balance
                       </label>
                       <div className="text-2xl font-bold text-gray-900">
-                        ${Math.max(0, billingData.month_spent_cents / 100).toFixed(2)}
+                        ${Math.abs(Math.min(0, billingData.wallet_cents / 100)).toFixed(2)}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        Total usage charges for current month
+                        Total unpaid charges (all time)
                       </p>
                     </div>
                     <div>
@@ -2609,7 +2609,7 @@ export function UserDetailsPage() {
               <div className="bg-white rounded-lg shadow p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Total Cost (Paid Only)</p>
+                    <p className="text-sm text-gray-600">Outstanding Balance</p>
                     <p className="text-2xl font-bold text-gray-900">
                       {billingData?.inbound_plan === 'inbound_unlimited'
                         ? 'N/A'

@@ -198,6 +198,12 @@ Deno.serve(async (req: Request) => {
 
         // Create new usage log entry if there's a cost
         if (cost > 0 && displayCost !== 'INCLUDED') {
+          // Delete existing usage log for this call to avoid duplicates/stale data
+          await supabase
+            .from("usage_logs")
+            .delete()
+            .eq("call_id", call.id);
+
           const { error: usageLogError } = await supabase
             .from("usage_logs")
             .insert({
@@ -228,7 +234,7 @@ Deno.serve(async (req: Request) => {
     // This ensures that even if we recalculate past calls, the dashboard shows the correct current month spend.
     const now = new Date();
     const currentMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    
+
     const { data: currentMonthUsage, error: usageError } = await supabase
       .from('usage_logs')
       .select('cost_cents')
