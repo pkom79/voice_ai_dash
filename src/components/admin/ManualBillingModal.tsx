@@ -214,9 +214,8 @@ export function ManualBillingModal({
                     <button
                         onClick={handleProcess}
                         disabled={loading || processing || !preview}
-                        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                            showConfirmation ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${showConfirmation ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+                            }`}
                     >
                         {processing && <Loader2 className="w-4 h-4 animate-spin" />}
                         {showConfirmation ? 'Confirm Charge' : 'Process Payment'}

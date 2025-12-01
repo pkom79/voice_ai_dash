@@ -230,7 +230,7 @@ export function UserDetailsPage() {
         const { data: summary, error: summaryError } = await supabase.rpc('get_billing_summary', {
           p_user_id: userId,
         });
-        
+
         if (summaryError) {
           console.error('Error fetching billing summary:', summaryError);
         } else if (summary && Array.isArray(summary) && summary.length > 0) {
@@ -2145,1533 +2145,1533 @@ export function UserDetailsPage() {
                   </div>
                 </div>
 
-              {/* Future Integrations Placeholder */}
-              <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-6">
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-3">
-                    <Plus className="h-6 w-6 text-gray-400" />
-                  </div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-1">Additional Integrations</h4>
-                  <p className="text-sm text-gray-500">
-                    More API connections will be available here in the future.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {activeTab === 'billing' && (
-        <div className="space-y-6">
-          {loadingBilling ? (
-            <div className="bg-white rounded-lg shadow p-12 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-            </div>
-          ) : !billingData ? (
-            <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
-              <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p>No billing account found</p>
-            </div>
-          ) : (
-            <>
-              {/* Account Status Section */}
-              <div className="bg-white rounded-lg shadow">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Account Status</h3>
-                </div>
-                <div className="p-6 grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Outstanding Balance
-                    </label>
-                    <div className="text-2xl font-bold text-gray-900">
-                      ${outstandingBalanceCents !== null ? (outstandingBalanceCents / 100).toFixed(2) : '0.00'}
+                {/* Future Integrations Placeholder */}
+                <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-6">
+                  <div className="text-center">
+                    <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-3">
+                      <Plus className="h-6 w-6 text-gray-400" />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Total unpaid charges (all time)
+                    <h4 className="text-sm font-medium text-gray-700 mb-1">Additional Integrations</h4>
+                    <p className="text-sm text-gray-500">
+                      More API connections will be available here in the future.
                     </p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Status
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {billingData.wallet_cents < billingData.month_spent_cents ? (
-                        <span className="px-3 py-1 bg-red-100 text-red-700 text-sm font-medium rounded">
-                          Insufficient Balance
-                        </span>
-                      ) : billingData.grace_until && new Date(billingData.grace_until) > new Date() ? (
-                        <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm font-medium rounded">
-                          Grace Period
-                        </span>
-                      ) : (
-                        <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded">
-                          Active
-                        </span>
-                      )}
-                    </div>
-                  </div>
                 </div>
               </div>
+            )}
+          </>
+        )}
 
-              {/* Stripe Customer ID */}
-              <div className="bg-white rounded-lg shadow">
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">Stripe Customer</h3>
-                  {billingData?.stripe_customer_id && (
-                    <span className="text-xs text-gray-500">Linked</span>
-                  )}
-                </div>
-                <div className="p-6 space-y-3">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Stripe Customer ID <span className="text-xs font-normal text-gray-500">(cus_...)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={stripeCustomerId}
-                    onChange={(e) => setStripeCustomerId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="cus_..."
-                  />
-                  <div className="flex justify-end">
-                    <button
-                      onClick={handleSaveStripeCustomerId}
-                      disabled={savingStripeCustomerId}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {savingStripeCustomerId ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        'Save Customer ID'
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Link an existing Stripe customer to this account for portal access and billing sync.
-                  </p>
-                </div>
-              </div>
-
-              {/* Plans Section */}
-              <div className="bg-white rounded-lg shadow">
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">Active Plans</h3>
-                  <button
-                    onClick={() => setShowChangePlanModal(true)}
-                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Change Plans
-                  </button>
-                </div>
-                <div className="p-6 grid md:grid-cols-2 gap-4">
-                  {/* Inbound Plan */}
-                  <div className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium text-gray-900">Inbound Plan</h4>
-                      {billingData.inbound_plan && (
-                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
-                          Active
-                        </span>
-                      )}
-                    </div>
-                    {billingData.inbound_plan ? (
-                      <div className="space-y-2">
-                        <div className="text-sm">
-                          <span className="text-gray-600">Type: </span>
-                          <span className="font-medium text-gray-900">
-                            {billingData.inbound_plan === 'inbound_pay_per_use' ? 'Pay Per Use' : 'Unlimited'}
-                          </span>
-                        </div>
-                        {billingData.inbound_plan === 'inbound_pay_per_use' && (
-                          <div className="text-sm">
-                            <span className="text-gray-600">Rate: </span>
-                            <span className="font-medium text-gray-900">
-                              ${(billingData.inbound_rate_cents / 100).toFixed(2)}/min
-                            </span>
-                          </div>
-                        )}
-                        {billingData.inbound_plan === 'inbound_unlimited' && (
-                          <div className="text-sm">
-                            <span className="text-gray-600">Subscription: </span>
-                            <span className="font-medium text-gray-900">$500/month</span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500">No inbound plan active</p>
-                    )}
-                  </div>
-
-                  {/* Outbound Plan */}
-                  <div className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium text-gray-900">Outbound Plan</h4>
-                      {billingData.outbound_plan && (
-                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
-                          Active
-                        </span>
-                      )}
-                    </div>
-                    {billingData.outbound_plan ? (
-                      <div className="space-y-2">
-                        <div className="text-sm">
-                          <span className="text-gray-600">Type: </span>
-                          <span className="font-medium text-gray-900">Pay Per Use</span>
-                        </div>
-                        <div className="text-sm">
-                          <span className="text-gray-600">Rate: </span>
-                          <span className="font-medium text-gray-900">
-                            ${(billingData.outbound_rate_cents / 100).toFixed(2)}/min
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500">No outbound plan active</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Wallet Section - Only show if user has PPU plan */}
-              {(billingData.inbound_plan === 'inbound_pay_per_use' || billingData.outbound_plan === 'outbound_pay_per_use') && (
-                <div className="bg-white rounded-lg shadow">
-                  <div className="p-6 border-b border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900">Wallet Balance</h3>
-                  </div>
-                  <div className="p-6">
-                    <div className="text-center mb-6">
-                      <div className="text-4xl font-bold text-gray-900 mb-2">
-                        ${(billingData.wallet_cents / 100).toFixed(2)}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Spent this month: ${Math.max(0, billingData.month_spent_cents / 100).toFixed(2)}
-                      </div>
-                    </div>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => setShowAddBalanceModal(true)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        <DollarSign className="h-4 w-4" />
-                        Add Balance
-                      </button>
-                      <button
-                        onClick={() => setShowRemoveBalanceModal(true)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                      >
-                        <DollarSign className="h-4 w-4" />
-                        Remove Balance
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Transaction History */}
-              {(billingData.inbound_plan === 'inbound_pay_per_use' || billingData.outbound_plan === 'outbound_pay_per_use') && (
-                <div className="bg-white rounded-lg shadow">
-                  <div className="p-6 border-b border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900">Transaction History</h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    {loadingTransactions ? (
-                      <div className="p-12 text-center">
-                        <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto" />
-                      </div>
-                    ) : transactions.length === 0 ? (
-                      <div className="p-12 text-center text-gray-500">
-                        No transactions yet
-                      </div>
-                    ) : (
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Date
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Type
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Reason
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Amount
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {transactions.map((transaction) => (
-                            <tr key={transaction.id}>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {new Date(transaction.created_at).toLocaleDateString()} {new Date(transaction.created_at).toLocaleTimeString()}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span
-                                  className={`px-2 py-1 text-xs font-medium rounded-full ${transaction.type === 'top_up' || transaction.type === 'admin_credit'
-                                    ? 'bg-green-100 text-green-800'
-                                    : transaction.type === 'deduction' || transaction.type === 'admin_debit'
-                                      ? 'bg-red-100 text-red-800'
-                                      : transaction.type === 'refund'
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-gray-100 text-gray-800'
-                                    }`}
-                                >
-                                  {transaction.type?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-sm text-gray-900">
-                                {transaction.reason}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-right">
-                                <span
-                                  className={`text-sm font-medium ${transaction.type === 'top_up' || transaction.type === 'admin_credit' || transaction.type === 'refund'
-                                    ? 'text-green-600'
-                                    : 'text-red-600'
-                                    }`}
-                                >
-                                  {transaction.type === 'top_up' || transaction.type === 'admin_credit' || transaction.type === 'refund'
-                                    ? '+'
-                                    : '-'}
-                                  ${(Math.abs(transaction.amount_cents) / 100).toFixed(2)}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'call-analytics' && (
-        <div className="space-y-6">
-          {/* Control Buttons */}
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => setShowResetConfirmModal(true)}
-                disabled={resettingCalls}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-                title="Permanently deletes all calls, usage logs, and resets billing. Sets a timestamp to prevent re-syncing old data. Use this to remove test calls or start fresh."
-              >
-                {resettingCalls ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-                Delete All Call Data
-              </button>
-              <button
-                onClick={handleSyncBillingBalance}
-                disabled={syncingBilling}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-                title="Adds up all existing call costs and updates the billing balance total. Use this when call costs look correct but the billing balance is wrong. Fast and simple - doesn't recalculate individual call costs."
-              >
-                {syncingBilling ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <DollarSign className="h-4 w-4" />
-                )}
-                Sync Billing Balance
-              </button>
-              <button
-                onClick={handleRecalculateCosts}
-                disabled={recalculatingCosts}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
-                title="Recalculates the cost of every call from scratch using current billing rates. Regenerates usage logs and updates billing balance. Use this after changing billing plans, rates, or when individual call costs are wrong. Takes longer than Sync Balance."
-              >
-                {recalculatingCosts ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <DollarSign className="h-4 w-4" />
-                )}
-                Recalculate Costs
-              </button>
-              <button
-                onClick={() => setShowResyncModal(true)}
-                disabled={syncingCalls}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                title="Fetches calls from HighLevel API and updates your database. Calculates costs for new calls automatically. You can specify a date range to sync specific calls. Use this to pull in the latest calls or re-sync historical data."
-              >
-                {syncingCalls ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                Resync from HighLevel
-              </button>
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div className="bg-white rounded-lg shadow p-4 space-y-4">
-            {/* First Row: Direction Tabs & Date Picker */}
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setDirection('inbound')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'inbound'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  Inbound
-                </button>
-                <button
-                  onClick={() => setDirection('outbound')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'outbound'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  Outbound
-                </button>
-              </div>
-
-              <div className="relative">
-                <button
-                  onClick={() => setShowDatePicker(!showDatePicker)}
-                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <Calendar className="h-4 w-4 text-gray-600" />
-                  <span className="text-sm">
-                    {startDate && endDate
-                      ? `${formatDateEST(startDate, 'MMM d, yyyy')} - ${formatDateEST(endDate, 'MMM d, yyyy')}`
-                      : 'Select Date Range'}
-                  </span>
-                </button>
-              </div>
-
-              {/* Manual Billing Button */}
-              <button
-                onClick={() => setShowManualBillingModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                <DollarSign className="h-4 w-4" />
-                <span className="text-sm">Process Manual Bill</span>
-              </button>
-            </div>
-
-            {/* Second Row: Agent | Search */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Agent Selector */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Agent</label>
-                <select
-                  value={selectedAgentId}
-                  onChange={(e) => {
-                    setSelectedAgentId(e.target.value);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="all">All Agents</option>
-                  {getAvailableAgents().map((agent: any) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Search */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Contact, phone, action..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Date Range Picker Modal */}
-          {showDatePicker && (
-            <DateRangePicker
-              startDate={startDate}
-              endDate={endDate}
-              onDateRangeChange={(start, end) => {
-                setStartDate(start);
-                setEndDate(end);
-              }}
-              onClose={() => setShowDatePicker(false)}
-            />
-          )}
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Total Calls</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {getFilteredCalls().length}
-                  </p>
-                </div>
-                <Phone className="h-8 w-8 text-blue-600" />
-              </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Total Duration</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {(() => {
-                      const totalSecs = getFilteredCalls().reduce((sum, c) => sum + c.duration_seconds, 0);
-                      const mins = Math.floor(totalSecs / 60);
-                      const secs = totalSecs % 60;
-                      return `${mins}m ${secs}s`;
-                    })()}
-                  </p>
-                </div>
-                <Clock className="h-8 w-8 text-green-600" />
-              </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Outstanding Balance</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {billingData?.inbound_plan === 'inbound_unlimited'
-                      ? 'N/A'
-                      : `$${getFilteredCalls()
-                        .filter(c => c.display_cost !== 'INCLUDED')
-                        .reduce((sum, c) => sum + c.cost, 0)
-                        .toFixed(2)}`}
-                  </p>
-                </div>
-                <DollarSign className="h-8 w-8 text-purple-600" />
-              </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Avg Duration</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {(() => {
-                      const filtered = getFilteredCalls();
-                      if (filtered.length === 0) return '0m 0s';
-                      const avgSecs = Math.floor(filtered.reduce((sum, c) => sum + c.duration_seconds, 0) / filtered.length);
-                      const mins = Math.floor(avgSecs / 60);
-                      const secs = avgSecs % 60;
-                      return `${mins}m ${secs}s`;
-                    })()}
-                  </p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-orange-600" />
-              </div>
-            </div>
-          </div>
-
-          {/* Calls Table */}
-          <div className="bg-white rounded-lg shadow">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Call History</h3>
-              {selectedCallIds.size > 0 && (
-                <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
-                  <span className="text-sm font-medium text-blue-700">{selectedCallIds.size} selected</span>
-                  <div className="h-4 w-px bg-blue-200 mx-1" />
-                  <button
-                    onClick={() => handleBulkAction('make_free')}
-                    disabled={processingBulkAction}
-                    className="text-xs font-medium text-blue-700 hover:text-blue-900 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
-                  >
-                    Make Free
-                  </button>
-                  <button
-                    onClick={() => setShowSetRateModal(true)}
-                    disabled={processingBulkAction}
-                    className="text-xs font-medium text-blue-700 hover:text-blue-900 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
-                  >
-                    Set Rate
-                  </button>
-                  <button
-                    onClick={() => handleBulkAction('delete')}
-                    disabled={processingBulkAction}
-                    className="text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="overflow-x-auto">
-              {loadingCalls ? (
-                <div className="p-12 text-center">
-                  <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto" />
-                </div>
-              ) : getFilteredCalls().length === 0 ? (
-                <div className="p-12 text-center text-gray-500">
-                  No {direction} calls found
-                </div>
-              ) : (
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
-                        <input
-                          type="checkbox"
-                          checked={getFilteredCalls().length > 0 && selectedCallIds.size === getFilteredCalls().length}
-                          onChange={(e) => handleSelectAllCalls(e.target.checked)}
-                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date/Time
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Contact
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Number
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Duration
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cost
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <span className="sr-only">Delete</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {getFilteredCalls().map((call) => (
-                      <tr key={call.id} className={selectedCallIds.has(call.id) ? 'bg-blue-50' : ''}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <input
-                            type="checkbox"
-                            checked={selectedCallIds.has(call.id)}
-                            onChange={(e) => handleSelectCall(call.id, e.target.checked)}
-                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDateEST(new Date(call.call_started_at), 'MMM d, yyyy h:mm a')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {call.contact_name || 'Unknown'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {direction === 'inbound' ? call.from_number : call.to_number}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex flex-wrap gap-2">
-                            {(() => {
-                              const rawActions = (call.action_triggered || call.actions || []);
-                              const actionsArray = Array.isArray(rawActions)
-                                ? rawActions
-                                : typeof rawActions === 'string'
-                                  ? rawActions.split(',').map(a => a.trim()).filter(Boolean)
-                                  : [];
-
-                              if (actionsArray.length === 0) {
-                                return <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">NONE</span>;
-                              }
-
-                              const mapLabel = (a: string) => {
-                                const key = a.toLowerCase();
-                                if (key.includes('knowledge')) return 'KB';
-                                if (key.includes('call_transfer') || key.includes('transfer')) return 'TRANSFER';
-                                if (key.includes('workflow')) return 'WORKFLOW';
-                                if (key.includes('sms')) return 'SMS';
-                                if (key.includes('appointment')) return 'APPT';
-                                if (key.includes('contact')) return 'CONTACT';
-                                return 'CUSTOM';
-                              };
-
-                              const mapStyle = (label: string) => {
-                                switch (label) {
-                                  case 'KB':
-                                    return 'bg-blue-100 text-blue-800';
-                                  case 'TRANSFER':
-                                    return 'bg-purple-100 text-purple-800';
-                                  case 'WORKFLOW':
-                                    return 'bg-indigo-100 text-indigo-800';
-                                  case 'SMS':
-                                    return 'bg-teal-100 text-teal-800';
-                                  case 'APPT':
-                                    return 'bg-emerald-100 text-emerald-800';
-                                  case 'CONTACT':
-                                    return 'bg-sky-100 text-sky-800';
-                                  default:
-                                    return 'bg-gray-100 text-gray-800';
-                                }
-                              };
-
-                              return actionsArray.map((act: string, idx: number) => {
-                                const label = mapLabel(act);
-                                return (
-                                  <span
-                                    key={`${act}-${idx}`}
-                                    className={`px-2 py-1 text-xs font-semibold rounded-full uppercase ${mapStyle(label)}`}
-                                  >
-                                    {label}
-                                  </span>
-                                );
-                              });
-                            })()}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          {billingData?.inbound_plan === 'inbound_unlimited' || call.display_cost === 'INCLUDED' ? (
-                            <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
-                              INCLUDED
-                            </span>
-                          ) : (
-                            <span className="text-gray-900">${(call.cost || 0).toFixed(2)}</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          <button
-                            onClick={() => handleDeleteCall(call.id)}
-                            className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
-                            title="Delete Call"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-
-    </div>
-
-      {/* Disconnect Confirmation Modal */ }
-  {
-    showDisconnectModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900">Disconnect HighLevel?</h3>
-          </div>
-          <p className="text-gray-600 mb-6">
-            Are you sure you want to disconnect this HighLevel connection? This will deactivate the API key and stop syncing data.
-            All assigned agents will remain in the system but will no longer sync.
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowDisconnectModal(false)}
-              disabled={disconnecting}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleDisconnectHighLevel}
-              disabled={disconnecting}
-              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {disconnecting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Disconnecting...
-                </>
-              ) : (
-                'Disconnect'
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  {/* Agent Management Modal */ }
-  {
-    showAgentManagementModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
-          <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">Manage Agent Assignments</h3>
-            <button
-              onClick={() => setShowAgentManagementModal(false)}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6">
-            {allAvailableAgents.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <p className="mb-4">Click "Fetch Agents" to load agents from HighLevel</p>
-                <button
-                  onClick={loadAllAgents}
-                  disabled={fetchingAgents}
-                  className="inline-flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium"
-                >
-                  {fetchingAgents ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Fetching...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4" />
-                      Fetch Agents
-                    </>
-                  )}
-                </button>
-              </div>
-            ) : loadingAllAgents ? (
-              <div className="flex items-center justify-center py-12">
+        {activeTab === 'billing' && (
+          <div className="space-y-6">
+            {loadingBilling ? (
+              <div className="bg-white rounded-lg shadow p-12 flex items-center justify-center">
                 <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+              </div>
+            ) : !billingData ? (
+              <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
+                <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p>No billing account found</p>
               </div>
             ) : (
               <>
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="text-sm text-gray-600">{allAvailableAgents.length} agents available</p>
-                  <button
-                    onClick={loadAllAgents}
-                    disabled={fetchingAgents}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-                  >
-                    {fetchingAgents ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Refreshing...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-3 w-3" />
-                        Refresh
-                      </>
-                    )}
-                  </button>
+                {/* Account Status Section */}
+                <div className="bg-white rounded-lg shadow">
+                  <div className="p-6 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Account Status</h3>
+                  </div>
+                  <div className="p-6 grid md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Outstanding Balance
+                      </label>
+                      <div className="text-2xl font-bold text-gray-900">
+                        ${outstandingBalanceCents !== null ? (outstandingBalanceCents / 100).toFixed(2) : '0.00'}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Total unpaid charges (all time)
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Status
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {billingData.wallet_cents < billingData.month_spent_cents ? (
+                          <span className="px-3 py-1 bg-red-100 text-red-700 text-sm font-medium rounded">
+                            Insufficient Balance
+                          </span>
+                        ) : billingData.grace_until && new Date(billingData.grace_until) > new Date() ? (
+                          <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm font-medium rounded">
+                            Grace Period
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  {allAvailableAgents.map((agent) => {
-                    const isAssigned = assignedAgents.some(a => a.id === agent.id);
-                    return (
-                      <div
-                        key={agent.id}
-                        className={`border rounded-lg p-4 transition-all ${isAssigned
-                          ? 'border-blue-300 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
+
+                {/* Stripe Customer ID */}
+                <div className="bg-white rounded-lg shadow">
+                  <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Stripe Customer</h3>
+                    {billingData?.stripe_customer_id && (
+                      <span className="text-xs text-gray-500">Linked</span>
+                    )}
+                  </div>
+                  <div className="p-6 space-y-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Stripe Customer ID <span className="text-xs font-normal text-gray-500">(cus_...)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={stripeCustomerId}
+                      onChange={(e) => setStripeCustomerId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="cus_..."
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleSaveStripeCustomerId}
+                        disabled={savingStripeCustomerId}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-medium text-gray-900 truncate">{agent.name}</h4>
-                              {isAssigned && (
-                                <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
-                                  ASSIGNED
-                                </span>
-                              )}
-                            </div>
-                            {agent.description && (
-                              <p className="text-sm text-gray-600 line-clamp-2">{agent.description}</p>
-                            )}
+                        {savingStripeCustomerId ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save Customer ID'
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Link an existing Stripe customer to this account for portal access and billing sync.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Plans Section */}
+                <div className="bg-white rounded-lg shadow">
+                  <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Active Plans</h3>
+                    <button
+                      onClick={() => setShowChangePlanModal(true)}
+                      className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Change Plans
+                    </button>
+                  </div>
+                  <div className="p-6 grid md:grid-cols-2 gap-4">
+                    {/* Inbound Plan */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-gray-900">Inbound Plan</h4>
+                        {billingData.inbound_plan && (
+                          <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      {billingData.inbound_plan ? (
+                        <div className="space-y-2">
+                          <div className="text-sm">
+                            <span className="text-gray-600">Type: </span>
+                            <span className="font-medium text-gray-900">
+                              {billingData.inbound_plan === 'inbound_pay_per_use' ? 'Pay Per Use' : 'Unlimited'}
+                            </span>
                           </div>
-                          <button
-                            onClick={() => handleToggleAgentAssignment(agent.id, isAssigned)}
-                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${isAssigned
-                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                              : 'bg-blue-600 text-white hover:bg-blue-700'
-                              }`}
-                          >
-                            {isAssigned ? 'Remove' : 'Assign'}
-                          </button>
+                          {billingData.inbound_plan === 'inbound_pay_per_use' && (
+                            <div className="text-sm">
+                              <span className="text-gray-600">Rate: </span>
+                              <span className="font-medium text-gray-900">
+                                ${(billingData.inbound_rate_cents / 100).toFixed(2)}/min
+                              </span>
+                            </div>
+                          )}
+                          {billingData.inbound_plan === 'inbound_unlimited' && (
+                            <div className="text-sm">
+                              <span className="text-gray-600">Subscription: </span>
+                              <span className="font-medium text-gray-900">$500/month</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No inbound plan active</p>
+                      )}
+                    </div>
+
+                    {/* Outbound Plan */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-gray-900">Outbound Plan</h4>
+                        {billingData.outbound_plan && (
+                          <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      {billingData.outbound_plan ? (
+                        <div className="space-y-2">
+                          <div className="text-sm">
+                            <span className="text-gray-600">Type: </span>
+                            <span className="font-medium text-gray-900">Pay Per Use</span>
+                          </div>
+                          <div className="text-sm">
+                            <span className="text-gray-600">Rate: </span>
+                            <span className="font-medium text-gray-900">
+                              ${(billingData.outbound_rate_cents / 100).toFixed(2)}/min
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No outbound plan active</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Wallet Section - Only show if user has PPU plan */}
+                {(billingData.inbound_plan === 'inbound_pay_per_use' || billingData.outbound_plan === 'outbound_pay_per_use') && (
+                  <div className="bg-white rounded-lg shadow">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">Wallet Balance</h3>
+                    </div>
+                    <div className="p-6">
+                      <div className="text-center mb-6">
+                        <div className="text-4xl font-bold text-gray-900 mb-2">
+                          ${(billingData.wallet_cents / 100).toFixed(2)}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          Spent this month: ${Math.max(0, billingData.month_spent_cents / 100).toFixed(2)}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setShowAddBalanceModal(true)}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          <DollarSign className="h-4 w-4" />
+                          Add Balance
+                        </button>
+                        <button
+                          onClick={() => setShowRemoveBalanceModal(true)}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                          <DollarSign className="h-4 w-4" />
+                          Remove Balance
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Transaction History */}
+                {(billingData.inbound_plan === 'inbound_pay_per_use' || billingData.outbound_plan === 'outbound_pay_per_use') && (
+                  <div className="bg-white rounded-lg shadow">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">Transaction History</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      {loadingTransactions ? (
+                        <div className="p-12 text-center">
+                          <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto" />
+                        </div>
+                      ) : transactions.length === 0 ? (
+                        <div className="p-12 text-center text-gray-500">
+                          No transactions yet
+                        </div>
+                      ) : (
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Date
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Type
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Reason
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Amount
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {transactions.map((transaction) => (
+                              <tr key={transaction.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {new Date(transaction.created_at).toLocaleDateString()} {new Date(transaction.created_at).toLocaleTimeString()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span
+                                    className={`px-2 py-1 text-xs font-medium rounded-full ${transaction.type === 'top_up' || transaction.type === 'admin_credit'
+                                      ? 'bg-green-100 text-green-800'
+                                      : transaction.type === 'deduction' || transaction.type === 'admin_debit'
+                                        ? 'bg-red-100 text-red-800'
+                                        : transaction.type === 'refund'
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : 'bg-gray-100 text-gray-800'
+                                      }`}
+                                  >
+                                    {transaction.type?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-900">
+                                  {transaction.reason}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                  <span
+                                    className={`text-sm font-medium ${transaction.type === 'top_up' || transaction.type === 'admin_credit' || transaction.type === 'refund'
+                                      ? 'text-green-600'
+                                      : 'text-red-600'
+                                      }`}
+                                  >
+                                    {transaction.type === 'top_up' || transaction.type === 'admin_credit' || transaction.type === 'refund'
+                                      ? '+'
+                                      : '-'}
+                                    ${(Math.abs(transaction.amount_cents) / 100).toFixed(2)}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
+        )}
 
-          <div className="p-6 border-t border-gray-200">
-            <button
-              onClick={() => setShowAgentManagementModal(false)}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  {/* Add Balance Modal */ }
-  {
-    showAddBalanceModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-          <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">Add Balance</h3>
-            <button
-              onClick={() => {
-                setShowAddBalanceModal(false);
-                setBalanceAmount('');
-              }}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-          <div className="p-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Amount to Add ($)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={balanceAmount}
-                onChange={(e) => setBalanceAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Note (Required)
-              </label>
-              <textarea
-                value={balanceNote}
-                onChange={(e) => setBalanceNote(e.target.value)}
-                placeholder="Enter reason for adding balance (visible to client)..."
-                rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              />
-              <p className="text-sm text-gray-500 mt-2">
-                This note will be visible to the client in their transaction history
-              </p>
-            </div>
-          </div>
-          <div className="p-6 border-t border-gray-200 flex gap-3">
-            <button
-              onClick={() => {
-                setShowAddBalanceModal(false);
-                setBalanceAmount('');
-                setBalanceNote('');
-              }}
-              disabled={processingBalance}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleAddBalance}
-              disabled={processingBalance || !balanceAmount || !balanceNote.trim()}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {processingBalance ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Adding...
-                </>
-              ) : (
-                'Add Balance'
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  {/* Remove Balance Modal */ }
-  {
-    showRemoveBalanceModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-          <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">Remove Balance</h3>
-            <button
-              onClick={() => {
-                setShowRemoveBalanceModal(false);
-                setBalanceAmount('');
-              }}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-          <div className="p-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Amount to Remove ($)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={balanceAmount}
-                onChange={(e) => setBalanceAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Note (Required)
-              </label>
-              <textarea
-                value={balanceNote}
-                onChange={(e) => setBalanceNote(e.target.value)}
-                placeholder="Enter reason for removing balance (visible to client)..."
-                rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              />
-              <p className="text-sm text-gray-500 mt-2">
-                This note will be visible to the client in their transaction history
-              </p>
-            </div>
-          </div>
-          <div className="p-6 border-t border-gray-200 flex gap-3">
-            <button
-              onClick={() => {
-                setShowRemoveBalanceModal(false);
-                setBalanceAmount('');
-                setBalanceNote('');
-              }}
-              disabled={processingBalance}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleRemoveBalance}
-              disabled={processingBalance || !balanceAmount || !balanceNote.trim()}
-              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {processingBalance ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Removing...
-                </>
-              ) : (
-                'Remove Balance'
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  {/* Change Plan Modal */ }
-  {
-    showChangePlanModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-            <h3 className="text-xl font-semibold text-gray-900">Change Plans</h3>
-            <button
-              onClick={() => setShowChangePlanModal(false)}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-          <div className="p-6 space-y-6">
-            {/* Inbound Plan Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Inbound Plan
-              </label>
-              <div className="space-y-3">
-                <div
-                  onClick={() => setSelectedInboundPlan('inbound_pay_per_use')}
-                  className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedInboundPlan === 'inbound_pay_per_use'
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                    }`}
+        {activeTab === 'call-analytics' && (
+          <div className="space-y-6">
+            {/* Control Buttons */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => setShowResetConfirmModal(true)}
+                  disabled={resettingCalls}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                  title="Permanently deletes all calls, usage logs, and resets billing. Sets a timestamp to prevent re-syncing old data. Use this to remove test calls or start fresh."
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-900">Inbound Pay Per Use</div>
-                      <div className="text-sm text-gray-600 mt-1">Charged per minute for inbound calls</div>
-                    </div>
-                    {selectedInboundPlan === 'inbound_pay_per_use' && (
-                      <div className="flex-shrink-0 ml-3">
-                        <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  {resettingCalls ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Delete All Call Data
+                </button>
+                <button
+                  onClick={handleSyncBillingBalance}
+                  disabled={syncingBilling}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                  title="Adds up all existing call costs and updates the billing balance total. Use this when call costs look correct but the billing balance is wrong. Fast and simple - doesn't recalculate individual call costs."
+                >
+                  {syncingBilling ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <DollarSign className="h-4 w-4" />
+                  )}
+                  Sync Billing Balance
+                </button>
+                <button
+                  onClick={handleRecalculateCosts}
+                  disabled={recalculatingCosts}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                  title="Recalculates the cost of every call from scratch using current billing rates. Regenerates usage logs and updates billing balance. Use this after changing billing plans, rates, or when individual call costs are wrong. Takes longer than Sync Balance."
+                >
+                  {recalculatingCosts ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <DollarSign className="h-4 w-4" />
+                  )}
+                  Recalculate Costs
+                </button>
+                <button
+                  onClick={() => setShowResyncModal(true)}
+                  disabled={syncingCalls}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  title="Fetches calls from HighLevel API and updates your database. Calculates costs for new calls automatically. You can specify a date range to sync specific calls. Use this to pull in the latest calls or re-sync historical data."
+                >
+                  {syncingCalls ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Resync from HighLevel
+                </button>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow p-4 space-y-4">
+              {/* First Row: Direction Tabs & Date Picker */}
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setDirection('inbound')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'inbound'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                  >
+                    Inbound
+                  </button>
+                  <button
+                    onClick={() => setDirection('outbound')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'outbound'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                  >
+                    Outbound
+                  </button>
                 </div>
-                <div
-                  onClick={() => setSelectedInboundPlan('inbound_unlimited')}
-                  className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedInboundPlan === 'inbound_unlimited'
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                    }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-900">Inbound Unlimited</div>
-                      <div className="text-sm text-gray-600 mt-1">$500/month subscription for unlimited inbound calls</div>
-                    </div>
-                    {selectedInboundPlan === 'inbound_unlimited' && (
-                      <div className="flex-shrink-0 ml-3">
-                        <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+
+                <div className="relative">
+                  <button
+                    onClick={() => setShowDatePicker(!showDatePicker)}
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <Calendar className="h-4 w-4 text-gray-600" />
+                    <span className="text-sm">
+                      {startDate && endDate
+                        ? `${formatDateEST(startDate, 'MMM d, yyyy')} - ${formatDateEST(endDate, 'MMM d, yyyy')}`
+                        : 'Select Date Range'}
+                    </span>
+                  </button>
                 </div>
-                <div
-                  onClick={() => setSelectedInboundPlan(null)}
-                  className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedInboundPlan === null
-                    ? 'border-red-600 bg-red-50'
-                    : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
-                    }`}
+
+                {/* Manual Billing Button */}
+                <button
+                  onClick={() => setShowManualBillingModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-900">No Inbound Plan</div>
-                      <div className="text-sm text-gray-600 mt-1">Disable inbound calling</div>
-                    </div>
-                    {selectedInboundPlan === null && (
-                      <div className="flex-shrink-0 ml-3">
-                        <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center">
-                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      </div>
-                    )}
+                  <DollarSign className="h-4 w-4" />
+                  <span className="text-sm">Process Manual Bill</span>
+                </button>
+              </div>
+
+              {/* Second Row: Agent | Search */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Agent Selector */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Agent</label>
+                  <select
+                    value={selectedAgentId}
+                    onChange={(e) => {
+                      setSelectedAgentId(e.target.value);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">All Agents</option>
+                    {getAvailableAgents().map((agent: any) => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Search */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Contact, phone, action..."
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
                   </div>
                 </div>
               </div>
-
-              {/* Inbound Rate Input */}
-              {selectedInboundPlan === 'inbound_pay_per_use' && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Inbound Rate ($/minute)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={inboundRate}
-                    onChange={(e) => setInboundRate(e.target.value)}
-                    placeholder="5.00"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              )}
             </div>
 
-            {/* Outbound Plan Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Outbound Plan
-              </label>
-              <div className="space-y-3">
-                <div
-                  onClick={() => setSelectedOutboundPlan('outbound_pay_per_use')}
-                  className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOutboundPlan === 'outbound_pay_per_use'
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                    }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-900">Outbound Pay Per Use</div>
-                      <div className="text-sm text-gray-600 mt-1">Charged per minute for outbound calls</div>
-                    </div>
-                    {selectedOutboundPlan === 'outbound_pay_per_use' && (
-                      <div className="flex-shrink-0 ml-3">
-                        <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div
-                  onClick={() => setSelectedOutboundPlan(null)}
-                  className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOutboundPlan === null
-                    ? 'border-red-600 bg-red-50'
-                    : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
-                    }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-900">No Outbound Plan</div>
-                      <div className="text-sm text-gray-600 mt-1">Disable outbound calling</div>
-                    </div>
-                    {selectedOutboundPlan === null && (
-                      <div className="flex-shrink-0 ml-3">
-                        <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center">
-                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Outbound Rate Input */}
-              {selectedOutboundPlan === 'outbound_pay_per_use' && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Outbound Rate ($/minute)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={outboundRate}
-                    onChange={(e) => setOutboundRate(e.target.value)}
-                    placeholder="5.00"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Summary */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">Plan Summary</h4>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Inbound:</span>
-                  <span className="font-medium text-gray-900">
-                    {selectedInboundPlan === 'inbound_pay_per_use'
-                      ? `Pay Per Use ($${inboundRate}/min)`
-                      : selectedInboundPlan === 'inbound_unlimited'
-                        ? 'Unlimited ($500/month)'
-                        : 'None'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Outbound:</span>
-                  <span className="font-medium text-gray-900">
-                    {selectedOutboundPlan === 'outbound_pay_per_use'
-                      ? `Pay Per Use ($${outboundRate}/min)`
-                      : 'None'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="p-6 border-t border-gray-200 flex gap-3">
-            <button
-              onClick={() => setShowChangePlanModal(false)}
-              disabled={savingPlans}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSavePlans}
-              disabled={savingPlans}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {savingPlans ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  {/* Reset Confirmation Modal */ }
-  <ConfirmationModal
-    isOpen={showResetConfirmModal}
-    title="Delete All Call Data"
-    message={`Are you sure you want to delete all call data for this user?\nThis action cannot be undone.`}
-    confirmText="Delete All"
-    cancelText="Cancel"
-    onConfirm={handleResetCalls}
-    onCancel={() => setShowResetConfirmModal(false)}
-    type="danger"
-  />
-
-  {/* Suspend/Activate Confirmation Modal */ }
-  <ConfirmationModal
-    isOpen={showSuspendModal}
-    title={suspendAction === 'suspend' ? 'Suspend User' : 'Activate User'}
-    message={
-      suspendAction === 'suspend'
-        ? 'Are you sure you want to suspend this user?\nThis will prevent them from accessing the system.'
-        : 'Are you sure you want to activate this user?\nThis will restore their access to the system.'
-    }
-    confirmText={suspendAction === 'suspend' ? 'Suspend User' : 'Activate User'}
-    cancelText="Cancel"
-    onConfirm={handleSuspendUser}
-    onCancel={() => setShowSuspendModal(false)}
-    type={suspendAction === 'suspend' ? 'danger' : 'info'}
-  />
-
-  {/* Resync Modal */ }
-  {
-    showResyncModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
-          <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">Resync Calls from HighLevel</h3>
-            <button
-              onClick={() => {
-                setShowResyncModal(false);
-                setAdminOverride(false);
-              }}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-          <div className="p-6 space-y-4">
-            <p className="text-sm text-gray-600">
-              Fetch call data from HighLevel for this user. Select a date range to sync specific calls.
-            </p>
-
-            {/* Timezone Warning */}
-            {!locationTimezone && (
-              <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-yellow-800">
-                  <p className="font-medium">Location timezone not set</p>
-                  <p className="mt-1">Defaulting to America/New_York. Reconnect OAuth to fetch the correct timezone.</p>
-                </div>
-              </div>
+            {/* Date Range Picker Modal */}
+            {showDatePicker && (
+              <DateRangePicker
+                startDate={startDate}
+                endDate={endDate}
+                onDateRangeChange={(start, end) => {
+                  setStartDate(start);
+                  setEndDate(end);
+                }}
+                onClose={() => setShowDatePicker(false)}
+              />
             )}
 
-            {/* Admin Override Checkbox */}
-            <div className="flex items-start gap-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-              <input
-                type="checkbox"
-                id="adminOverride"
-                checked={adminOverride}
-                onChange={(e) => setAdminOverride(e.target.checked)}
-                className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <div className="flex-1">
-                <label htmlFor="adminOverride" className="text-sm font-medium text-gray-900 cursor-pointer">
-                  Admin Override (Force Full Resync)
-                </label>
-                <p className="text-xs text-gray-600 mt-1">
-                  When enabled, this will force a re-fetch of all calls in the selected date range, including calls that were previously removed or reset. This bypasses the standard <code className="bg-gray-100 px-1 rounded">calls_reset_at</code> safety check.
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Calls</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {getFilteredCalls().length}
+                    </p>
+                  </div>
+                  <Phone className="h-8 w-8 text-blue-600" />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Duration</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {(() => {
+                        const totalSecs = getFilteredCalls().reduce((sum, c) => sum + c.duration_seconds, 0);
+                        const mins = Math.floor(totalSecs / 60);
+                        const secs = totalSecs % 60;
+                        return `${mins}m ${secs}s`;
+                      })()}
+                    </p>
+                  </div>
+                  <Clock className="h-8 w-8 text-green-600" />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Cost</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {billingData?.inbound_plan === 'inbound_unlimited'
+                        ? 'N/A'
+                        : `$${getFilteredCalls()
+                          .filter(c => c.display_cost !== 'INCLUDED')
+                          .reduce((sum, c) => sum + c.cost, 0)
+                          .toFixed(2)}`}
+                    </p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-purple-600" />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Avg Duration</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {(() => {
+                        const filtered = getFilteredCalls();
+                        if (filtered.length === 0) return '0m 0s';
+                        const avgSecs = Math.floor(filtered.reduce((sum, c) => sum + c.duration_seconds, 0) / filtered.length);
+                        const mins = Math.floor(avgSecs / 60);
+                        const secs = avgSecs % 60;
+                        return `${mins}m ${secs}s`;
+                      })()}
+                    </p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-orange-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Calls Table */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Call History</h3>
+                {selectedCallIds.size > 0 && (
+                  <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+                    <span className="text-sm font-medium text-blue-700">{selectedCallIds.size} selected</span>
+                    <div className="h-4 w-px bg-blue-200 mx-1" />
+                    <button
+                      onClick={() => handleBulkAction('make_free')}
+                      disabled={processingBulkAction}
+                      className="text-xs font-medium text-blue-700 hover:text-blue-900 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                    >
+                      Make Free
+                    </button>
+                    <button
+                      onClick={() => setShowSetRateModal(true)}
+                      disabled={processingBulkAction}
+                      className="text-xs font-medium text-blue-700 hover:text-blue-900 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                    >
+                      Set Rate
+                    </button>
+                    <button
+                      onClick={() => handleBulkAction('delete')}
+                      disabled={processingBulkAction}
+                      className="text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                {loadingCalls ? (
+                  <div className="p-12 text-center">
+                    <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto" />
+                  </div>
+                ) : getFilteredCalls().length === 0 ? (
+                  <div className="p-12 text-center text-gray-500">
+                    No {direction} calls found
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                          <input
+                            type="checkbox"
+                            checked={getFilteredCalls().length > 0 && selectedCallIds.size === getFilteredCalls().length}
+                            onChange={(e) => handleSelectAllCalls(e.target.checked)}
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Date/Time
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Contact
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Number
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Duration
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Cost
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <span className="sr-only">Delete</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {getFilteredCalls().map((call) => (
+                        <tr key={call.id} className={selectedCallIds.has(call.id) ? 'bg-blue-50' : ''}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedCallIds.has(call.id)}
+                              onChange={(e) => handleSelectCall(call.id, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {formatDateEST(new Date(call.call_started_at), 'MMM d, yyyy h:mm a')}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {call.contact_name || 'Unknown'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {direction === 'inbound' ? call.from_number : call.to_number}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex flex-wrap gap-2">
+                              {(() => {
+                                const rawActions = (call.action_triggered || call.actions || []);
+                                const actionsArray = Array.isArray(rawActions)
+                                  ? rawActions
+                                  : typeof rawActions === 'string'
+                                    ? rawActions.split(',').map(a => a.trim()).filter(Boolean)
+                                    : [];
+
+                                if (actionsArray.length === 0) {
+                                  return <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">NONE</span>;
+                                }
+
+                                const mapLabel = (a: string) => {
+                                  const key = a.toLowerCase();
+                                  if (key.includes('knowledge')) return 'KB';
+                                  if (key.includes('call_transfer') || key.includes('transfer')) return 'TRANSFER';
+                                  if (key.includes('workflow')) return 'WORKFLOW';
+                                  if (key.includes('sms')) return 'SMS';
+                                  if (key.includes('appointment')) return 'APPT';
+                                  if (key.includes('contact')) return 'CONTACT';
+                                  return 'CUSTOM';
+                                };
+
+                                const mapStyle = (label: string) => {
+                                  switch (label) {
+                                    case 'KB':
+                                      return 'bg-blue-100 text-blue-800';
+                                    case 'TRANSFER':
+                                      return 'bg-purple-100 text-purple-800';
+                                    case 'WORKFLOW':
+                                      return 'bg-indigo-100 text-indigo-800';
+                                    case 'SMS':
+                                      return 'bg-teal-100 text-teal-800';
+                                    case 'APPT':
+                                      return 'bg-emerald-100 text-emerald-800';
+                                    case 'CONTACT':
+                                      return 'bg-sky-100 text-sky-800';
+                                    default:
+                                      return 'bg-gray-100 text-gray-800';
+                                  }
+                                };
+
+                                return actionsArray.map((act: string, idx: number) => {
+                                  const label = mapLabel(act);
+                                  return (
+                                    <span
+                                      key={`${act}-${idx}`}
+                                      className={`px-2 py-1 text-xs font-semibold rounded-full uppercase ${mapStyle(label)}`}
+                                    >
+                                      {label}
+                                    </span>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                            {billingData?.inbound_plan === 'inbound_unlimited' || call.display_cost === 'INCLUDED' ? (
+                              <span className="inline-flex px-2 py-0.5 text-xs font-bold bg-green-100 text-green-700 rounded uppercase">
+                                INCLUDED
+                              </span>
+                            ) : (
+                              <span className="text-gray-900">${(call.cost || 0).toFixed(2)}</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                            <button
+                              onClick={() => handleDeleteCall(call.id)}
+                              className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
+                              title="Delete Call"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+
+      </div>
+
+      {/* Disconnect Confirmation Modal */}
+      {
+        showDisconnectModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full">
+                  <AlertTriangle className="h-6 w-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Disconnect HighLevel?</h3>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to disconnect this HighLevel connection? This will deactivate the API key and stop syncing data.
+                All assigned agents will remain in the system but will no longer sync.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDisconnectModal(false)}
+                  disabled={disconnecting}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDisconnectHighLevel}
+                  disabled={disconnecting}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {disconnecting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Disconnecting...
+                    </>
+                  ) : (
+                    'Disconnect'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Agent Management Modal */}
+      {
+        showAgentManagementModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Manage Agent Assignments</h3>
+                <button
+                  onClick={() => setShowAgentManagementModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6">
+                {allAvailableAgents.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <p className="mb-4">Click "Fetch Agents" to load agents from HighLevel</p>
+                    <button
+                      onClick={loadAllAgents}
+                      disabled={fetchingAgents}
+                      className="inline-flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium"
+                    >
+                      {fetchingAgents ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Fetching...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4" />
+                          Fetch Agents
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : loadingAllAgents ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-4 flex items-center justify-between">
+                      <p className="text-sm text-gray-600">{allAvailableAgents.length} agents available</p>
+                      <button
+                        onClick={loadAllAgents}
+                        disabled={fetchingAgents}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                      >
+                        {fetchingAgents ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Refreshing...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3 w-3" />
+                            Refresh
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {allAvailableAgents.map((agent) => {
+                        const isAssigned = assignedAgents.some(a => a.id === agent.id);
+                        return (
+                          <div
+                            key={agent.id}
+                            className={`border rounded-lg p-4 transition-all ${isAssigned
+                              ? 'border-blue-300 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                              }`}
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className="font-medium text-gray-900 truncate">{agent.name}</h4>
+                                  {isAssigned && (
+                                    <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">
+                                      ASSIGNED
+                                    </span>
+                                  )}
+                                </div>
+                                {agent.description && (
+                                  <p className="text-sm text-gray-600 line-clamp-2">{agent.description}</p>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => handleToggleAgentAssignment(agent.id, isAssigned)}
+                                className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${isAssigned
+                                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                                  }`}
+                              >
+                                {isAssigned ? 'Remove' : 'Assign'}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-gray-200">
+                <button
+                  onClick={() => setShowAgentManagementModal(false)}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Add Balance Modal */}
+      {
+        showAddBalanceModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Add Balance</h3>
+                <button
+                  onClick={() => {
+                    setShowAddBalanceModal(false);
+                    setBalanceAmount('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Amount to Add ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={balanceAmount}
+                    onChange={(e) => setBalanceAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Note (Required)
+                  </label>
+                  <textarea
+                    value={balanceNote}
+                    onChange={(e) => setBalanceNote(e.target.value)}
+                    placeholder="Enter reason for adding balance (visible to client)..."
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  />
+                  <p className="text-sm text-gray-500 mt-2">
+                    This note will be visible to the client in their transaction history
+                  </p>
+                </div>
+              </div>
+              <div className="p-6 border-t border-gray-200 flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowAddBalanceModal(false);
+                    setBalanceAmount('');
+                    setBalanceNote('');
+                  }}
+                  disabled={processingBalance}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddBalance}
+                  disabled={processingBalance || !balanceAmount || !balanceNote.trim()}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {processingBalance ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    'Add Balance'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Remove Balance Modal */}
+      {
+        showRemoveBalanceModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Remove Balance</h3>
+                <button
+                  onClick={() => {
+                    setShowRemoveBalanceModal(false);
+                    setBalanceAmount('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Amount to Remove ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={balanceAmount}
+                    onChange={(e) => setBalanceAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Note (Required)
+                  </label>
+                  <textarea
+                    value={balanceNote}
+                    onChange={(e) => setBalanceNote(e.target.value)}
+                    placeholder="Enter reason for removing balance (visible to client)..."
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  />
+                  <p className="text-sm text-gray-500 mt-2">
+                    This note will be visible to the client in their transaction history
+                  </p>
+                </div>
+              </div>
+              <div className="p-6 border-t border-gray-200 flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowRemoveBalanceModal(false);
+                    setBalanceAmount('');
+                    setBalanceNote('');
+                  }}
+                  disabled={processingBalance}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRemoveBalance}
+                  disabled={processingBalance || !balanceAmount || !balanceNote.trim()}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {processingBalance ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Removing...
+                    </>
+                  ) : (
+                    'Remove Balance'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Change Plan Modal */}
+      {
+        showChangePlanModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
+                <h3 className="text-xl font-semibold text-gray-900">Change Plans</h3>
+                <button
+                  onClick={() => setShowChangePlanModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* Inbound Plan Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Inbound Plan
+                  </label>
+                  <div className="space-y-3">
+                    <div
+                      onClick={() => setSelectedInboundPlan('inbound_pay_per_use')}
+                      className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedInboundPlan === 'inbound_pay_per_use'
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                        }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900">Inbound Pay Per Use</div>
+                          <div className="text-sm text-gray-600 mt-1">Charged per minute for inbound calls</div>
+                        </div>
+                        {selectedInboundPlan === 'inbound_pay_per_use' && (
+                          <div className="flex-shrink-0 ml-3">
+                            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div
+                      onClick={() => setSelectedInboundPlan('inbound_unlimited')}
+                      className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedInboundPlan === 'inbound_unlimited'
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                        }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900">Inbound Unlimited</div>
+                          <div className="text-sm text-gray-600 mt-1">$500/month subscription for unlimited inbound calls</div>
+                        </div>
+                        {selectedInboundPlan === 'inbound_unlimited' && (
+                          <div className="flex-shrink-0 ml-3">
+                            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div
+                      onClick={() => setSelectedInboundPlan(null)}
+                      className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedInboundPlan === null
+                        ? 'border-red-600 bg-red-50'
+                        : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
+                        }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900">No Inbound Plan</div>
+                          <div className="text-sm text-gray-600 mt-1">Disable inbound calling</div>
+                        </div>
+                        {selectedInboundPlan === null && (
+                          <div className="flex-shrink-0 ml-3">
+                            <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center">
+                              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Inbound Rate Input */}
+                  {selectedInboundPlan === 'inbound_pay_per_use' && (
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Inbound Rate ($/minute)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={inboundRate}
+                        onChange={(e) => setInboundRate(e.target.value)}
+                        placeholder="5.00"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Outbound Plan Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Outbound Plan
+                  </label>
+                  <div className="space-y-3">
+                    <div
+                      onClick={() => setSelectedOutboundPlan('outbound_pay_per_use')}
+                      className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOutboundPlan === 'outbound_pay_per_use'
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                        }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900">Outbound Pay Per Use</div>
+                          <div className="text-sm text-gray-600 mt-1">Charged per minute for outbound calls</div>
+                        </div>
+                        {selectedOutboundPlan === 'outbound_pay_per_use' && (
+                          <div className="flex-shrink-0 ml-3">
+                            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div
+                      onClick={() => setSelectedOutboundPlan(null)}
+                      className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedOutboundPlan === null
+                        ? 'border-red-600 bg-red-50'
+                        : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
+                        }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900">No Outbound Plan</div>
+                          <div className="text-sm text-gray-600 mt-1">Disable outbound calling</div>
+                        </div>
+                        {selectedOutboundPlan === null && (
+                          <div className="flex-shrink-0 ml-3">
+                            <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center">
+                              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Outbound Rate Input */}
+                  {selectedOutboundPlan === 'outbound_pay_per_use' && (
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Outbound Rate ($/minute)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={outboundRate}
+                        onChange={(e) => setOutboundRate(e.target.value)}
+                        placeholder="5.00"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Summary */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-medium text-gray-900 mb-2">Plan Summary</h4>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Inbound:</span>
+                      <span className="font-medium text-gray-900">
+                        {selectedInboundPlan === 'inbound_pay_per_use'
+                          ? `Pay Per Use ($${inboundRate}/min)`
+                          : selectedInboundPlan === 'inbound_unlimited'
+                            ? 'Unlimited ($500/month)'
+                            : 'None'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Outbound:</span>
+                      <span className="font-medium text-gray-900">
+                        {selectedOutboundPlan === 'outbound_pay_per_use'
+                          ? `Pay Per Use ($${outboundRate}/min)`
+                          : 'None'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 border-t border-gray-200 flex gap-3">
+                <button
+                  onClick={() => setShowChangePlanModal(false)}
+                  disabled={savingPlans}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSavePlans}
+                  disabled={savingPlans}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingPlans ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Reset Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showResetConfirmModal}
+        title="Delete All Call Data"
+        message={`Are you sure you want to delete all call data for this user?\nThis action cannot be undone.`}
+        confirmText="Delete All"
+        cancelText="Cancel"
+        onConfirm={handleResetCalls}
+        onCancel={() => setShowResetConfirmModal(false)}
+        type="danger"
+      />
+
+      {/* Suspend/Activate Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showSuspendModal}
+        title={suspendAction === 'suspend' ? 'Suspend User' : 'Activate User'}
+        message={
+          suspendAction === 'suspend'
+            ? 'Are you sure you want to suspend this user?\nThis will prevent them from accessing the system.'
+            : 'Are you sure you want to activate this user?\nThis will restore their access to the system.'
+        }
+        confirmText={suspendAction === 'suspend' ? 'Suspend User' : 'Activate User'}
+        cancelText="Cancel"
+        onConfirm={handleSuspendUser}
+        onCancel={() => setShowSuspendModal(false)}
+        type={suspendAction === 'suspend' ? 'danger' : 'info'}
+      />
+
+      {/* Resync Modal */}
+      {
+        showResyncModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Resync Calls from HighLevel</h3>
+                <button
+                  onClick={() => {
+                    setShowResyncModal(false);
+                    setAdminOverride(false);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-gray-600">
+                  Fetch call data from HighLevel for this user. Select a date range to sync specific calls.
                 </p>
+
+                {/* Timezone Warning */}
+                {!locationTimezone && (
+                  <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-yellow-800">
+                      <p className="font-medium">Location timezone not set</p>
+                      <p className="mt-1">Defaulting to America/New_York. Reconnect OAuth to fetch the correct timezone.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Admin Override Checkbox */}
+                <div className="flex items-start gap-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="adminOverride"
+                    checked={adminOverride}
+                    onChange={(e) => setAdminOverride(e.target.checked)}
+                    className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="adminOverride" className="text-sm font-medium text-gray-900 cursor-pointer">
+                      Admin Override (Force Full Resync)
+                    </label>
+                    <p className="text-xs text-gray-600 mt-1">
+                      When enabled, this will force a re-fetch of all calls in the selected date range, including calls that were previously removed or reset. This bypasses the standard <code className="bg-gray-100 px-1 rounded">calls_reset_at</code> safety check.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Warning for Admin Override */}
+                {adminOverride && (
+                  <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <AlertTriangle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-orange-800">
+                      <p className="font-medium">Admin override enabled</p>
+                      <p className="mt-1">This will re-import calls that may have been previously deleted. This action bypasses sync restrictions and will be logged in the audit trail.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="p-6 border-t border-gray-200 flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowResyncModal(false);
+                    setAdminOverride(false);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleResyncCalls}
+                  disabled={syncingCalls}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {syncingCalls ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                      Syncing...
+                    </>
+                  ) : (
+                    'Start Resync'
+                  )}
+                </button>
               </div>
             </div>
+          </div>
+        )
+      }
 
-            {/* Warning for Admin Override */}
-            {adminOverride && (
-              <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-orange-800">
-                  <p className="font-medium">Admin override enabled</p>
-                  <p className="mt-1">This will re-import calls that may have been previously deleted. This action bypasses sync restrictions and will be logged in the audit trail.</p>
+      {/* Set Rate Modal */}
+      {
+        showSetRateModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Set Bulk Rate</h3>
+                <button
+                  onClick={() => {
+                    setShowSetRateModal(false);
+                    setBulkRate('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-gray-600">
+                  Set a new rate (cents per minute) for the {selectedCallIds.size} selected calls.
+                  Costs will be recalculated based on duration.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rate (cents/min)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={bulkRate}
+                    onChange={(e) => setBulkRate(e.target.value)}
+                    placeholder="5.00"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
                 </div>
               </div>
-            )}
-          </div>
-          <div className="p-6 border-t border-gray-200 flex gap-3">
-            <button
-              onClick={() => {
-                setShowResyncModal(false);
-                setAdminOverride(false);
-              }}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleResyncCalls}
-              disabled={syncingCalls}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              {syncingCalls ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
-                  Syncing...
-                </>
-              ) : (
-                'Start Resync'
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  {/* Set Rate Modal */ }
-  {
-    showSetRateModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-          <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">Set Bulk Rate</h3>
-            <button
-              onClick={() => {
-                setShowSetRateModal(false);
-                setBulkRate('');
-              }}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-          <div className="p-6 space-y-4">
-            <p className="text-sm text-gray-600">
-              Set a new rate (cents per minute) for the {selectedCallIds.size} selected calls.
-              Costs will be recalculated based on duration.
-            </p>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Rate (cents/min)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={bulkRate}
-                onChange={(e) => setBulkRate(e.target.value)}
-                placeholder="5.00"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <div className="p-6 border-t border-gray-200 flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowSetRateModal(false);
+                    setBulkRate('');
+                  }}
+                  disabled={processingBulkAction}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleBulkAction('set_rate', parseFloat(bulkRate))}
+                  disabled={processingBulkAction || !bulkRate || isNaN(parseFloat(bulkRate))}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {processingBulkAction ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    'Update Costs'
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-          <div className="p-6 border-t border-gray-200 flex gap-3">
-            <button
-              onClick={() => {
-                setShowSetRateModal(false);
-                setBulkRate('');
-              }}
-              disabled={processingBulkAction}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => handleBulkAction('set_rate', parseFloat(bulkRate))}
-              disabled={processingBulkAction || !bulkRate || isNaN(parseFloat(bulkRate))}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {processingBulkAction ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                'Update Costs'
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+        )
+      }
 
-  <NotificationModal
-    isOpen={notification.isOpen}
-    onClose={hideNotification}
-    title={notification.title}
-    message={notification.message}
-    type={notification.type}
-  />
+      <NotificationModal
+        isOpen={notification.isOpen}
+        onClose={hideNotification}
+        title={notification.title}
+        message={notification.message}
+        type={notification.type}
+      />
 
-  {/* Delete Email Confirmation Modal */}
-  <ConfirmationModal
-    isOpen={!!emailToDelete}
-    title="Remove Email Address"
-    message="Are you sure you want to remove this email address?"
-    confirmText="Remove"
-    cancelText="Cancel"
-    onConfirm={executeRemoveEmail}
-    onCancel={() => setEmailToDelete(null)}
-    type="danger"
-  />
+      {/* Delete Email Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={!!emailToDelete}
+        title="Remove Email Address"
+        message="Are you sure you want to remove this email address?"
+        confirmText="Remove"
+        cancelText="Cancel"
+        onConfirm={executeRemoveEmail}
+        onCancel={() => setEmailToDelete(null)}
+        type="danger"
+      />
 
-  {/* Delete Call Confirmation Modal */ }
-  <ConfirmationModal
-    isOpen={!!callToDelete}
-    title="Delete Call Record"
-    message="Are you sure you want to delete this call? This action cannot be undone and will remove it from analytics and billing calculations."
-    confirmText="Delete Call"
-    cancelText="Cancel"
-    onConfirm={executeDeleteCall}
-    onCancel={() => setCallToDelete(null)}
-    type="danger"
-  />
+      {/* Delete Call Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={!!callToDelete}
+        title="Delete Call Record"
+        message="Are you sure you want to delete this call? This action cannot be undone and will remove it from analytics and billing calculations."
+        confirmText="Delete Call"
+        cancelText="Cancel"
+        onConfirm={executeDeleteCall}
+        onCancel={() => setCallToDelete(null)}
+        type="danger"
+      />
 
-  {/* Bulk Action Confirmation Modal */}
-  <ConfirmationModal
-    isOpen={bulkActionConfirmation.isOpen}
-    title={`Confirm ${bulkActionConfirmation.action?.replace('_', ' ') || 'Action'}`}
-    message={`Are you sure you want to ${bulkActionConfirmation.action?.replace('_', ' ')} for ${selectedCallIds.size} calls?`}
-    confirmText="Confirm"
-    cancelText="Cancel"
-    onConfirm={executeBulkAction}
-    onCancel={() => setBulkActionConfirmation(prev => ({ ...prev, isOpen: false }))}
-    type="warning"
-  />
+      {/* Bulk Action Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={bulkActionConfirmation.isOpen}
+        title={`Confirm ${bulkActionConfirmation.action?.replace('_', ' ') || 'Action'}`}
+        message={`Are you sure you want to ${bulkActionConfirmation.action?.replace('_', ' ')} for ${selectedCallIds.size} calls?`}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        onConfirm={executeBulkAction}
+        onCancel={() => setBulkActionConfirmation(prev => ({ ...prev, isOpen: false }))}
+        type="warning"
+      />
 
-  {/* Manual Billing Modal */ }
-  <ManualBillingModal
-    isOpen={showManualBillingModal}
-    onClose={() => setShowManualBillingModal(false)}
-    userId={userId!}
-    startDate={startDate || new Date()}
-    endDate={endDate || new Date()}
-    onSuccess={() => {
-      showNotification('Manual billing processed successfully', 'success');
-      loadBillingData();
-      loadCalls();
-    }}
-  />
+      {/* Manual Billing Modal */}
+      <ManualBillingModal
+        isOpen={showManualBillingModal}
+        onClose={() => setShowManualBillingModal(false)}
+        userId={userId!}
+        startDate={startDate || new Date()}
+        endDate={endDate || new Date()}
+        onSuccess={() => {
+          showNotification('Manual billing processed successfully', 'success');
+          loadBillingData();
+          loadCalls();
+        }}
+      />
     </div >
   );
 }

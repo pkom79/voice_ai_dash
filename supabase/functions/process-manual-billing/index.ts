@@ -58,7 +58,16 @@ async function stripeRequest(
     if (!response.ok) {
         const errorText = await response.text();
         console.error('Stripe API error:', errorText);
-        throw new Error(`Stripe API request failed (${response.status})`);
+        let errorMessage = `Stripe API request failed (${response.status})`;
+        try {
+            const errorJson = JSON.parse(errorText);
+            if (errorJson.error && errorJson.error.message) {
+                errorMessage = errorJson.error.message;
+            }
+        } catch (e) {
+            // ignore json parse error
+        }
+        throw new Error(errorMessage);
     }
 
     return response.json();
@@ -107,29 +116,32 @@ async function createStripeInvoice(
 async function fetchUsageSummary(userId: string, start: Date, end: Date): Promise<UsageSummary> {
     console.log(`Fetching usage for user ${userId} from ${start.toISOString()} to ${end.toISOString()}`);
 
+    // Use calls table directly - more reliable than usage_logs
     const { data, error } = await supabase
-        .from('usage_logs')
-        .select('cost_cents, seconds_used, created_at')
+        .from('calls')
+        .select('cost, duration_seconds, call_started_at, display_cost')
         .eq('user_id', userId)
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
+        .gte('call_started_at', start.toISOString())
+        .lte('call_started_at', end.toISOString());
 
     if (error) {
-        console.error('Error fetching usage logs:', error);
+        console.error('Error fetching calls:', error);
         throw error;
     }
 
-    console.log(`Found ${data?.length || 0} usage logs`);
+    console.log(`Found ${data?.length || 0} calls in period`);
     if (data && data.length > 0) {
-        console.log('Sample log:', data[0]);
+        console.log('Sample call:', data[0]);
     }
 
     let totalCents = 0;
     let totalSeconds = 0;
 
-    for (const log of data || []) {
-        totalCents += log.cost_cents || 0;
-        totalSeconds += log.seconds_used || 0;
+    for (const call of data || []) {
+        // Skip INCLUDED calls (unlimited plan)
+        if (call.display_cost === 'INCLUDED') continue;
+        totalCents += Math.round((call.cost || 0) * 100);
+        totalSeconds += call.duration_seconds || 0;
     }
 
     const totalMinutes = totalSeconds / 60;

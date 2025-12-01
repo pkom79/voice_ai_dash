@@ -611,7 +611,7 @@ export function BillingPage() {
               <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-lg mb-4 w-fit">
                 <Activity className="h-6 w-6 text-purple-600 dark:text-purple-400" />
               </div>
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Current Usage</h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Cost This Month (Month to Date)</h3>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
                 ${Math.max(0, (billingAccount?.month_spent_cents || 0) / 100).toFixed(2)}
               </p>
