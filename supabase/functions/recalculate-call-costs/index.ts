@@ -18,15 +18,15 @@ function calculateCallCost(
   durationSeconds: number,
   direction: string,
   billingAccount: any
-): { cost: number; displayCost: string | null } {
+): { cost: number; displayCost: string | null; rateCents: number } {
   // No billing account means no cost
   if (!billingAccount) {
-    return { cost: 0, displayCost: null };
+    return { cost: 0, displayCost: null, rateCents: 0 };
   }
 
   // Unlimited inbound plan - inbound calls are included
   if (direction === 'inbound' && billingAccount.inbound_plan === 'inbound_unlimited') {
-    return { cost: 0, displayCost: 'INCLUDED' };
+    return { cost: 0, displayCost: 'INCLUDED', rateCents: 0 };
   }
 
   // Calculate cost based on direction and rate
@@ -46,7 +46,7 @@ function calculateCallCost(
   // Cost = (duration in minutes) * (rate in cents) / 100 (convert to dollars)
   const cost = (durationMinutes * rateCents) / 100;
 
-  return { cost: parseFloat(cost.toFixed(2)), displayCost: null };
+  return { cost: parseFloat(cost.toFixed(2)), displayCost: null, rateCents };
 }
 
 Deno.serve(async (req: Request) => {
@@ -164,7 +164,7 @@ Deno.serve(async (req: Request) => {
     // Recalculate cost for each call
     for (const call of calls || []) {
       try {
-        const { cost, displayCost } = calculateCallCost(
+        const { cost, displayCost, rateCents } = calculateCallCost(
           call.duration_seconds || 0,
           call.direction,
           billingAccount
@@ -211,6 +211,8 @@ Deno.serve(async (req: Request) => {
               call_id: call.id,
               cost_cents: newCostCents,
               usage_type: call.direction,
+              seconds_used: call.duration_seconds || 0,
+              rate_at_time_cents: rateCents,
               created_at: call.call_started_at,
             });
 
