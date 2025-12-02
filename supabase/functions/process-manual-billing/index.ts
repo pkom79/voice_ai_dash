@@ -189,16 +189,10 @@ Deno.serve(async (req: Request) => {
         const totalCostCents = usage.totalCents;
         const walletBalanceCents = account.wallet_cents || 0;
 
-        // Calculate application
-        // Since the wallet balance is calculated dynamically (Credits - All Usage),
-        // the current walletBalanceCents ALREADY reflects the deduction of this usage.
-        // To determine how much credit was available to cover this usage, we add it back.
-        const effectiveBalanceCents = walletBalanceCents + totalCostCents;
+        // Calculate how much wallet credit can cover the usage
+        const walletAppliedCents = Math.min(walletBalanceCents, totalCostCents);
 
-        // We can apply credits up to the effective balance, but not more than the cost
-        const walletAppliedCents = Math.max(0, Math.min(effectiveBalanceCents, totalCostCents));
-
-        // The remainder is what needs to be charged
+        // The remainder is what needs to be charged via Stripe
         const amountToChargeCents = Math.max(0, totalCostCents - walletAppliedCents);
 
         const result = {
