@@ -212,6 +212,45 @@ export function BillingPage() {
     }
   }, [searchParams]);
 
+  // Realtime updates: refresh when wallet or billing account changes
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const channel = supabase
+      .channel('billing-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'wallet_transactions',
+          filter: `user_id=eq.${profile.id}`,
+        },
+        () => {
+          loadBillingData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'billing_accounts',
+          filter: `user_id=eq.${profile.id}`,
+        },
+        () => {
+          loadBillingData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch {}
+    };
+  }, [profile?.id]);
+
   const loadBillingData = async () => {
     setLoading(true);
     try {
