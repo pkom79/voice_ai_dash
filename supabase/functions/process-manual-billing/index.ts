@@ -240,14 +240,22 @@ Deno.serve(async (req: Request) => {
 
             // 2. Deduct from wallet if needed
             if (walletAppliedCents > 0) {
-                // Calculate balance before and after
-                const balanceBeforeCents = walletBalanceCents + totalCostCents; // Effective balance before this charge
-                const balanceAfterCents = balanceBeforeCents - walletAppliedCents;
+                // Use current wallet balance and persist the decrement
+                const balanceBeforeCents = walletBalanceCents;
+                const balanceAfterCents = Math.max(0, balanceBeforeCents - walletAppliedCents);
 
+                // Update billing_accounts wallet balance
+                const { error: updateWalletError } = await supabase
+                    .from('billing_accounts')
+                    .update({ wallet_cents: balanceAfterCents })
+                    .eq('user_id', userId);
+                if (updateWalletError) throw updateWalletError;
+
+                // Log deduction with positive amount
                 const { error: walletError } = await supabase.rpc('log_wallet_transaction', {
                     p_user_id: userId,
                     p_type: 'deduction',
-                    p_amount_cents: -walletAppliedCents,
+                    p_amount_cents: walletAppliedCents,
                     p_balance_before_cents: balanceBeforeCents,
                     p_balance_after_cents: balanceAfterCents,
                     p_reason: `Manual usage charge: ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`,
