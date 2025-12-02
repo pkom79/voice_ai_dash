@@ -251,7 +251,7 @@ Deno.serve(async (req: Request) => {
                     .update({ wallet_cents: balanceAfterCents })
                     .eq('user_id', userId)
                     .select();
-                
+
                 console.log('Update result:', { updateData, updateWalletError });
                 if (updateWalletError) throw updateWalletError;
 
