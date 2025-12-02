@@ -247,7 +247,7 @@ export function BillingPage() {
     return () => {
       try {
         supabase.removeChannel(channel);
-      } catch {}
+      } catch { }
     };
   }, [profile?.id]);
 

@@ -238,11 +238,21 @@ Deno.serve(async (req: Request) => {
                 const balanceBeforeCents = walletBalanceCents;
                 const balanceAfterCents = Math.max(0, balanceBeforeCents - walletAppliedCents);
 
+                console.log('Updating wallet balance:', {
+                    userId,
+                    balanceBeforeCents,
+                    walletAppliedCents,
+                    balanceAfterCents
+                });
+
                 // Update billing_accounts wallet balance
-                const { error: updateWalletError } = await supabase
+                const { error: updateWalletError, data: updateData } = await supabase
                     .from('billing_accounts')
                     .update({ wallet_cents: balanceAfterCents })
-                    .eq('user_id', userId);
+                    .eq('user_id', userId)
+                    .select();
+                
+                console.log('Update result:', { updateData, updateWalletError });
                 if (updateWalletError) throw updateWalletError;
 
                 // Log deduction with positive amount
